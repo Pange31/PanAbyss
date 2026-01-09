@@ -1471,7 +1471,7 @@ def compute_global_phylo_tree_from_nodes(method="raxml", output_dir = "", strand
         else:
             #Set of control points :
             x_vals = np.array([1e4, 1e5, 1e7, 1e8, 2e9])
-            y_vals = np.array([1e4, 3e4, 9e4, 1e5, 2e4])
+            y_vals = np.array([1e4, 3e4, 9e4, 1e5, 2e5])
             logx = np.log10(x_vals)
             #Compute the polynomial interpolation in log space:
             coeffs = np.polyfit(logx, y_vals, deg=4)
@@ -1479,7 +1479,7 @@ def compute_global_phylo_tree_from_nodes(method="raxml", output_dir = "", strand
                 return np.polyval(coeffs, np.log10(x))
             sample_nodes_number = max(min_sample_size, min(int(f(total_nodes_number)),max_nodes))
         #sample_nodes_number = max(min_sample_size,min(int(node_selection_percentage*total_nodes_number/100), max_nodes))
-
+        logger.info(f"Number of nodes to sample : {sample_nodes_number} - Total node {total_nodes_number}")
         if chromosome is None :
             query = f"""
             MATCH (n:Node)
@@ -1504,7 +1504,7 @@ def compute_global_phylo_tree_from_nodes(method="raxml", output_dir = "", strand
                 nodes_list.append(dict(record["nodes"]))
         
         
-        logger.info(f"Number of sampled nodes : {sample_nodes_number} - Total node {total_nodes_number}")
+        logger.info(f"Number of sampled nodes : {len(nodes_list)}")
         sample_size = len(nodes_list)
         if sample_size >= min_sample_size :
             #Prepare PAV matrix

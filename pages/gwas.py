@@ -120,20 +120,21 @@ def layout():
                      style={'marginRight': '15px'}
                 ),
                 dcc.Input(id='gwas-region-gap',style={'width': '80px', 'marginRight': '15px'}, type='number', step=1, value=10000, debounce=True),
-
-                dcc.Checklist(
-                    id='gwas-toggle-deletion',
-                    options=[{'label':'', 'title':"If checked, the process will look for deletion node: it looks for nodes with minimal selected and unselected haplotypes followed by a node deleted for defined percentage of selected haplotype. The node size must be greater than min node size value.", 'value': 'show'}],
-                    value=['show'],
-                    style={'marginRight': '15px'}
-                ),
-                html.Label(
-                    "Search for deletion (take more time). Unselected haplotypes percentage (%) :  ",
-                    title="If checked. Used to detect deleted nodes. Search for nodes with at least (T x number of unselected haplotypes / 100) unselected haplotypes + the defined percentage of selected haplotypes. For each node found, it looks for a deleted following node."
-                ),
-                dcc.Input(id='deletion-percentage',style={'width': '80px', 'marginRight': '15px'}, type='number', step=1, value=100, debounce=True),
-                
-            ], style={"display": "flex", "alignItems": "center", "marginRight": "20px"}
+                html.Div([
+                    dcc.Checklist(
+                        id='gwas-toggle-deletion',
+                        options=[{'label':'', 'title':"If checked, the process will look for deletion node: it looks for nodes with minimal selected and unselected haplotypes followed by a node deleted for defined percentage of selected haplotype. The node size must be greater than min node size value.", 'value': 'show'}],
+                        value=['show'],
+                        style={'marginRight': '15px'}
+                    ),
+                    html.Label(
+                        "Search for deletion (take more time). Unselected haplotypes percentage (%):  ",
+                        style={"marginRight": "15px"},
+                        title="If checked. Used to detect deleted nodes. Search for nodes with at least (T x number of unselected haplotypes / 100) unselected haplotypes + the defined percentage of selected haplotypes. For each node found, it looks for a deleted following node."
+                    ),
+                    dcc.Input(id='deletion-percentage',style={'width': '80px', 'marginRight': '15px'}, type='number', step=1, value=100, debounce=True),
+                ], style={"display": "flex", "alignItems": "center", "marginRight": "20px"}),
+            ], style={"display": "flex", "flexWrap": "wrap", "alignItems": "center", "marginRight": "20px"}
             ),
                 dcc.Dropdown(
                     id='gwas_chromosomes_dropdown',
@@ -145,7 +146,7 @@ def layout():
                         "flexShrink": 0
                     }
                 ),
-        ], style={"display": "flex", "flexDirection": "row", "alignItems": "center", "marginBottom": "20px"}),
+        ], style={"display": "flex", "flexWrap": "wrap", "flexDirection": "row", "alignItems": "center", "marginBottom": "20px"}),
         
         html.Br(), 
         html.Label(
@@ -171,7 +172,12 @@ def layout():
         ),
     
         html.Div(id='shared-status', style={'marginBottom': '15px'}),
-        html.Div(id='sequence-zone', style={"fontSize": "18px", "padding": "10px"}),
+        html.Div(id='sequence-zone', style={"fontSize": "18px",
+                                            "padding": "10px",
+                                            "whiteSpace": "pre-wrap",
+                                            "wordWrap": "break-word",
+                                            "overflowWrap": "break-word"
+                                            }),
         html.Label("Tip : Click on the size value to print the region sequence"), 
         html.Div([
             html.Button("💾 Export to CSV", title=f"Export the results in the table into a csv file in the {EXPORT_DIR} directory. Sequences won't be present.",id='save-csv-button', n_clicks=0),

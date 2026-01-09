@@ -1591,7 +1591,7 @@ def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotat
             ligne = file.readline()
             while ligne :
                 if ligne[0] != '#':
-                    ligne_dec = ligne.split()
+                    ligne_dec = ligne.split("\t")
                     chromosome = get_chromosome_annotation(ligne_dec[0])
                     if single_chromosome == None or single_chromosome == chromosome : 
                         name = hashlib.sha256(ligne.encode("utf-8")).hexdigest()
@@ -1631,6 +1631,8 @@ def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotat
                                         nodes_dic[name]["exon_number"] = attributes[i+1][:-1].replace('"',"")
                                     case "gene_name":
                                         nodes_dic[name]["gene_name"] = attributes[i+1][:-1].replace('"',"")
+                                    case "full_gene_name":
+                                        nodes_dic[name]["full_gene_name"] = attributes[i + 1][:-1].replace('"', "")
                                     case "gene_source":
                                         nodes_dic[name]["gene_source"] = attributes[i+1][:-1].replace('"',"")    
                                     case "gene_biotype":
@@ -1651,6 +1653,7 @@ def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotat
                             if feature == "gene" :
                                 current_gene_id = ""
                                 current_gene_name = ""
+                                current_full_gene_name = ""
                                 current_transcript_id = ""
                                 current_transcript_name = ""
                             if feature == "exon":
@@ -1664,7 +1667,9 @@ def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotat
                                 elif feature == "gene" and current_attribute =="gene_id":
                                     current_gene_id = attributes[i+1]
                                 elif feature == "gene" and current_attribute =="name":
-                                    current_gene_name = attributes[i+1]            
+                                    current_gene_name = attributes[i+1]
+                                elif feature == "gene" and current_attribute =="full_name":
+                                    current_full_gene_name = attributes[i+1]
                                 elif feature == "mrna" and current_attribute == "id":
                                     current_transcript_id = attributes[i+1]
                                 elif feature == "mrna" and current_attribute == "transcript_id":
@@ -1689,6 +1694,7 @@ def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotat
                                     current_gene_name = current_gene_id
                                 nodes_dic[name]["gene_id"] = current_gene_id
                                 nodes_dic[name]["gene_name"] = current_gene_name
+                                nodes_dic[name]["full_gene_name"] = current_full_gene_name
                                 if current_transcript_id != "":
                                     nodes_dic[name]["transcript_id"] = current_transcript_id
                                     nodes_dic[name]["transcript_name"] = current_transcript_name
