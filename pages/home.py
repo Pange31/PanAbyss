@@ -15,6 +15,7 @@ import pandas as pd
 import numpy as np
 import itertools
 import json
+import math
 
 from app import *
 
@@ -219,7 +220,11 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     node_style="exon"
             node_color = flow_to_rgb(row['flow'],node_style,exons_color)
             #displayed_node_size = (10+row['size']-size_min) / size_max*size_max_noeud+size_min
-            displayed_node_size = (40+row['size'])/ size_max_noeud
+            #displayed_node_size = (40+math.log(row['size']))/ size_max_noeud
+            s = row['size']
+            s_max = 200
+            s_min = 30
+            displayed_node_size = s_min + (s-size_min)*(s_max-s_min)/(size_max-size_min)
 
             data_nodes = {
                 'data': {
