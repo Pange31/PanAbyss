@@ -456,7 +456,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True ):
 #   - OK
 #   - WIDE
 #   - NO_DATA
-def get_nodes_by_gene(genome, chromosome, gene_id=None, gene_name=None):
+def get_nodes_by_feature(genome, chromosome, gene_id=None, feature = None, value=None):
     return_code = "OK"
     if get_driver() is None :
         return []
@@ -468,33 +468,30 @@ def get_nodes_by_gene(genome, chromosome, gene_id=None, gene_name=None):
         with driver.session() as session:
             genome_position = genome+"_position"
             # Step 1 : find nodes with gene annotation
-            if gene_name is not None :
-                logger.info("Looking for gene name : " + str(gene_name))
+            if feature is not None and value is not None:
+                feature_name = feature + "_name"
+                logger.info(f"Looking for {feature_name} : {value}")
                 query = f"""
-                MATCH (a:Annotation {{chromosome:"{chromosome}", gene_name: $gene_name}})<-[]-(n:Node)
+                MATCH (a:Annotation {{chromosome:"{chromosome}", {feature_name}: $value}})<-[]-(n:Node)
                 WHERE n[$genome_position] IS NOT NULL
                 RETURN DISTINCT n
                 ORDER BY n[$genome_position] ASC
                 """
-                result = session.run(query, gene_name=gene_name, genome_position=genome_position)
+                result = session.run(query, value=value, genome_position=genome_position)
                 #logger.debug(query)
+                noeuds_annotes = [record["n"] for record in result]
+                if len(noeuds_annotes) > 0 and genome_position in noeuds_annotes[0] and genome_position in \
+                        noeuds_annotes[-1]:
+                    start = noeuds_annotes[0][genome_position]
+                    stop = noeuds_annotes[-1][genome_position] + noeuds_annotes[-1]["size"]
+                    logger.debug(f"start : {start} - stop : {stop} - nodes number : {len(noeuds_annotes)}")
+                    nodes_data, return_metadata = get_nodes_by_region(genome, chromosome, start, stop)
+                else:
+                    logger.debug(f"No nodes found {len(noeuds_annotes)}.")
+                    return_metadata = {"return_code": "NO_DATA", "flow": None, "nodes_number": 0}
             else:
-                query = f"""
-                MATCH (a:Annotation {{chromosome:"{chromosome}", gene_id: $gene_id}})<-[]-(n:Node)
-                WHERE n[$genome_position] IS NOT NULL
-                RETURN DISTINCT n
-                ORDER BY n[$genome_position] ASC
-                """
-                result = session.run(query, gene_id=gene_id, genome_position=genome_position)
-            noeuds_annotes = [record["n"] for record in result]
-            if len(noeuds_annotes) > 0 and genome_position in noeuds_annotes[0] and genome_position in noeuds_annotes[-1]:
-                start = noeuds_annotes[0][genome_position]
-                stop = noeuds_annotes[-1][genome_position] + noeuds_annotes[-1]["size"]
-                logger.debug(f"start : {start} - stop : {stop} - nodes number : {len(noeuds_annotes)}")
-                nodes_data, return_metadata = get_nodes_by_region(genome, chromosome, start, stop)
-            else:
-                logger.debug(f"No nodes found {len(noeuds_annotes)}.")
                 return_metadata = {"return_code": "NO_DATA", "flow":None, "nodes_number":0}
+
 
             
         return nodes_data, return_metadata
@@ -551,6 +548,22 @@ def get_annotations_in_position_range(genome_ref, chromosome="1", start_position
             annotations = [dict(record) for record in result]
     
     return annotations
+
+
+# This function get all features on annotation nodes
+def get_annotations_features():
+    if get_driver() is None:
+        return []
+    with get_driver() as driver:
+        query = f"""
+        MATCH (a:Annotation)
+        RETURN DISTINCT a.feature as feature
+        """
+        with driver.session() as session:
+            result = session.run(query)
+            features = [record["feature"] for record in result]
+
+    return features
 
 #This function will get all chromosomes present in the pangenome graph
 def get_chromosomes():
@@ -1293,7 +1306,7 @@ def calculer_variabilite(chromosome_list=None, ref_genome=None, window_size=1000
         webbrowser.open(f'file://{file_path}')
 
     
-#This function takes nodes data (from get_nodes_by_region ou get_nodes_by_gene for exemple)
+#This function takes nodes data (from get_nodes_by_region or get_nodes_by_feature for exemple)
 #it computes the Jaccard distance on these nodes
 #and it returns the distance matrix and the distance matrix weighted by the nodes size
 def compute_phylo_tree_from_nodes(nodes_data,output_dir = "", weighted=False):

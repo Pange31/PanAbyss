@@ -150,6 +150,7 @@ def init_data(pathname):
     #logger.info("all genomes : " + str(all_genomes))
     new_data["genomes"] = all_genomes
     new_data["chromosomes"]  = get_chromosomes()
+    new_data["features"] = get_annotations_features()
     return new_data
 
 

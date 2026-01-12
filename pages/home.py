@@ -410,6 +410,7 @@ def layout(data=None, initial_size_limit=10):
     all_genomes = get_genomes()
     all_genomes.sort()
     all_chromosomes = get_chromosomes()
+    features = get_annotations_features()
     if data != None:
         elements, nodes_count = compute_graph_elements(
             data, all_genomes, initial_size_limit, all_genomes, all_chromosomes, [], [])
@@ -581,35 +582,45 @@ def layout(data=None, initial_size_limit=10):
                                 html.Label("End : ", title="End on the selected haplotype / chromosome."),
                                 dcc.Input(id='end-input', type='number', style={'width': '100px', 'marginRight': '20px'})
                             ], style={'marginBottom': '10px'}),
-                            html.Div([
-                                html.Div([
-                                    html.Label(
-                                        "Gene name : ",
-                                        title="Will be searched on annotation of the selected haplotype / chromosome."
+                            html.Div(
+                                style={
+                                    'display': 'flex',
+                                    'alignItems': 'center',
+                                    'gap': '15px',
+                                    'marginBottom': '20px'
+                                },
+                                children=[
+
+                                    html.Div(
+                                        style={'width': '200px'},
+                                        children=[
+                                            dcc.Dropdown(
+                                                id='features-dropdown',
+                                                options=[
+                                                    {'label': feature, 'value': feature}
+                                                    for feature in features
+                                                ],
+                                                value='gene' if 'gene' in features else None,
+                                                clearable=False,
+                                                placeholder="Choose a feature to search"
+                                            )
+                                        ]
                                     ),
+
                                     dcc.Input(
-                                        id='genename-input',
+                                        id='feature-input',
                                         type='text',
-                                        placeholder='Gene name',
+                                        placeholder='Value to search',
                                         debounce=True,
-                                        style={'width': '200px', 'marginBottom': '10px'}
-                                    ),
-                                ]),
-                                html.Div([
-                                    html.Label(
-                                        "Gene id : ",
-                                        title="Will be searched on annotation of the selected haplotype / chromosome."
-                                    ),
-                                    dcc.Input(
-                                        id='geneid-input',
-                                        type='text',
-                                        placeholder='Gene id',
-                                        debounce=True,
-                                        style={'width': '200px'}
-                                    ),
-                                ]),
-                            ],
-                                style={'marginBottom': '20px'}),
+                                        style={
+                                            'height': '38px',
+                                            'lineHeight': '38px',
+                                            'padding': '0 10px',
+                                            'boxSizing': 'border-box'
+                                        }
+                                    )
+                                ]
+                            ),
                             html.Button('Search', id='search-button',
                                         n_clicks=0, style={'marginTop': '10px'}),
                             dcc.Loading(
@@ -958,7 +969,7 @@ def display_element_data(node_data, edge_data):
     return "Click on a node or link to display data."
 
 #Function to construct the region information
-def get_displayed_div(start, end, gene_name, gene_id):
+def get_displayed_div(start, end, feature_name, feature_value):
     no_display = True
     def info_line(label, value):
         if value is not None and value != "":
@@ -984,11 +995,8 @@ def get_displayed_div(start, end, gene_name, gene_id):
             html.Span(f"{start_txt} — {end_txt}")
         ], style={'margin-bottom': '5px'})
     )
-    if gene_name:
-        info_rows.append(info_line("Gene name", gene_name))
-        no_display = False
-    if gene_id:
-        info_rows.append(info_line("Gene ID", gene_id))
+    if feature_name and feature_name != "" and feature_value and feature_value != "":
+        info_rows.append(info_line(feature_name, feature_value))
         no_display = False
     if no_display :
         displayed_div = html.Div("No region selected.", style={'fontStyle': 'italic', 'color': '#777'})
@@ -1012,8 +1020,8 @@ def get_displayed_div(start, end, gene_name, gene_id):
     Output('zoom_shared_storage_nodes', 'data', allow_duplicate=True),
     Output('start-input', 'value', allow_duplicate=True),
     Output('end-input', 'value', allow_duplicate=True),
-    Output('genename-input', 'value', allow_duplicate=True),
-    Output('geneid-input', 'value', allow_duplicate=True),
+    Output('features-dropdown', 'value', allow_duplicate=True),
+    Output('feature-input', 'value', allow_duplicate=True),
     Output('displayed-region-container', 'children'),
     Output("phylogenetic-page-store", "data", allow_duplicate=True),
     Output('sequences-page-store', 'data', allow_duplicate=True),
@@ -1033,8 +1041,8 @@ def get_displayed_div(start, end, gene_name, gene_id):
     Input('update_graph_command_storage', 'data'),
     State('start-input', 'value'),
     State('end-input', 'value'),
-    State('genename-input', 'value'),
-    State('geneid-input', 'value'),
+    State('features-dropdown', 'value'),
+    State('feature-input', 'value'),
     State('genomes-dropdown', 'value'),
     State('chromosomes-dropdown', 'value'),
     State('shared_storage', 'data'),
@@ -1054,7 +1062,7 @@ def get_displayed_div(start, end, gene_name, gene_id):
 def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes, show_labels, 
                  update_n_clicks, zoom_clicks, zoom_out_clicks, reset_zoom_bouton_clicks, 
                  selected_nodes_data, size_slider, home_data_storage, n_clicks, update_graph_command_storage, start, end,
-                 gene_name, gene_id, genome, chromosome, data_storage, data_storage_nodes, 
+                 feature_name, feature_value, genome, chromosome, data_storage, data_storage_nodes,
                  min_shared_genome, tolerance, shared_regions_link_color, zoom_shared_storage, 
                  show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size):
     if genome is not None and chromosome is not None:
@@ -1089,22 +1097,18 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         if start is not None:
             home_data_storage["start"] = start
             start_value = start
-            home_data_storage["gene_name"] = ""
-            home_data_storage["gene_id"] = ""
+            home_data_storage["feature_name"] = ""
+            home_data_storage["feature_value"] = ""
 
         if end is not None:
             home_data_storage["end"] = end
             end_value = end
-            home_data_storage["gene_name"] = ""
-            home_data_storage["gene_id"] = ""
+            home_data_storage["feature_name"] = ""
+            home_data_storage["feature_value"] = ""
 
-        if gene_name is not None and gene_name != "":
-            home_data_storage["gene_name"] = gene_name
-            home_data_storage["gene_id"] = ""
-
-        if gene_id is not None and gene_id != "":
-            home_data_storage["gene_id"] = gene_id
-            home_data_storage["gene_name"] = ""
+        if feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "":
+            home_data_storage["feature_name"] = feature_name
+            home_data_storage["feature_value"] = feature_value
 
         if min_shared_genome is None:
             min_shared_genome = 100
@@ -1153,14 +1157,11 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
             else:
-                if ("gene_name" in home_data_storage and home_data_storage["gene_name"] is not None
-                        and home_data_storage["gene_name"] != ""):
-                    gene_name = home_data_storage["gene_name"]
-                    logger.debug(f"No zoom, display gene name {gene_name}")
-                elif ("gene_id" in home_data_storage and home_data_storage["gene_id"] is not None
-                      and home_data_storage["gene_id"] != ""):
-                    gene_id = home_data_storage["gene_id"]
-                    logger.debug(f"No zoom, display gene id {gene_id}")
+                if ("feature_name" in home_data_storage and home_data_storage["feature_name"] is not None and home_data_storage["feature_name"] != ""
+                    and "feature_value" in home_data_storage and home_data_storage["feature_value"] is not None and home_data_storage["feature_value"] != ""):
+                    feature_name = home_data_storage["feature_name"]
+                    feature_value = home_data_storage["feature_value"]
+                    logger.debug(f"No zoom, display {feature_name} {feature_value}")
                 elif "start" in home_data_storage and "end" in home_data_storage:
                     start_value = home_data_storage["start"]
                     end_value = home_data_storage["end"]
@@ -1202,16 +1203,9 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 #data_storage_nodes = new_data
                 logger.debug("len new_data : " + str(len(new_data)))
             else:
-                if ((gene_name is not None and gene_name != "") or (gene_id is not None and gene_id != "")) and chromosome is not None:
-                    if gene_name is not None and gene_name != "":
-                        new_data,return_metadata = get_nodes_by_gene(
-                            genome, chromosome=chromosome, gene_name=gene_name)
-                        home_data_storage["gene_id"] = None
-                    else:
-                        new_data, return_metadata = get_nodes_by_gene(
-                            genome, chromosome=chromosome, gene_id=gene_id)
-                        home_data_storage["gene_name"] = None
-
+                if (feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "") and chromosome is not None:
+                        new_data,return_metadata = get_nodes_by_feature(
+                            genome, chromosome=chromosome, feature= feature_name, value=feature_value)
                 else:
                     new_data, return_metadata = get_nodes_by_region(
                         genome, chromosome=chromosome, start=0, end=end)
@@ -1271,10 +1265,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             elif return_metadata["return_code"] == "WIDE":
                 message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
             elif return_metadata["return_code"] == "NO_DATA":
-                if gene_name is not None and gene_name != "" :
-                    message = html.Div(f"❌ No nodes associated to gene name {gene_name} found.", style=error_style)
-                elif gene_id is not None and gene_id != "" :
-                    message = html.Div(f"❌ No nodes associated to gene id {gene_id} found.", style=error_style)
+                if feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "":
+                    message = html.Div(f"❌ No nodes associated to {feature_name} {feature_value} found.", style=error_style)
                 else:
                     message = html.Div("❌ Region not found.", style=error_style)
             else:
@@ -1283,8 +1275,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         else:
             start_value = home_data_storage.get("start",None)
             end_value = home_data_storage.get("end",None)
-            gene_name = home_data_storage.get("gene_name", "")
-            gene_id = home_data_storage.get("gene_id","")
+            feature_name = home_data_storage.get("feature_name", "")
+            feature_value = home_data_storage.get("feature_value", "")
             logger.debug(f"min node size : {size_slider_val}")
             elements, nodes_count = compute_graph_elements(data_storage_nodes, genome, selected_genomes, size_slider_val, all_genomes,
                                               all_chromosomes, specifics_genomes_list,
@@ -1323,14 +1315,14 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 'fit': True
             }
         #displayed region construction:
-        displayed_div = get_displayed_div(start_value, end_value, gene_name, gene_id)
+        displayed_div = get_displayed_div(start_value, end_value, feature_name, feature_value)
         return (elements,f"{nodes_count} displayed nodes", data_storage_nodes, message, annotations, stylesheet,
                 layout, home_data_storage, [], [], zoom_shared_storage_out,
-                None, None, "", "", displayed_div, phylo_data, sequences_data)
+                None, None, feature_name, "", displayed_div, phylo_data, sequences_data)
     else:
         return ([], "", no_update, f"❌ No data loaded, first load a gfa into DB management page.", "", no_update,
                 no_update, no_update, [], [], no_update,
-                None, None, "", "", "", no_update, no_update)
+                None, None, feature_name, "", "", no_update, no_update)
 
 
 # color picker
@@ -1369,26 +1361,31 @@ def save_slider_value(size_slider_val, data):
     Output('genomes-dropdown', 'value'),
     Output('start-input', 'value'),
     Output('end-input', 'value'),
-    Output('genename-input', 'value'),
-    Output('geneid-input', 'value'),
+    Output('features-dropdown', 'value'),
+    Output('feature-input', 'value'),
     Output('shared-region-color-picker', 'value'),
     Output('specific-genome_selector', 'value'),
     Output('update_graph_command_storage', 'data'),
     Input('url', 'pathname'),
     Input('url', 'search'),
     Input('home-page-store', 'data'),
+    State('shared_storage', 'data'),
     State('genomes-dropdown', 'options'),
     State('chromosomes-dropdown', 'options'),
     State('specific-genome_selector', 'value')
 )
-def update_parameters_on_page_load(pathname, search, data, options_genomes, options_chromosomes, specifics_genomes):
+def update_parameters_on_page_load(pathname, search, data, shared_data, options_genomes, options_chromosomes, specifics_genomes):
     slider_value = DEFAULT_SIZE_VALUE
     selected_genome = None
     selected_chromosome = None
     start_input = None
     end_input = None
-    gene_name = ""
-    gene_id = ""
+    features = shared_data.get("features", None)
+    if features is not None and "gene" in features:
+        feature_name = "gene"
+    else:
+        feature_name = None
+    feature_value = ""
     shared_regions_link_color = DEFAULT_SHARED_REGION_COLOR
     update_graph_command_storage = dash.no_update
     
@@ -1405,7 +1402,7 @@ def update_parameters_on_page_load(pathname, search, data, options_genomes, opti
     if "specifics_genomes" in data:
         selected_shared_genomes = data["specifics_genomes"]
     #Get query param if setted
-    #Query params exemple : ?haplotype=Korso_0&chromosome=1&geneName=BolK_1g00590
+    #Query params exemple : ?haplotype=Korso_0&chromosome=1&featureName=gene&featureValue=BolK_1g00590
     #?haplotype=Korso_0&chromosome=1&start=100000&end=1090000
     no_query_params = True
     if search:
@@ -1416,23 +1413,24 @@ def update_parameters_on_page_load(pathname, search, data, options_genomes, opti
             params.get('chr', [None])[0]
             or params.get('chromosome', [None])[0]
         )
-        url_gene_name = params.get('geneName', [None])[0]
-        url_gene_id = params.get('geneId', [None])[0]
+        url_feature_name = params.get('featureName', [None])[0]
+        url_feature_value = params.get('featureValue', [None])[0]
         url_start = params.get('start', [None])[0]
         url_end = params.get('end', [None])[0]
-        if url_hap is not None and url_chromosome is not None and ((url_start is not None and url_end is not None) or url_gene_name is not None or url_gene_id is not None):
+        if (url_hap is not None and url_chromosome is not None
+                and ((url_start is not None and url_end is not None)
+                     or (url_feature_name is not None and url_feature_value is not None))):
             no_query_params = False
             selected_genome = url_hap
             selected_chromosome = url_chromosome
-            if url_gene_name is not None:
-                gene_name = url_gene_name
-            elif url_gene_id is not None:
-                gene_id = url_gene_id
+            if url_feature_name is not None and url_feature_value:
+                feature_name = url_feature_name
+                feature_value = url_feature_value
             else:
                 start_input = int(url_start)
                 end_input = int(url_end)
-            update_graph_command_storage = {"force_refresh": time.time(), "url_hap":url_hap, "url_chromosome":url_chromosome, "url_gene_name":url_gene_name,
-                                            "url_gene_id":url_gene_id, "url_start":url_start, "url_end":url_end}
+            update_graph_command_storage = {"force_refresh": time.time(), "url_hap":url_hap, "url_chromosome":url_chromosome, "url_feature_name":url_feature_name,
+                                            "url_feature_value":url_feature_value, "url_start":url_start, "url_end":url_end}
             logger.debug(update_graph_command_storage)
     if no_query_params :
         logger.debug("No query params")
@@ -1448,9 +1446,12 @@ def update_parameters_on_page_load(pathname, search, data, options_genomes, opti
                 selected_chromosome = options_chromosomes[0]["value"]
         start_input = None
         end_input = None
-        gene_name = ""
-        gene_id = ""
-    return slider_value, selected_chromosome, selected_genome, start_input, end_input, gene_name, gene_id, shared_regions_link_color, selected_shared_genomes, update_graph_command_storage
+        if features is not None and "gene" in features:
+            feature_name = "gene"
+        else:
+            feature_name = None
+        feature_value = ""
+    return slider_value, selected_chromosome, selected_genome, start_input, end_input, feature_name, feature_value, shared_regions_link_color, selected_shared_genomes, update_graph_command_storage
 
 
 # Algorithm cytoscape choice
