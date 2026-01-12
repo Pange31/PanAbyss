@@ -173,7 +173,10 @@ def get_color_palette(n):
 
 
 
-def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_genomes, all_chromosomes, specifics_genomes=None, color_genomes=[], x_max=1000, y_max=1000, labels=True, min_shared_genome=100, tolerance=0, color_shared_regions=DEFAULT_SHARED_REGION_COLOR, exons=False, exons_color=DEFAULT_EXONS_COLOR):
+def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_genomes, all_chromosomes,
+                           specifics_genomes=None, color_genomes=[], x_max=1000, y_max=1000, labels=True,
+                           min_shared_genome=100, tolerance=0, color_shared_regions=DEFAULT_SHARED_REGION_COLOR,
+                           exons=False, exons_color=DEFAULT_EXONS_COLOR, colored_edges_size=5):
     logger.debug(f"Compute elements with ref genome {ref_genome}")
 
     if data != None and len(data) > 0:
@@ -391,7 +394,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                                 'line-color': colored_genomes[g],
                                 'line-style' : line_style,
                                 'target-arrow-color': colored_genomes[g],
-                                'width': 4
+                                'width': colored_edges_size
 
                             }
                         })
@@ -756,14 +759,40 @@ def layout(data=None, initial_size_limit=10):
                 ], style={'display': 'flex', 'alignItems': 'center', 'gap': '8px'}),
                 html.Div(id='nb-noeuds', style={'margin': '10px'}),
 
-                dcc.Checklist(
-                    options=[{
-                        'label': 'Search shared paths',
-                        'title': 'Check to switch to shared path search options.',
-                        'value': 'shared'
-                    }],
-                    id='shared-mode',
-                    style={'marginRight': '30px'}
+                html.Div(
+                    style={
+                        'display': 'flex',
+                        'alignItems': 'center',
+                        'gap': '30px',  # espace entre checklist et le mini-div
+                        'marginBottom': '20px'
+                    },
+                    children=[
+                        dcc.Checklist(
+                            options=[{'label': 'Shared paths', 'value': 'shared'}],
+                            id='shared-mode'
+                        ),
+
+                        # Mini-div pour label + slider
+                        html.Div(
+                            style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'},  # petit gap ici
+                            children=[
+                                html.Label("Colored edges size"),
+                                html.Div(
+                                    style={'width': '280px'},
+                                    children=[
+                                        dcc.Slider(
+                                            id='colored-edge-size-slider',
+                                            min=1,
+                                            max=20,
+                                            step=1,
+                                            value=5,
+                                            marks={i: str(i) for i in range(0, 25, 5)}
+                                        )
+                                    ]
+                                )
+                            ]
+                        )
+                    ]
                 ),
             
                 html.Div([
@@ -992,7 +1021,7 @@ def get_displayed_div(start, end, gene_name, gene_id):
     State('shared-mode', 'value'),
     State('specific-genome_selector', 'value'),
     State({'type': 'color-picker', 'index': ALL}, 'value'),
-    Input('show-labels', 'value'),
+    State('show-labels', 'value'),
     Input('update-btn', 'n_clicks'),
     Input('btn-zoom', 'n_clicks'),
     Input('btn-zoom-out', 'n_clicks'),
@@ -1019,6 +1048,7 @@ def get_displayed_div(start, end, gene_name, gene_id):
     State('layout-dropdown', 'value'),
     State("phylogenetic-page-store", "data"),
     State('sequences-page-store', 'data'),
+    State('colored-edge-size-slider', 'value'),
     prevent_initial_call=True
 )
 def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes, show_labels, 
@@ -1026,7 +1056,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                  selected_nodes_data, size_slider, home_data_storage, n_clicks, update_graph_command_storage, start, end,
                  gene_name, gene_id, genome, chromosome, data_storage, data_storage_nodes, 
                  min_shared_genome, tolerance, shared_regions_link_color, zoom_shared_storage, 
-                 show_exons, exons_color, layout_choice, phylo_data, sequences_data):
+                 show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size):
     if genome is not None and chromosome is not None:
         ctx = dash.callback_context
         return_metadata = {"return_code":"", "flow":None, "nodes_number":0, "removed_genomes":None}
@@ -1205,7 +1235,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               all_chromosomes, specifics_genomes_list,
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
-                                              exons=exons, exons_color=exons_color)
+                                              exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size)
             if triggered_id == "search-button":
                 zoom_shared_storage_out = {}
                 message = html.Div("❌ Error.", style=warning_style)
@@ -1260,7 +1290,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               all_chromosomes, specifics_genomes_list,
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
-                                              exons=exons, exons_color=exons_color)
+                                              exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size)
 
         defined_color = 0
         if color_genomes is not None:
