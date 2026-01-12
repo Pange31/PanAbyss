@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update the style of sequence output in the Shared regions discovery
 - Displayed Nodes size
 - Gene search has been replaced by a feature search : it is possible to select the feature to search and its value
+- Add a column to get sequence into shared region discovery page
+
 
 ### Fixed
 - 

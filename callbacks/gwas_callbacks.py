@@ -259,6 +259,9 @@ def restore_checklist_state(path,ts, data, table_data):
             deletion_checkbox = data["deletion_checkbox"]
         if "deletion_percentage" in data:
             deletion_percentage = data["deletion_percentage"]
+        if analyse is not None:
+            for i, row in enumerate(analyse):
+                row['get_sequence'] = "Get it"
     return (f"{len(analyse)} shared regions found.",analyse, checkbox, min_node_size, max_node_size,
             min_percent_selected,tolerance_percentage,region_gap, deletion_checkbox, deletion_percentage)
 
@@ -274,27 +277,30 @@ def restore_checklist_state(path,ts, data, table_data):
 )
 def save_csv(n_clicks, n_clicks_seq, table_data):
     #logger.info(f"Callback triggered: n_clicks={n_clicks}, table_data={table_data}")
-    triggered_id = ctx.triggered_id
-    export_sequences = False
-    if triggered_id == 'save-csv-with_seq-button':
-        export_sequences = True
-    if not table_data:
-        return "No data.",""
-    df = pd.DataFrame(table_data)
-    if export_sequences :
-        sequences = []
-        for row in tqdm(table_data):
-            sequences.append(get_sequence_from_position(row['genome'], row['chromosome'], row['start'], row['stop']))
-        df["sequence"] = sequences
-    if not SERVER_MODE:
-        save_path = os.path.join(os.getcwd(), EXPORT_DIR, "shared_regions.csv")
-        logger.info("save path : " + str(save_path))
-        df.to_csv(save_path, index=False)
-        
-        return f"File saved : {save_path}","", no_update
+    if len(table_data) > 0:
+        triggered_id = ctx.triggered_id
+        export_sequences = False
+        if triggered_id == 'save-csv-with_seq-button':
+            export_sequences = True
+        if not table_data:
+            return "No data.",""
+        df = pd.DataFrame(table_data).drop(columns=['get_sequence'], errors='ignore')
+        if export_sequences :
+            sequences = []
+            for row in tqdm(table_data):
+                sequences.append(get_sequence_from_position(row['genome'], row['chromosome'], row['start'], row['stop']))
+            df["sequence"] = sequences
+        if not SERVER_MODE:
+            save_path = os.path.join(os.getcwd(), EXPORT_DIR, "shared_regions.csv")
+            logger.info("save path : " + str(save_path))
+            df.to_csv(save_path, index=False)
+
+            return f"File saved : {save_path}","", no_update
+        else:
+            logger.info("🌐 Server mode active — file will be downloaded by user.")
+            return "File ready for download.", "", dcc.send_data_frame(df.to_csv, "shared_regions.csv", index=False)
     else:
-        logger.info("🌐 Server mode active — file will be downloaded by user.")
-        return "File ready for download.", "", dcc.send_data_frame(df.to_csv, "shared_regions.csv", index=False)
+        return "No data to download.", "", no_update
 
 #Callback to loads csv file into data table
 @app.callback(
@@ -317,6 +323,9 @@ def load_csv(contents, filename, gwas_page_store):
     try:
         df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
         analyse = df[[c for c in df.columns if c!= "sequence"]].to_dict('records')
+        if analyse is not None:
+            for i, row in enumerate(analyse):
+                row['get_sequence'] = "Get it"
         gwas_page_store["analyse"] = analyse
         logger.info("csv file loaded")
         return f"{len(analyse)} shared regions found.", analyse, gwas_page_store
@@ -347,7 +356,7 @@ def show_upload_area(n_clicks):
     prevent_initial_call=True,
 )
 def display_sequence_on_button_click(active_cell, table_data):
-    if active_cell and active_cell['column_id'] == 'region_size':
+    if active_cell and active_cell['column_id'] == 'get_sequence':
         row_index = active_cell["row"]
         row = table_data[row_index]
         sequence = get_sequence_from_position(row['genome'], row['chromosome'], row['start'], row['stop'])
