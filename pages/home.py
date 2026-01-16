@@ -293,8 +293,8 @@ def graph_compression(df):
             if len(preds) == 2 and len(succs) == 2:
                 neighbors = preds | succs
                 if len(neighbors) == 2:
-                    pred_neighbors = successors.get(list(neighbors)[0],[]) | predecessors.get(list(neighbors)[0],[])
-                    succ_neighbors = successors.get(list(neighbors)[1], []) | predecessors.get(list(neighbors)[1], [])
+                    pred_neighbors = successors.get(list(neighbors)[0],set()) | predecessors.get(list(neighbors)[0],set())
+                    succ_neighbors = successors.get(list(neighbors)[1], set()) | predecessors.get(list(neighbors)[1], set())
                     if len(pred_neighbors) == 2 and len(succ_neighbors) == 2:
                         nodes_to_remove.add(node)
 
