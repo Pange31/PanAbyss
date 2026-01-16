@@ -173,10 +173,143 @@ def get_color_palette(n):
 
 
 
+
+#Merge the data of nodes to be removed into their predecessor node.
+def merge_node_data(df, nodes_to_remove, predecessors):
+
+    df = df.copy()
+    for n in nodes_to_remove:
+        if n not in predecessors:
+            continue  # No predecessor, cannot merge
+
+        pred_node = list(predecessors[n])[0]
+        visited_nodes = set([n, pred_node])
+        #Get the first predecessor not removed
+        while pred_node in nodes_to_remove and pred_node in predecessors:
+            pred_node = list(predecessors[pred_node])[0]
+            if (pred_node in visited_nodes and len(list(predecessors[pred_node])) > 1):
+                pred_node = list(predecessors[pred_node])[1]
+            if (pred_node in visited_nodes) :
+                pred_node = None
+                break
+            visited_nodes.add(pred_node)
+
+            if pred_node is None:
+                break
+
+        if pred_node is None:
+            continue
+
+        idx = df.loc[df['name'] == pred_node].index[0]
+        # Update size
+        df.loc[df['name'] == pred_node, 'size'] += df.loc[df['name'] == n, 'size'].values[0]
+
+        # add features
+        f1 = df.loc[df['name'] == n, 'features'].iloc[0]
+        f2 = df.loc[df['name'] == pred_node, 'features'].iloc[0]
+
+        features = list(set((f1 if isinstance(f1, list) else []) + (f2 if isinstance(f2, list) else [])))
+        df.at[idx, 'features'] = features
+
+        # Concatenate annotations
+        a1 = df.loc[df['name'] == n, 'annotations'].iloc[0]
+        a2 = df.loc[df['name'] == pred_node, 'annotations'].iloc[0]
+        annotations = list(set((a1 if isinstance(a1, list) else []) + (a2 if isinstance(a2, list) else [])))
+        df.at[idx, 'annotations'] = annotations
+
+    # Remove the compacted nodes
+    df_compacted = df[~df['name'].isin(nodes_to_remove)].copy()
+
+    return df_compacted
+
+
+"""
+This function compress a graph by removing
+linear internal nodes, while allowing orientation inversions
+across genomes.
+"""
+def graph_compression(df):
+
+    genome_position_cols = [c for c in df.columns if c.endswith("_position")]
+
+    # Predecessors and successors (directed graph)
+    predecessors = {n: set() for n in df["name"]}
+    successors = {n: set() for n in df["name"]}
+
+    # Nodes with more than one successor / predecessor (or two in case of reverse nodes)
+    invalid_nodes = set()
+
+    # ------------------------------------------------------------------
+    # Step 1: Build the directed graph genome by genome
+    # ------------------------------------------------------------------
+    for genome_position in genome_position_cols:
+        # Keep only nodes existing in this genome
+        sub = df[["name", genome_position]].dropna(subset=[genome_position])
+        sub = sub.sort_values(by=genome_position)
+        ordered_nodes = sub["name"].tolist()
+
+        # Connect consecutive nodes
+        for u, v in zip(ordered_nodes[:-1], ordered_nodes[1:]):
+            if u not in invalid_nodes:
+                successors[u].add(v)
+                if len(successors[u]) > 2:
+                    invalid_nodes.add(u)
+
+            if v not in invalid_nodes:
+                predecessors[v].add(u)
+                if len(predecessors[v]) > 2:
+                    invalid_nodes.add(v)
+
+    # ------------------------------------------------------------------
+    # Step 2: Remove invalid nodes from the graph
+    # ------------------------------------------------------------------
+    for n in invalid_nodes:
+        predecessors.pop(n, None)
+        successors.pop(n, None)
+
+    # ------------------------------------------------------------------
+    # Step 3: Identify removable nodes
+    # ------------------------------------------------------------------
+    nodes_to_remove = set()
+    all_nodes = set(predecessors.keys()) | set(successors.keys())
+
+    for node in all_nodes:
+        preds = predecessors.get(node, set())
+        succs = successors.get(node, set())
+
+        # Node must be locally linear
+        if len(preds) > 2 or len(succs) > 2 or len(preds) == 0 or len(succs) == 0:
+            continue
+
+        #Node is compressed if there is only one predecessor and one successor
+        #and if the predecessor has only one successor
+        if len(preds) == 1 and len(succs) == 1:
+            if len(successors.get(list(preds)[0],[])) == 1:
+                nodes_to_remove.add(node)
+        else:
+            #Checks if node is traversed in both direction
+            #Node is compressed if it has only two neighbors
+            #and their neighbors have only two neighbors too
+            if len(preds) == 2 and len(succs) == 2:
+                neighbors = preds | succs
+                if len(neighbors) == 2:
+                    pred_neighbors = successors.get(list(neighbors)[0],[]) | predecessors.get(list(neighbors)[0],[])
+                    succ_neighbors = successors.get(list(neighbors)[1], []) | predecessors.get(list(neighbors)[1], [])
+                    if len(pred_neighbors) == 2 and len(succ_neighbors) == 2:
+                        nodes_to_remove.add(node)
+
+    # ------------------------------------------------------------------
+    # Step 4: Remove nodes from the dataframe
+    # ------------------------------------------------------------------
+    df_compacted = merge_node_data(df, nodes_to_remove, predecessors)
+
+    return df_compacted
+
 def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_genomes, all_chromosomes,
                            specifics_genomes=None, color_genomes=[], x_max=1000, y_max=1000, labels=True,
                            min_shared_genome=100, tolerance=0, color_shared_regions=DEFAULT_SHARED_REGION_COLOR,
-                           exons=False, exons_color=DEFAULT_EXONS_COLOR, colored_edges_size=5):
+                           exons=False, exons_color=DEFAULT_EXONS_COLOR, colored_edges_size=5,
+                           compression=False):
     logger.debug(f"Compute elements with ref genome {ref_genome}")
 
     if data != None and len(data) > 0:
@@ -186,6 +319,13 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
             position_field = "mean_pos"
         df = records_to_dataframe(data)
         df = df[df["size"] >= size_min].copy()
+        #If compression is set to true then it will compress the graph
+        #Nodes with a single predecessor and a single successor, and for which the predecessor
+        #has only one outgoing node, are removed
+        if compression:
+            df = graph_compression(df)
+
+
         df = df[df["genomes"].apply(lambda g: any(
             x in selected_genomes for x in g))].copy()
         #logger.debug(f"Compute elements - dataframe")
@@ -453,6 +593,10 @@ def layout(data=None, initial_size_limit=10):
                         "Hide labels: allows you to hide labels (they can take up too much space)."),
                     html.Li(
                         "Show exons: allows you to color the node linked to an exon annotation (color is defined by user)."),
+                    html.Li(
+                        "Colored edges size: set the edge size for colored haplotypes."),
+                    html.Li(
+                        "Graph compression: when a min node size is set greater than 0, this will compact the linear parts of the graph (i.e. nodes connected to exactly 2 nodes will be compacted."),
                     html.Li("Search shared paths : if the box is checked, the display is modified to allow the selection of haplotypes for which you want to view shared links. This display can be configured:"),
                     html.Ul([
                         html.Li(
@@ -717,73 +861,30 @@ def layout(data=None, initial_size_limit=10):
                     html.Div(id='size_stats', style={'marginTop': '10px'})
 
                 ]),
-                html.Div([
-                    html.Div(
-                        id='size-output', children='Min node size : 10', style={'margin': '10px'}),
-                    html.H4("Layout", title="The layout computes the graph. If the graph is not readable, it is possible to modify the algorithm. Dagre layout will display more linear graphs and fcose will display more compact graphs.", style={
-                            'marginLeft': '50px'}),
-                    dcc.Dropdown(
-                        id='layout-dropdown',
-                        options=[
-                            {'label': 'fcose', 'value': 'fcose'},
-                            {'label': 'dagre', 'value': 'dagre'}
-                        ],
-                        value='fcose',
-                        clearable=False,
-                        style={'width': '120px',
-                               'display': 'inline-block', 'marginRight': '50px'}
-                    ),
-                    
-                    
-
-                    dcc.Checklist(
-                        options=[
-                            {'label': 'Hide labels', 
-                             'title': 'Uncheck if labels takes too much space on the graph.', 
-                             'value': 'hide'
-                            }],
-                        id='show-labels',
-                        style={'marginRight': '30px'}
-                    ),
-            
-                    dcc.Checklist(
-                        options=[{
-                            'label': 'Show exons',
-                            'title': 'Check to display exons.',
-                            'value': 'exons'
-                        }],
-                        id='show-exons',
-                        style={'marginRight': '10px'},
-                        value=[]
-                    ),
-            
-                    dbc.Input(
-                        id='exon-color-picker',
-                        type='color',
-                        value=DEFAULT_EXONS_COLOR,
-                        style={'width': '25px',
-                               'height': '25px', 'marginLeft': '10px'}
-                    ),
-
-                        
-
-                ], style={'display': 'flex', 'alignItems': 'center', 'gap': '8px'}),
                 html.Div(id='nb-noeuds', style={'margin': '10px'}),
-
-                html.Div(
-                    style={
-                        'display': 'flex',
-                        'alignItems': 'center',
-                        'gap': '30px',  # espace entre checklist et le mini-div
-                        'marginBottom': '20px'
-                    },
-                    children=[
-                        dcc.Checklist(
-                            options=[{'label': 'Shared paths', 'value': 'shared'}],
-                            id='shared-mode'
+                html.Div([
+                    # === First line: Min node size + Layout + Dropdown ===
+                    html.Div([
+                        html.Div(
+                            id='size-output',
+                            children='Min node size : 10',
+                            style={'marginRight': '20px'}
                         ),
-
-                        # Mini-div pour label + slider
+                        html.H4(
+                            "Layout",
+                            title="The layout computes the graph. If the graph is not readable, it is possible to modify the algorithm. Dagre layout will display more linear graphs and fcose will display more compact graphs.",
+                            style={'marginRight': '10px'}
+                        ),
+                        dcc.Dropdown(
+                            id='layout-dropdown',
+                            options=[
+                                {'label': 'fcose', 'value': 'fcose'},
+                                {'label': 'dagre', 'value': 'dagre'}
+                            ],
+                            value='fcose',
+                            clearable=False,
+                            style={'width': '120px', 'display': 'inline-block', 'marginRight':'10px'}
+                        ),
                         html.Div(
                             style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'},  # petit gap ici
                             children=[
@@ -802,7 +903,68 @@ def layout(data=None, initial_size_limit=10):
                                     ]
                                 )
                             ]
+                        ),
+                    ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '10px', 'gap': '8px'}),
+
+                    # === Second line: checkboxes and color picker ===
+                    html.Div([
+                        dcc.Checklist(
+                            options=[{
+                                'label': 'Hide labels',
+                                'value': 'hide',
+                                'title': 'Uncheck if labels takes too much space on the graph.'
+                            }],
+                            id='show-labels',
+                            style={'marginRight': '30px'}
+                        ),
+
+                        dcc.Checklist(
+                            options=[{
+                                'label': 'Show exons',
+                                'value': 'exons',
+                                'title': 'Check to display exons.'
+                            }],
+                            id='show-exons',
+                            style={'marginRight': '10px'},
+                            value=[]
+                        ),
+
+                        dbc.Input(
+                            id='exon-color-picker',
+                            type='color',
+                            value=DEFAULT_EXONS_COLOR,
+                            style={'width': '25px', 'height': '25px', 'marginRight': '10px'}
+                        ),
+
+                        dcc.Checklist(
+                            options=[{
+                                'label': 'Graph compression',
+                                'value': 'graph_compression',  # <-- obligatoire pour Checklist
+                                'title': 'Check to compact the graph nodes.'
+                            }],
+                            id='graph-compression',
+                            style={'marginRight': '10px'},
+                            value=[]
+                        ),
+
+                    ], style={'display': 'flex', 'alignItems': 'center', 'gap': '8px'}),
+                ], style={'display': 'flex', 'flexDirection': 'column', 'marginBottom':'10px'}),
+
+
+                html.Div(
+                    style={
+                        'display': 'flex',
+                        'alignItems': 'center',
+                        'gap': '30px',  # espace entre checklist et le mini-div
+                        'marginBottom': '20px'
+                    },
+                    children=[
+                        dcc.Checklist(
+                            options=[{'label': 'Shared paths', 'value': 'shared'}],
+                            id='shared-mode'
                         )
+
+
                     ]
                 ),
             
@@ -1057,6 +1219,7 @@ def get_displayed_div(start, end, feature_name, feature_value):
     State("phylogenetic-page-store", "data"),
     State('sequences-page-store', 'data'),
     State('colored-edge-size-slider', 'value'),
+    State('graph-compression', 'value'),
     prevent_initial_call=True
 )
 def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes, show_labels, 
@@ -1064,7 +1227,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                  selected_nodes_data, size_slider, home_data_storage, n_clicks, update_graph_command_storage, start, end,
                  feature_name, feature_value, genome, chromosome, data_storage, data_storage_nodes,
                  min_shared_genome, tolerance, shared_regions_link_color, zoom_shared_storage, 
-                 show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size):
+                 show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size,
+                 graph_compression_value):
     if genome is not None and chromosome is not None:
         ctx = dash.callback_context
         return_metadata = {"return_code":"", "flow":None, "nodes_number":0, "removed_genomes":None}
@@ -1118,6 +1282,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             home_data_storage["color_genomes"] = color_genomes
         if specifics_genomes is not None:
             home_data_storage["specifics_genomes"] = specifics_genomes
+        compression = 'graph_compression' in graph_compression_value
         # zoom on selected nodes
         zoom_shared_storage_out = zoom_shared_storage or {}
         if triggered_id == "btn-zoom":
@@ -1229,7 +1394,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               all_chromosomes, specifics_genomes_list,
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
-                                              exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size)
+                                              exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
+                                              compression = compression)
             if triggered_id == "search-button":
                 zoom_shared_storage_out = {}
                 message = html.Div("❌ Error.", style=warning_style)
@@ -1282,7 +1448,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               all_chromosomes, specifics_genomes_list,
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
-                                              exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size)
+                                              exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
+                                              compression = compression)
 
         defined_color = 0
         if color_genomes is not None:

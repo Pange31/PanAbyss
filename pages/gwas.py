@@ -211,7 +211,7 @@ def layout():
                 {"name": "region size", "id": "region_size"},
                 {"name": "shared size", "id": "shared_size"},
                 {"name": "shared deleted nodes size", "id": "shared_deleted_size"},
-                {"name": "Get sequence", "id": "get_sequence", "presentation": "markdown"}
+                {"name": "Sequences", "id": "get_sequence", "presentation": "markdown"}
             ],
             data=[],
             sort_action='native',

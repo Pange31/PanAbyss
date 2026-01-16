@@ -261,7 +261,7 @@ def restore_checklist_state(path,ts, data, table_data):
             deletion_percentage = data["deletion_percentage"]
         if analyse is not None:
             for i, row in enumerate(analyse):
-                row['get_sequence'] = "Get it"
+                row['get_sequence'] = "Get sequence"
     return (f"{len(analyse)} shared regions found.",analyse, checkbox, min_node_size, max_node_size,
             min_percent_selected,tolerance_percentage,region_gap, deletion_checkbox, deletion_percentage)
 
@@ -325,7 +325,7 @@ def load_csv(contents, filename, gwas_page_store):
         analyse = df[[c for c in df.columns if c!= "sequence"]].to_dict('records')
         if analyse is not None:
             for i, row in enumerate(analyse):
-                row['get_sequence'] = "Get it"
+                row['get_sequence'] = "Get sequence"
         gwas_page_store["analyse"] = analyse
         logger.info("csv file loaded")
         return f"{len(analyse)} shared regions found.", analyse, gwas_page_store
