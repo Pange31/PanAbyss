@@ -123,13 +123,33 @@ def get_anchor(genome, chromosome, position, before = True, use_anchor=True):
                       AND n.`{genome_position}` >= $position
                     RETURN n order by n.`{genome_position}` ASC limit 1
                     """
-    
                 result = session.run(
                         query,
                         chromosome=chromosome,
                         position=position
                     )
                 record = result.single()
+                if record is None:
+                    if before:
+                        query = f"""
+                            MATCH (n:Node)
+                            WHERE n.chromosome = "{chromosome}"
+                              AND n.`{genome_position}` >= $position
+                            RETURN n order by n.`{genome_position}` ASC limit 1
+                        """
+                    else:
+                        query = f"""
+                            MATCH (n:Node)
+                            WHERE n.chromosome = "{chromosome}"
+                              AND n.`{genome_position}` <= $position
+                            RETURN n order by n.`{genome_position}` DESC limit 1
+                        """
+                    result = session.run(
+                        query,
+                        chromosome=chromosome,
+                        position=position
+                    )
+                    record = result.single()
                 if record:
                     return dict(record["n"]),core_genome
     else:
@@ -176,7 +196,7 @@ def get_anchor(genome, chromosome, position, before = True, use_anchor=True):
 #       in this case the flow value will be set
 #   - FILTER => exceptional individuals have been removed from the search (if not there would be too much nodes)
 # flow : in case of filtering, the minimal flow used to filter data
-def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True ):
+def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True, min_node_size = None ):
     return_metadata = {"return_code":"OK", "flow":None, "nodes_number":0, "removed_genomes" : None}
     valid_individuals_exceptions = []
     flow = None
@@ -238,7 +258,6 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True ):
                             ref_position_stop=ref_position_stop,
                             limit=MAX_NODES_NUMBER + 1
                         )
-
                     result = session.run(query_genome, start=start, end=end)
                     record = result.single()
                     if record:
@@ -267,8 +286,11 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True ):
                     base_query_genome = f"""
                         MATCH (m:Node)
                         WHERE  m.chromosome = "{chromosome}"
-                        AND (
                         """
+                    if min_node_size is not None and min_node_size > 1:
+                        base_query_genome += f" AND m.size >= {min_node_size} AND ("
+                    else:
+                        base_query_genome += " AND ("
                     first = True
                     for g in ranges:
                         position_field = g + "_position"
@@ -301,6 +323,11 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True ):
                             q = f"""
                                 MATCH (m:Node)
                                 WHERE m.chromosome = "{chromosome}"
+                            """
+                            if min_node_size is not None and min_node_size > 1:
+                                q += f" AND m.size >= {min_node_size}"
+
+                            q += f"""
                                   AND m.{position_field} >= {ranges[g]['start']} AND m.{position_field} <= {ranges[g]['stop']}
                                 WITH m LIMIT {MAX_NODES_NUMBER + 1}
                                 RETURN "{g}" AS genome, count(m) AS nb
@@ -369,8 +396,11 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True ):
                             query_genome = f"""
                                 MATCH (m:Node)
                                 WHERE  m.chromosome = "{chromosome}"
-                                AND (
                                 """
+                            if min_node_size is not None and min_node_size > 1:
+                                query_genome += f" AND m.size >= {min_node_size} AND ("
+                            else:
+                                query_genome += " AND ("
                             first = True
                             for g in ranges:
                                 if g not in valid_individuals_exceptions :
@@ -426,6 +456,10 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True ):
                         query_genome = f"""
                         MATCH (m:Node)
                         WHERE  m.chromosome = "{chromosome}" 
+                        """
+                        if min_node_size is not None and min_node_size > 1:
+                            query_genome += f" AND m.size >= {min_node_size} "
+                        query_genome += f"""
                         OPTIONAL MATCH (m)-[]->(a:Annotation)
                         OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
                         RETURN m, substring(s.sequence, 0, {max_sequence}) as sequence, collect(a.gene_name) AS annotations, collect(a.feature) AS features
@@ -456,7 +490,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True ):
 #   - OK
 #   - WIDE
 #   - NO_DATA
-def get_nodes_by_feature(genome, chromosome, gene_id=None, feature = None, value=None):
+def get_nodes_by_feature(genome, chromosome, gene_id=None, feature = None, value=None, min_node_size = None):
     return_code = "OK"
     if get_driver() is None :
         return []
@@ -469,10 +503,9 @@ def get_nodes_by_feature(genome, chromosome, gene_id=None, feature = None, value
             genome_position = genome+"_position"
             # Step 1 : find nodes with gene annotation
             if feature is not None and value is not None:
-                feature_name = feature + "_name"
-                logger.info(f"Looking for {feature_name} : {value}")
+                logger.info(f"Looking for {feature} : {value}")
                 query = f"""
-                MATCH (a:Annotation {{chromosome:"{chromosome}", {feature_name}: $value}})<-[]-(n:Node)
+                MATCH (a:Annotation {{chromosome:"{chromosome}", {feature}: $value}})<-[]-(n:Node)
                 WHERE n[$genome_position] IS NOT NULL
                 RETURN DISTINCT n
                 ORDER BY n[$genome_position] ASC
@@ -485,7 +518,7 @@ def get_nodes_by_feature(genome, chromosome, gene_id=None, feature = None, value
                     start = noeuds_annotes[0][genome_position]
                     stop = noeuds_annotes[-1][genome_position] + noeuds_annotes[-1]["size"]
                     logger.debug(f"start : {start} - stop : {stop} - nodes number : {len(noeuds_annotes)}")
-                    nodes_data, return_metadata = get_nodes_by_region(genome, chromosome, start, stop)
+                    nodes_data, return_metadata = get_nodes_by_region(genome, chromosome, start, stop, min_node_size=min_node_size)
                 else:
                     logger.debug(f"No nodes found {len(noeuds_annotes)}.")
                     return_metadata = {"return_code": "NO_DATA", "flow": None, "nodes_number": 0}

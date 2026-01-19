@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - Add full name in annotations
 - Add a slider to set colored paths size
+- Add a preset layout to allow to display more nodes if required
 
 ### Changed
 - Update the style of sequence output in the Shared regions discovery

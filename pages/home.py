@@ -277,6 +277,14 @@ def graph_compression(df):
         preds = predecessors.get(node, set())
         succs = successors.get(node, set())
 
+        #checks the flow of previous node, it must be equal to current node
+        #this is due to different start coordinates on the different haplotypes
+        curr_flow = df.loc[df['name'] == n, 'flow'].iloc[0]
+        for pred in preds:
+            pred_flow = df.loc[df['name'] == pred, 'flow'].iloc[0]
+            if pred_flow != curr_flow:
+                continue
+            continue
         # Node must be locally linear
         if len(preds) > 2 or len(succs) > 2 or len(preds) == 0 or len(succs) == 0:
             continue
@@ -335,23 +343,78 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
             positions = [p for p in positions if p is not None]
             return np.mean(positions) if positions else 0
 
+        size_max = df['size'].max()
+        size_min = df['size'].min()
+        s_max = 200
+        s_min = 30
+        df["displayed_node_size"] = s_min + (df["size"]-size_min)*(s_max-s_min)/(size_max-size_min)
+
+
         df["mean_pos"] = df.apply(mean_position, axis=1)
         x_min, x_max_data = df["mean_pos"].min(), df["mean_pos"].max()
         df["x"] = ((df["mean_pos"] - x_min) /
                    (x_max_data - x_min + 1e-6)) * x_max
 
+
+
+        X_SPAN = 40000
+        GAP = 40
+
+        min_x = df["mean_pos"].min()
+        max_x = df["mean_pos"].max()
+
+        df["x_mean"] = ((df["mean_pos"] - min_x)/ (max_x - min_x)) * X_SPAN - X_SPAN / 2
+
+        df = df.sort_values("x_mean").reset_index(drop=True)
+        df["x"] = 0.0
+
+        for n in range(len(df)):
+            if n == 0:
+                df.at[n, "x"] = df.at[n, "x_mean"]
+            else:
+                prev_x = df.at[n - 1, "x"]
+                prev_radius = df.at[n - 1, "displayed_node_size"] / 2
+                curr_radius = df.at[n, "displayed_node_size"] / 2
+                min_distance = prev_radius + curr_radius + GAP
+                delta_x_mean = df.at[n, "x_mean"] - df.at[n - 1, "x_mean"]
+                df.at[n, "x"] = prev_x + max(delta_x_mean, min_distance)
+
+        Y_MAX = 2500  # max y coordinate
+        Y_MIN = 150  # min y gap between main axe
+        FLOW_CENTER = 0.95
+        ALPHA = 2.5
+
+        df["y"] = 0.0
+
+        mask = df["flow"] < FLOW_CENTER
+
+        df.loc[mask, "y"] = (
+                Y_MIN
+                + (Y_MAX - Y_MIN)
+                * (df.loc[mask, "flow"] / FLOW_CENTER) ** ALPHA
+        )
+
+
+        #df.loc[df.index % 2 == 0, "y"] *= -1
+
+        #This line is due to a pb with cytoscape : if no y with negative and positive values then
+        #grpah disappear when zooming
+        #the first node y value is set negative to avoid this problem
+        df.at[df.index[0], "y"] = -Y_MAX
+        #logger.debug(df[["x", "y"]].describe())
+
+
         df["genome_key"] = df["genomes"].apply(lambda g: "".join(sorted(g)))
         genome_keys = sorted(
             df["genome_key"].drop_duplicates(), key=lambda x: (-len(x), x))
-        y_positions = {k: 1 for k in enumerate(genome_keys)}
-        df["y"] = df["genome_key"].map(y_positions)
+        #y_positions = {k: 1 for k in enumerate(genome_keys)}
+        #df["y"] = df["genome_key"].map(y_positions)
 
         color_map = {k: c for k, c in zip(
             genome_keys, get_color_palette(len(genome_keys)))}
 
         nodes = []
-        size_max = df['size'].max()
-        size_min = df['size'].min()
+
         size_max_noeud = 10
         #logger.debug(f"Compute elements - begin loop")
 
@@ -362,18 +425,13 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                 if "features" in row and "exon" in row['features']:
                     node_style="exon"
             node_color = flow_to_rgb(row['flow'],node_style,exons_color)
-            #displayed_node_size = (10+row['size']-size_min) / size_max*size_max_noeud+size_min
-            #displayed_node_size = (40+math.log(row['size']))/ size_max_noeud
-            s = row['size']
-            s_max = 200
-            s_min = 30
-            displayed_node_size = s_min + (s-size_min)*(s_max-s_min)/(size_max-size_min)
+
 
             data_nodes = {
                 'data': {
                     'id': row.get('name'),
                     'name': row.get('name'),
-                    'displayed_node_size': displayed_node_size,
+                    'displayed_node_size': row.get('displayed_node_size'),
                     'ref_node': row.get('ref_node'),
                     'size': row.get('size'),
                     'flow': row.get('flow'),
@@ -741,10 +799,13 @@ def layout(data=None, initial_size_limit=10):
                                             dcc.Dropdown(
                                                 id='features-dropdown',
                                                 options=[
-                                                    {'label': feature, 'value': feature}
-                                                    for feature in features
-                                                ],
-                                                value='gene' if 'gene' in features else None,
+                                                            {'label': f"{feature}_name", 'value': f"{feature}_name"}
+                                                            for feature in features
+                                                        ] + [
+                                                            {'label': f"{feature}_id", 'value': f"{feature}_id"}
+                                                            for feature in features
+                                                        ],
+                                                value='gene_name' if 'gene' in features else None,
                                                 clearable=False,
                                                 placeholder="Choose a feature to search"
                                             )
@@ -879,7 +940,8 @@ def layout(data=None, initial_size_limit=10):
                             id='layout-dropdown',
                             options=[
                                 {'label': 'fcose', 'value': 'fcose'},
-                                {'label': 'dagre', 'value': 'dagre'}
+                                {'label': 'dagre', 'value': 'dagre'},
+                                {'label': 'preset', 'value': 'preset'}
                             ],
                             value='fcose',
                             clearable=False,
@@ -1060,44 +1122,6 @@ def layout(data=None, initial_size_limit=10):
             boxSelectionEnabled=True,
             
         )
-        #old version
-        # cyto.Cytoscape(
-        #     id='graph',
-        #     # layout is important to get good visualization result
-        #     # There are many algorithms : cose, cose-bilkent-fcose, euler, dagre, etc.
-        #     # fcose seems to be the most performant
-        #     # dagre is usefull to get a linear representation
-        #     layout={
-        #         'name': 'fcose',
-        #         'maxIterations': 100000,
-        #         'maxSimulationTime': 5000,
-        #         # 'nodeRepulsion': 10000,
-        #         # 'gravity': 0.1,
-        #         # 'gravityRangeCompound': 1.5,
-        #         # 'idealEdgeLength': 100,
-        #         # 'componentSpacing': 100,
-        #         # 'nodeDimensionsIncludeLabels': True,
-        #         # 'edgeElasticity': 0.1,
-        #         # 'nestingFactor': 0.8,
-        #         # 'tile': True,
-        #         'quality': "proof",
-        #         'fit': True
-        #     },
-        #     style={'width': '100%', 'height': '1000px'},
-        #     elements=elements,
-        #     # minZoom=0.1,
-        #     # maxZoom=5,
-        #     zoomingEnabled=True,
-        #     userZoomingEnabled=True,
-        #     userPanningEnabled=True,
-        #     wheelSensitivity=0.1,
-        #     #responsive=True,
-        #     autoRefreshLayout=False,
-        #     boxSelectionEnabled=True,
-        #     autoungrabify=False,
-        #     stylesheet=compute_stylesheet(0),
-
-        # )
         ])
 
 
@@ -1235,6 +1259,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         message = ""
         start_value = None
         end_value = None
+        new_request = False
         triggered_id = ctx.triggered_id
         logger.debug(f"{triggered_id} update")
         if home_data_storage is None:
@@ -1246,6 +1271,20 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 size_slider_val = DEFAULT_SIZE_VALUE
         else:
             size_slider_val = size_slider
+        #Checks if min node size has been decreased : if so it is required to get data from database
+        if size_slider_val is not None and "current_size" in home_data_storage and home_data_storage["current_size"] > size_slider_val:
+            logger.debug(f"Min node size has been set to {size_slider_val} and is lower than old value {home_data_storage['current_size']} - nodes will be updated from database.")
+            new_request = True
+            if "start" in home_data_storage :
+                start_value = home_data_storage["start"]
+            if "end" in home_data_storage :
+                end_value = home_data_storage["end"]
+            if feature_name in home_data_storage and feature_value in home_data_storage :
+                feature_name = home_data_storage["feature_name"]
+                feature_value = home_data_storage["feature_value"]
+        else:
+            if "current_size" in  home_data_storage :
+                logger.debug(f"Min node size {size_slider_val} - old value {home_data_storage['current_size']}.")
         if "search_return_metadata" in home_data_storage and home_data_storage["search_return_metadata"] is not None :
             return_metadata = home_data_storage["search_return_metadata"]
             home_data_storage["search_return_metadata"] = None
@@ -1258,6 +1297,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             home_data_storage["selected_chromosome"] = chromosome
         if shared_regions_link_color is not None:
             home_data_storage["shared_regions_link_color"] = shared_regions_link_color
+
         if start is not None:
             home_data_storage["start"] = start
             start_value = start
@@ -1350,11 +1390,14 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         all_genomes = data_storage["genomes"]
         all_chromosomes = data_storage["chromosomes"]
 
+        #Checks if it is required to request database
         if (triggered_id== "search-button" and n_clicks > 0)  \
             or triggered_id in ["btn-zoom", "btn-reset-zoom", "btn-zoom-out"] \
-            or (triggered_id == "update_graph_command_storage" and update_graph_command_storage is not None) :
+            or (triggered_id == "update_graph_command_storage" and update_graph_command_storage is not None) \
+            or new_request:
             new_data = {}
             #Delete local phylo graph if exists
+            logger.debug("Getting data from database")
             if phylo_data is not None and "newick_region" in phylo_data:
                 phylo_data["newick_region"] = None
             if sequences_data is not None :
@@ -1364,16 +1407,16 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 if triggered_id == "btn-zoom":
                     use_anchor = False
                 new_data, return_metadata = get_nodes_by_region(
-                        genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor)
+                        genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor, min_node_size=size_slider_val)
                 #data_storage_nodes = new_data
                 logger.debug("len new_data : " + str(len(new_data)))
             else:
                 if (feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "") and chromosome is not None:
                         new_data,return_metadata = get_nodes_by_feature(
-                            genome, chromosome=chromosome, feature= feature_name, value=feature_value)
+                            genome, chromosome=chromosome, feature= feature_name, value=feature_value, min_node_size=size_slider_val)
                 else:
                     new_data, return_metadata = get_nodes_by_region(
-                        genome, chromosome=chromosome, start=0, end=end)
+                        genome, chromosome=chromosome, start=0, end=end, min_node_size=size_slider_val)
 
             # Get the start / end value when graph is updated
             genome_position = genome + "_position"
@@ -1396,6 +1439,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression)
+            home_data_storage["current_size"] = size_slider_val
             if triggered_id == "search-button":
                 zoom_shared_storage_out = {}
                 message = html.Div("❌ Error.", style=warning_style)
@@ -1422,7 +1466,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                     style=warning_style)
             elif new_data is not None and return_metadata["return_code"] == "PARTIAL":
                 message = html.Div(
-                    f"⚠️ No core genome anchor found near searched region, the result is partial and some may be absent for some individuals. Total nodes number : {return_metadata['nodes_number']}.",
+                    f"⚠️ No core genome anchor found near searched region, the result is partial and some nodes may be absent for some individuals. Total nodes number : {return_metadata['nodes_number']}.",
                     style=warning_style)
             elif return_metadata["return_code"] == "OK":
                 message = html.Div(
@@ -1439,6 +1483,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 message = html.Div("❌ Error.", style=error_style)
 
         else:
+            #No needs to get data from database
             start_value = home_data_storage.get("start",None)
             end_value = home_data_storage.get("end",None)
             feature_name = home_data_storage.get("feature_name", "")
@@ -1467,20 +1512,27 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                         set_annot.add(a)
         for a in set_annot:
             annotations += str(a) + "\n"
-        if layout_choice and 'dagre' in layout_choice:
-            layout = {'name': 'dagre',
-                      'rankDir': "RL",
-                      'nodeDimensionsIncludeLabels': True,
-                      'fit': True
-                      }
-        else:
-            layout = {
-                'name': 'fcose',
-                'maxIterations': 100000,
-                'maxSimulationTime': 5000,
-                'quality': "proof",
-                'fit': True
-            }
+
+        #default layout is fcose
+        layout = {
+            'name': 'fcose',
+            'maxIterations': 100000,
+            'maxSimulationTime': 5000,
+            'quality': "proof",
+            'fit': True
+        }
+        if layout_choice:
+            match (layout_choice):
+                case "dagre":
+                    layout = {'name': 'dagre',
+                              'rankDir': "RL",
+                              'nodeDimensionsIncludeLabels': True,
+                              'fit': True
+                              }
+                case "preset":
+                    layout = {'name': 'preset',
+                              'fit': True
+                              }
         #displayed region construction:
         displayed_div = get_displayed_div(start_value, end_value, feature_name, feature_value)
         return (elements,f"{nodes_count} displayed nodes", data_storage_nodes, message, annotations, stylesheet,
@@ -1569,7 +1621,7 @@ def update_parameters_on_page_load(pathname, search, data, shared_data, options_
     if "specifics_genomes" in data:
         selected_shared_genomes = data["specifics_genomes"]
     #Get query param if setted
-    #Query params exemple : ?haplotype=Korso_0&chromosome=1&featureName=gene&featureValue=BolK_1g00590
+    #Query params exemple : ?haplotype=Korso_0&chromosome=1&featureName=gene_name&featureValue=BolK_1g00590
     #?haplotype=Korso_0&chromosome=1&start=100000&end=1090000
     no_query_params = True
     if search:
@@ -1622,34 +1674,43 @@ def update_parameters_on_page_load(pathname, search, data, shared_data, options_
 
 
 # Algorithm cytoscape choice
-@app.callback(
-    Output('graph', 'layout'),
-    Input('layout-dropdown', 'value')
-)
-def toggle_layout(layout_choice):
-    if layout_choice and 'dagre' in layout_choice:
-        return {
-            'name': 'dagre',
-            'rankDir': "RL",
-            'nodeDimensionsIncludeLabels': True
-        }
-    else:
-        return {
-            'name': 'fcose',
-            'maxIterations': 100000,
-            'maxSimulationTime': 5000,
-            # 'nodeRepulsion': 10000,
-            # 'gravity': 0.1,
-            # 'gravityRangeCompound': 1.5,
-            # 'idealEdgeLength': 100,
-            # 'componentSpacing': 100,
-            # 'nodeDimensionsIncludeLabels': True,
-            # 'edgeElasticity': 0.1,
-            # 'nestingFactor': 0.8,
-            # 'tile': True,
-            'quality': "proof",
-            'fit': True
-        }
+# @app.callback(
+#     Output('graph', 'layout'),
+#     Input('layout-dropdown', 'value')
+# )
+# def toggle_layout(layout_choice):
+#     if layout_choice:
+#         match(layout_choice):
+#             case "dagre":
+#                 return {
+#                     'name': 'dagre',
+#                     'rankDir': "RL",
+#                     'nodeDimensionsIncludeLabels': True
+#                 }
+#             case "preset":
+#                 return {
+#                     'name': 'dagre',
+#                     'rankDir': "RL",
+#                     'nodeDimensionsIncludeLabels': True
+#                 }
+#
+#     #Default layout is fcose
+#     return {
+#         'name': 'fcose',
+#         'maxIterations': 100000,
+#         'maxSimulationTime': 5000,
+#         # 'nodeRepulsion': 10000,
+#         # 'gravity': 0.1,
+#         # 'gravityRangeCompound': 1.5,
+#         # 'idealEdgeLength': 100,
+#         # 'componentSpacing': 100,
+#         # 'nodeDimensionsIncludeLabels': True,
+#         # 'edgeElasticity': 0.1,
+#         # 'nestingFactor': 0.8,
+#         # 'tile': True,
+#         'quality': "proof",
+#         'fit': True
+#     }
 
 
 ######## download graph callbacks ###############
