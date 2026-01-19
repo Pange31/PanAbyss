@@ -69,7 +69,7 @@ def layout():
                              html.Li("Export to csv / export to csv with sequences : it will save the result into a csv file (without or with the sequences associated to each region). The file is located in the './export/gwas' directory."),
                              html.Li("Load csv : it allows to load the saved csv (it located in the '/gwas' directory or a selected file)."),
                              html.Li("First column : by clicking on the first columns it will display the region in the home page."),
-                             html.Li("Region size column : by clicking on the size columns it will display the sequence associated to the region."),
+                             html.Li("Sequences column : by clicking on this column it will display the sequence associated to the region."),
                              ])
                      ])
             ])
@@ -178,7 +178,6 @@ def layout():
                                             "wordWrap": "break-word",
                                             "overflowWrap": "break-word"
                                             }),
-        html.Label("Tip : Click on the size value to print the region sequence"), 
         html.Div([
             html.Button("💾 Export to CSV", title=f"Export the results in the table into a csv file in the {EXPORT_DIR} directory. Sequences won't be present.",id='save-csv-button', n_clicks=0),
             html.Button("💾 Export to CSV with sequences", title=f"Export the results in the table into a csv file in the {EXPORT_DIR} directory. Sequences will be present.", id='save-csv-with_seq-button', n_clicks=0),
@@ -187,7 +186,7 @@ def layout():
             html.Div(id='save-feedback'),
             dcc.Upload(
                 id='upload-csv',
-                children=html.Div(['Glissez un fichier CSV ici ou cliquez pour sélectionner un fichier.']),
+                children=html.Div(['Drag a CSV file here or click to select a file.']),
                 style={
                     'display': 'none',
                     'borderWidth': '1px',
