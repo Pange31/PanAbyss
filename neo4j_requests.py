@@ -181,6 +181,41 @@ def get_anchor(genome, chromosome, position, before = True, use_anchor=True):
     return None, core_genome
 
 
+#Internal request to get all the nodes into a range defined in ranges dictionnary (containing start and end)
+#min_node_size will be used is set to get only nodes with a size greater than this value
+#flow will be used is set to get only nodes with a flow greater than this value
+#valid_individuals_exceptions : if not None this list is used to filter haplotypes : haplotypes not in this list will be used
+def construct_base_query(ranges, chromosome, min_node_size = None, flow= None, valid_individuals_exceptions=None):
+    subqueries = []
+
+    for g in ranges:
+        if valid_individuals_exceptions is None or g not in valid_individuals_exceptions:
+            position_field = g + "_position"
+            subquery = f"""
+                MATCH (m:Node)
+                WHERE m.chromosome = "{chromosome}"
+                """
+
+            if min_node_size is not None and min_node_size > 1:
+                subquery += f" AND m.size >= {min_node_size}"
+            if flow is not None :
+                subquery += f" AND m.flow >= {flow}"
+            subquery += f"""
+              AND m.`{position_field}` >= {ranges[g]['start']}
+              AND m.`{position_field}` <= {ranges[g]['stop']}
+            RETURN m
+            """
+
+            subqueries.append(subquery)
+
+    # Assemblage final avec UNION ALL
+    base_query_genome = f"""
+        CALL {{
+            {" UNION ALL ".join(subqueries)}
+        }}
+        """
+    return base_query_genome
+
 
 #This function take a region (chromosome, start and stop) of a given haplotype (search_genome)
 #and it returns all the nodes in this region and the other related regions : 
@@ -282,31 +317,15 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True, min_n
                 # Step 2 : find the region between the 2 anchors
                 if anchor_start is not None and anchor_stop is not None and anchor_stop[genome_position] - anchor_start[genome_position] > 0 and len(anchor_start['genomes']) > 0 :
                     region_nodes_number = 0
-                    #construct the base query to find all genomes betwwen the start / stop position
-                    base_query_genome = f"""
-                        MATCH (m:Node)
-                        WHERE  m.chromosome = "{chromosome}"
-                        """
-                    if min_node_size is not None and min_node_size > 1:
-                        base_query_genome += f" AND m.size >= {min_node_size} AND ("
-                    else:
-                        base_query_genome += " AND ("
-                    first = True
-                    for g in ranges:
-                        position_field = g + "_position"
-                        if first:
-                            base_query_genome += f"(m.`{position_field}` >= {ranges[g]['start']} AND m.`{position_field}` <= {ranges[g]['stop']})"
-                            first = False
-                        else:
-                            base_query_genome += f" OR (m.`{position_field}` >= {ranges[g]['start']} AND m.`{position_field}` <= {ranges[g]['stop']})"
-                    base_query_genome += ")"
+                    #construct the base query to find all genomes between the start / stop position
 
-                    # Step 3 : Check if the region size is not too  wide
-                    query_genome = base_query_genome + f"""
-                        WITH m LIMIT {MAX_NODES_NUMBER+1}
-                        return count(m) as nodes_number
+                    query_genome = construct_base_query(ranges, chromosome, min_node_size = min_node_size, flow= None) + f"""
+                        WITH DISTINCT m
+                        LIMIT {MAX_NODES_NUMBER + 1}
+                        RETURN count(m) AS nodes_number
                         """
-                    result = session.run(query_genome, start=start, end=end)
+
+                    result = session.run(query_genome)
                     record = result.single()
                     if record:
                         region_nodes_number =  int(record["nodes_number"])
@@ -358,11 +377,13 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True, min_n
                             zoom = True
                             flow = 1
                             while zoom and flow >= 0:
-                                query_genome = base_query_genome + f"""
-                                    AND m.flow >= {flow} 
-                                    WITH m LIMIT {MAX_NODES_NUMBER+1}
-                                    return count(m) as nodes_number
-                                    """
+
+                                query_genome = construct_base_query(ranges, chromosome, min_node_size=min_node_size,
+                                                                    flow=flow) + f"""
+                                                                    WITH DISTINCT m
+                                                                    LIMIT {MAX_NODES_NUMBER + 1}
+                                                                    RETURN count(m) AS nodes_number
+                                                                    """
                                 #logger.debug(query_genome)
                                 result = session.run(query_genome, start=start, end=end)
                                 record = result.single()
@@ -390,38 +411,24 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor = True, min_n
                             #The search will be filtered by flow
                             return_metadata["flow"]= flow
                             return_metadata["return_code"] = "ZOOM"
-                            query_genome = base_query_genome + f"AND m.flow >= {flow} "
+                            query_genome = construct_base_query(ranges, chromosome, min_node_size=min_node_size,
+                                                                    flow=flow)
                         elif len(valid_individuals_exceptions) > 0:
-                            #Remove exceptional individuals of the list
-                            query_genome = f"""
-                                MATCH (m:Node)
-                                WHERE  m.chromosome = "{chromosome}"
-                                """
-                            if min_node_size is not None and min_node_size > 1:
-                                query_genome += f" AND m.size >= {min_node_size} AND ("
-                            else:
-                                query_genome += " AND ("
-                            first = True
-                            for g in ranges:
-                                if g not in valid_individuals_exceptions :
-                                    position_field = g + "_position"
-                                    if first:
-                                        query_genome += f"(m.`{position_field}` >= {ranges[g]['start']} AND m.`{position_field}` <= {ranges[g]['stop']})"
-                                        first = False
-                                    else:
-                                        query_genome += f" OR (m.`{position_field}` >= {ranges[g]['start']} AND m.`{position_field}` <= {ranges[g]['stop']})"
-                            query_genome += ")"
+                            logger.debug("request construction")
+                            query_genome = construct_base_query(ranges, chromosome, min_node_size = min_node_size, flow= None, valid_individuals_exceptions=valid_individuals_exceptions)
                             return_metadata["flow"] : 0
                             return_metadata["removed_genomes"] = valid_individuals_exceptions
                             return_metadata["return_code"] = "FILTER"
-                        else : query_genome = base_query_genome
+                        else : query_genome = query_genome = construct_base_query(ranges, chromosome, min_node_size = min_node_size, flow= None)
 
                         query_genome = query_genome + f"""
+                            WITH DISTINCT m
                             OPTIONAL MATCH (m)-[]->(a:Annotation)
                             OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
                             RETURN m, substring(s.sequence, 0, {max_sequence}) as sequence, collect(a.gene_name) AS annotations, collect(a.feature) AS features
                             LIMIT {MAX_NODES_NUMBER + 1}
                             """
+                        #logger.debug(f"query genome : {query_genome}")
                         #logger.info(query_genome)
                         result = session.run(query_genome, start=start, end=end)
                         for record in result :
