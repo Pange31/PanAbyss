@@ -279,7 +279,7 @@ def graph_compression(df):
 
         #checks the flow of previous node, it must be equal to current node
         #this is due to different start coordinates on the different haplotypes
-        curr_flow = df.loc[df['name'] == n, 'flow'].iloc[0]
+        curr_flow = df.loc[df['name'] == node, 'flow'].iloc[0]
         for pred in preds:
             pred_flow = df.loc[df['name'] == pred, 'flow'].iloc[0]
             if pred_flow != curr_flow:
