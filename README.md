@@ -16,6 +16,9 @@ It allows the following functionalities:
 - Compute a global phylogenetic tree or a local phylogenetic tree from a selected region (neighbour joining with a distance matrix based on Jaccard index)
 - Visualize a region and annotation of the pangenome
 
+![TP53 Gene visualization](assets/images/TP53_gene.png)
+*Figure 1 – Visualization of TP53 gene on HPRC pangenome (orange path is GRCh38 path, exons are shown in green).*
+
 ## Installation 
 ### Requirements
 * Docker available: see docker documentation if not installed. Docker must be able to be launched by the $USER user; otherwise, see the procedure for launching Docker in non-root mode:
