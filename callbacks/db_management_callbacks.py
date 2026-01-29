@@ -128,7 +128,7 @@ def on_click_load_gfa(n_clicks, checkbox_values, checkbox_ids, input_values, inp
     logger.info(f"Graph from {file_name} loaded in {time.time() - start_time:.2f} s")
     logger.info("creating indexes")
     create_indexes(base=False, extend=True, genomes_index=True)
-
+    (ret, msg_indexes) = wait_for_indexes()
     return html.Div(f"✅ GFA files loaded successfully: {', '.join(selected_files)}", style=success_style),  [ [] for _ in checkbox_ids ]
 
 
@@ -201,6 +201,7 @@ def on_click_csv_import(n_clicks, checkbox_values, checkbox_ids, input_values, i
 def on_click_create_index(n_clicks):
     logger.info("create indexes")
     create_indexes(base=True, extend=True, genomes_index=True)
+    (ret, msg_indexes) = wait_for_indexes()
     logger.info("Indexes created")
     return html.Div(f"✅ Indexes creation command successfully done.", style=success_style)
 
@@ -589,6 +590,8 @@ def confirm_create_db(n_clicks, container_name, docker_image, data, children, ch
     else:
         container_name_prefixed = PREFIX_CONTAINER_NAME + container_name
     try:
+        genomes_set = set()
+        chromosomes_set = set()
         #Check if gfa files are selected
         selected_files = [c_id['index'] for c_val, c_id in zip(checkbox_values, checkbox_ids) if c_val]
         if selected_files:
@@ -611,22 +614,28 @@ def confirm_create_db(n_clicks, container_name, docker_image, data, children, ch
                         return html.Div(
                             "❌ When multiple gfa are selected, it is required to set the chromosome for each of theses files (non null or empty value).",
                             style=error_style), "", data, no_update_list, checkbox_values, container_name
-
             for file_name, chromosome_file in zip(selected_files, list_chromosome_file):
                 start_time = time.time()
                 if chromosome_file != "":
                     file_path = os.path.join(GFA_FOLDER, file_name)
-                    load_gfa_data_to_csv(file_path, import_dir="./data/import",
+                    genomes_analysed, chromosomes_analysed = load_gfa_data_to_csv(file_path, import_dir="./data/import",
                                          chromosome_file=chromosome_file,
                                          chromosome_prefix=False,
                                          batch_size=batch_size,
                                          start_chromosome=None,
                                          haplotype=True)
+                    genomes_set = genomes_set | genomes_analysed
+                    chromosomes_set = chromosomes_set | set(chromosomes_analysed)
                 logger.info(f"CSV generation from {file_name} loaded in {time.time() - start_time:.2f} s")
         logger.info("All import files have been generated from gfa files in {time.time() - start_time:.2f} s, creating database.")
         creation_mode = create_db(container_name_prefixed, docker_image)
         # If creation by importing csv files it is necessary to create stats and indexes
         if creation_mode == "csv":
+            stats = False
+            if len(genomes_set) > 0 and len (chromosomes_set) > 0:
+                logger.info("creating stats")
+                create_stats(genomes_set, chromosomes_set)
+                stats = True
             logger.info("creating base indexes")
             create_indexes(base=True, extend=True, genomes_index=False)
             if check_state_index("NodeIndexChromosome") is not None:
@@ -634,8 +643,9 @@ def confirm_create_db(n_clicks, container_name, docker_image, data, children, ch
                 while int(check_state_index("NodeIndexChromosome")) < 100 and t < MAX_TIME_INDEX:
                     time.sleep(10)
                     t += 10
-                logger.info("creating stats")
-                create_stats_from_nodes()
+                if not stats:
+                    logger.info("creating stats from core node")
+                    create_stats_from_nodes()
             logger.info("creating other indexes")
             create_indexes(base=False, extend=False, genomes_index=True)
 
