@@ -224,7 +224,7 @@ def update_phylo_graph(method,contents, n_clicks_global_tree, n_clicks_last_tree
             return [], f"No existing last tree file : {last_tree}","", pĥylo_data
     else:
         if contents is None:
-            return [], "No fil loaded.","", pĥylo_data
+            return [], "No file loaded.","", pĥylo_data
     
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string)
