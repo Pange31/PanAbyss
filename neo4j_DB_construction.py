@@ -1723,20 +1723,54 @@ def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotat
 
 @require_authorization
 def process_annotation_simple_batch(tx, annotations, genome_ref):
+    # query = f"""
+    #     UNWIND $annotations AS annot
+    #     WITH annot.chromosome AS chr, annot.start AS start, annot.end AS end, collect(annot) AS group_annot
+    #
+    #     MATCH (n1:Node)
+    #     WHERE n1.chromosome = chr
+    #       AND n1.`{genome_ref}_position` >= start
+    #       AND n1.`{genome_ref}_position` <= end
+    #
+    #     WITH group_annot, n1, chr, start
+    #     UNWIND group_annot AS ann1
+    #     MATCH (a1:Annotation {{name: ann1.name}})
+    #     MERGE (n1)-[:annotation_link]->(a1)
+    # """
+
+    # query = f"""
+    #     UNWIND $annotations AS annot
+
+    #     MATCH (n1:Node)
+    #     WHERE n1.chromosome = annot.chromosome
+    #       AND n1.`{genome_ref}_position` >= annot.start
+    #       AND n1.`{genome_ref}_position` <= annot.end
+
+    #     MATCH (a1:Annotation {{name: annot.name}})
+    #     MERGE (n1)-[:annotation_link]->(a1)
+    # """
+
     query = f"""
-        UNWIND $annotations AS annot
-        WITH annot.chromosome AS chr, annot.start AS start, annot.end AS end, collect(annot) AS group_annot
-        
-        MATCH (n1:Node)
-        WHERE n1.chromosome = chr
-          AND n1.`{genome_ref}_position` >= start
-          AND n1.`{genome_ref}_position` <= end
-        
-        WITH group_annot, n1, chr, start
-        UNWIND group_annot AS ann1
-        MATCH (a1:Annotation {{name: ann1.name}})
-        MERGE (n1)-[:annotation_link]->(a1)
-    """
+        CALL apoc.periodic.iterate(
+          "
+          UNWIND $annotations AS annot
+          MATCH (n1:Node)
+          WHERE n1.chromosome = annot.chromosome
+            AND n1.`{genome_ref}_position` >= annot.start
+            AND n1.`{genome_ref}_position` <= annot.end
+          MATCH (a1:Annotation {{name: annot.name}})
+          RETURN n1, a1
+          ",
+          "
+          MERGE (n1)-[:annotation_link]->(a1)
+          ",
+          {{
+            batchSize: 1000,
+            parallel: false,
+            params: {{annotations: $annotations}}
+          }}
+        )
+        """
 
     #logger.debug(query)
 
