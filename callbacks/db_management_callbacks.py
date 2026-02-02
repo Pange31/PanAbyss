@@ -325,13 +325,21 @@ def on_click_load_annotations(n_clicks, checkbox_values, checkbox_ids, dropdown_
     if triggered_id == "btn-load-annotations-with-link":
         for genome in set(genome_mapping.values()):
             logger.info(f"Link annotations for genome '{genome}'")
-            creer_relations_annotations_neo4j(genome)
+            WARN = creer_relations_annotations_neo4j(genome)
+
+    if WARN:
+        return_message = html.Div(
+        f"❌ Chromosome names mismatch between graph and annotation file. No annotation linked.",
+        style=warning_style
+    )
+    else:
+        return_message = html.Div(
+            f"✅ Annotation(s) '{', '.join(selected_files)}' loaded with associated genomes.",
+            style=success_style
+        )
 
     # Return success message and reset all checkboxes (empty list)
-    return html.Div(
-        f"✅ Annotation(s) '{', '.join(selected_files)}' loaded with associated genomes.",
-        style=success_style
-    ), [[] for _ in checkbox_values]
+    return return_message, [[] for _ in checkbox_values]
 
 
 #

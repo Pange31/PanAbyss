@@ -22,7 +22,7 @@ logger = logging.getLogger("panabyss_logger")
 #A specific graph with big nodes may require to increase this value
 MAX_READ_BUFFER_SIZE_VALUE = 128000000
 
-#These functions allow to create databse and index from gfa and annotations files
+#These functions allow to create database and index from gfa and annotations files
 
 
 #Version of BDD
@@ -1856,12 +1856,22 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
         last_id = -1
         batch_size = 10000
         total_annotations = 0
-        
-        
+        WARN = False
+        WARN_message = ""
         with driver.session() as session:
             #Processing simple annotations: those for which the start is between the start and end of a node
             #this is the largest volume of annotations
             logger.info("Processing annotations")
+            #Get the chromosomes present in the pangenome
+            query = """
+            MATCH (s:Stats) 
+            RETURN s.chromosomes as all_chromosomes
+            """
+            graph_chromosomes_set = set()
+            result = session.run(query)
+            for record in result:
+                graph_chromosomes_set = set(record["all_chromosomes"])
+
             i = 0
             last_name = None
             last_id = -1
@@ -1886,6 +1896,12 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
             for g in liste_genomes :
                 logger.info(f"Linking annotation for genome {g}")
                 query = f"""
+                    MATCH (a:Annotation) where a.genome_ref = "{g}" return collect(distinct(a.chromosome)) as annotations_chromosomes
+                """
+                result = session.run(query)
+                for record in result:
+                    annotations_chromosomes_set = set(record["annotations_chromosomes"])
+                query = f"""
                 MATCH (a:Annotation) where a.genome_ref = "{g}" return min(ID(a)) as min_id, max(ID(a)) as max_id, count(a) as annotations_count
                 """
                 #logger.debug(query)
@@ -1894,6 +1910,13 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
                     min_id = record["min_id"]
                     max_id = record["max_id"]
                     annotations_count = record["annotations_count"]
+
+                intersection_chromosomes_set = graph_chromosomes_set & annotations_chromosomes_set
+                if len(intersection_chromosomes_set) == 0:
+                    WARN = True
+                    continue
+                else:
+                    WARN = False
                 if min_id is None or max_id is None or min_id == max_id :
                     continue
                 batch_number = ceil((max_id-min_id)/batch_size)
@@ -1950,30 +1973,10 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
                     logger.info(f"processing complex annotations for genome {g}")
                     process_annotation_last_complex_batch(tx, g, annotation_search_limit=10000)
                     tx.commit()
-    
-    
-            # logger.info("Processing complex annotations")
-            # #Process complex annotations for nodes > annotation_search_limit
-            # total_created = 0
-            
-            # batch_size = 100000
-            # result = session.run(f"MATCH (n:Node) where n.size > RETURN min(id(n)) AS min_id, max(id(n)) AS max_id")
-            # for record in result:
-            #       min_id = record["min_id"]
-            #       max_id = record["max_id"]
-            # batch_nb = ceil((max_id-min_id)/batch_size) 
-            # last_id = min_id
-            # current_batch = 0
-            # logger.info("min id : " + str(min_id) + " - max id : " + str(max_id))
-            # while current_batch < batch_nb :
-            #     current_batch += 1
-            #     logger.info("batch " + str(current_batch) + "/"+str(batch_nb))
-            #     created = session.execute_write(process_annotation_complexe_batch, last_id, genome_ref, batch_size)
-            #     last_id += batch_size
-            #     total_created += created
-            #     logger.info(f"{created} relations créées.")
-
-    logger.info("End of relationships creation. Total time : " + str(time.time()-temps_depart))
+    if WARN:
+        WARN_message = "Chromosome names mismatch between annotation file and graph."
+    logger.info(f"End of relationships creation, {total_annotations} annotations analysed. {WARN_message} Total time : " + str(time.time()-temps_depart))
+    return WARN
     
 
 
@@ -1984,6 +1987,7 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
 @require_authorization
 def construct_DB(gfa_file_name, annotation_file_name = None, genome_ref = None, chromosome_file = None, chromosome_prefix = False, batch_size = 2000000, start_chromosome = None, create = False, haplotype = True, create_only_relations = False):
     start_time = time.time()
+    WARN = False
     load_sequences(gfa_file_name, chromosome_file, create=create)
     sequence_time = time.time()
     logger.info("Sequences loaded in " + str(sequence_time-start_time) + " s")
@@ -1997,11 +2001,11 @@ def construct_DB(gfa_file_name, annotation_file_name = None, genome_ref = None, 
         load_annotations_neo4j(annotation_file_name, genome_ref = genome_ref, single_chromosome = chromosome_file)
         annotation_time = time.time()
         logger.info("Annotations loaded in " + str(annotation_time-index_time) + " s")
-        creer_relations_annotations_neo4j(genome_ref)
+        WARN = creer_relations_annotations_neo4j(genome_ref)
         annotation_relation_time = time.time()
         logger.info("Annotations relations loaded in " + str(annotation_relation_time-annotation_time) + " s")
     logger.info("Process terminated. BDD construct in " + str(time.time()-start_time) + " s")
-
+    return WARN
 
 #This function load multiple gfa files : each file must relate to a single chromosome
 #The files must be named so that last character before .gfa extension contains the reference of the chromosome
@@ -2009,6 +2013,7 @@ def construct_DB(gfa_file_name, annotation_file_name = None, genome_ref = None, 
 @require_authorization
 def construct_db_by_chromosome(gfa_chromosomes_dir, annotation_file_name = None, genome_ref = None, chromosome_file = None, start_node = 0, batch_size = 5000000, create=False):
     start_time = time.time()
+    WARN = False
     for gfa_file_name in  os.listdir(gfa_chromosomes_dir):
         if gfa_file_name.endswith(".gfa"):
             if "_" in gfa_file_name:
@@ -2031,11 +2036,11 @@ def construct_db_by_chromosome(gfa_chromosomes_dir, annotation_file_name = None,
         load_annotations_neo4j(annotation_file_name, genome_ref = genome_ref, single_chromosome = chromosome_file)
         annotation_time = time.time()
         logger.info("Annotations loaded in " + str(annotation_time-index_time) + " s")
-        creer_relations_annotations_neo4j(genome_ref)
+        WARN = creer_relations_annotations_neo4j(genome_ref)
         annotation_relation_time = time.time()
         logger.info("Annotations relations loaded in " + str(annotation_relation_time-annotation_time) + " s")
     logger.info("Process terminated. BDD construct in " + str(time.time()-start_time) + " s")
-
+    return WARN
 
 @require_authorization
 def delete_annotations(batch_size=100000):
