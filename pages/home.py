@@ -952,22 +952,7 @@ def layout(data=None, initial_size_limit=10):
 
                     ],
                         style={'marginBottom': '20px'}),
-                    # Download graph div
-                    html.Div([
-                        html.Label(
-                            'Download graph:', title="PNG and JPG files will be saved into ./export/graphs directory while SVG files are downloaded.", style={"marginLeft": "10px"}),
-                        html.Button("as jpg", id="btn-save-jpg",
-                                    style={"marginLeft": "10px"}),
-                        html.Button("as png", id="btn-save-png",
-                                    style={"marginLeft": "10px"}),
-                        html.Button("as svg", id="btn-save-svg",
-                                    style={"marginLeft": "10px"}),
-                        dcc.Download(id="download-graph"),
-                        # html.Button("as svg", id="btn-save-svg", style={"marginLeft":"10px"}),
-                        html.Div(id="dummy-output")
-                    ]),
-                    # dcc.Loading(id="loading-spinner", type="circle",
-                    #             children=html.Div(id="output-zone"))
+
                 ],
                     style={'marginBottom': '20px'}
                 )
@@ -1181,11 +1166,32 @@ def layout(data=None, initial_size_limit=10):
                 html.Button(
                     "🔄 Zoom out 2000 bp",
                     id='btn-zoom-out',
-                )
+                ),
+                html.Button(
+                    "🗙 Toggle Legend",
+                    id='btn-toggle-legend',
+                ),
+                # Download graph div
+                html.Div([
+                    html.Label(
+                        'Download graph:',
+                        title="PNG and JPG files will be saved into ./export/graphs directory while SVG files are downloaded.",
+                        style={"marginLeft": "10px"}),
+                    html.Button("as jpg", id="btn-save-jpg",
+                                style={"marginLeft": "10px"}),
+                    html.Button("as png", id="btn-save-png",
+                                style={"marginLeft": "10px"}),
+                    html.Button("as svg", id="btn-save-svg",
+                                style={"marginLeft": "10px"}),
+                    dcc.Download(id="download-graph"),
+                    # html.Button("as svg", id="btn-save-svg", style={"marginLeft":"10px"}),
+                    html.Div(id="dummy-output")
+                ]),
             ], style={'marginBottom': '10px', 'display': 'flex', 'gap': '10px'}),
 
             html.Div(
                 legend,
+                id='legend-div',
                 style={'marginBottom': '10px'}
             )
         ]),
@@ -1202,6 +1208,19 @@ def layout(data=None, initial_size_limit=10):
             
         )
         ])
+
+#callback to show / hide legend
+@app.callback(
+    Output('legend-div', 'style'),
+    Input('btn-toggle-legend', 'n_clicks'),
+    State('legend-div', 'style')
+)
+def toggle_legend(n_clicks, current_style):
+    if n_clicks is None:
+        return current_style
+    new_display = 'none' if current_style.get('display', 'block') != 'none' else 'block'
+    current_style['display'] = new_display
+    return current_style
 
 
 # Callback to get nodes or link info when clicking on it
