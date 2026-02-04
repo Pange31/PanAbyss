@@ -5,6 +5,7 @@ from neo4j_requests import *
 
 import dash
 from dash import Dash, dcc, html, Input, Output, State, callback_context, ctx, MATCH, ALL, no_update
+import dash_svg as svg
 from urllib.parse import parse_qs, urlparse
 from dash.exceptions import PreventUpdate
 import dash_cytoscape as cyto
@@ -604,6 +605,77 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         return [], 0
 
 
+legend = html.Div(
+    style={
+        "bottom": "20px",
+        "left": "20px",
+        "background": "rgba(255,255,255,0.95)",
+        "border": "1px solid #ccc",
+        "borderRadius": "6px",
+        "padding": "10px",
+        "width": "320px",
+        "fontSize": "12px"
+    },
+    children=[
+
+        html.Div("Legend", style={"fontWeight": "bold", "marginBottom": "8px"}),
+
+        # === NODE SIZE ===
+        svg.Svg(width="300", height="40", children=[
+            svg.Circle(cx="35", cy="20", r="6", fill="blue"),
+            svg.Circle(cx="35", cy="20", r="10", fill="blue", opacity="0.5"),
+            svg.Circle(cx="35", cy="20", r="14", fill="blue", opacity="0.4"),
+
+            svg.Text("Node size ∝ sequence length", x="70", y="25")
+        ]),
+
+        # === NODE COLOR (BLUE → RED) ===
+        svg.Svg(width="300", height="30", children=[
+            svg.Circle(cx="20", cy="15", r="8", fill="blue"),
+            svg.Circle(cx="40", cy="15", r="8", fill="#7f007f"),
+            svg.Circle(cx="60", cy="15", r="8", fill="red"),
+            svg.Text(
+                "Color: few individuals → all individuals",
+                x="80", y="20"
+            )
+        ]),
+
+        # === REPEATED NODE ===
+        svg.Svg(width="300", height="30", children=[
+            svg.Rect(x="25", y="5", width="20", height="20", fill="red"),
+            svg.Text("Repeated node", x="80", y="20")
+        ]),
+
+        # === EDGE WIDTH ===
+        svg.Svg(width="300", height="30", children=[
+            svg.Line(
+                x1="10", y1="15", x2="60", y2="15",
+                stroke="#333",
+                strokeWidth="5"
+            ),
+            svg.Text(
+                "Edge width ∝ number of individuals",
+                x="80", y="20"
+            )
+        ]),
+
+        # === DASHED EDGE ===
+        svg.Svg(width="300", height="30", children=[
+            svg.Line(
+                x1="10", y1="15", x2="60", y2="15",
+                stroke="#333",
+                strokeWidth="3",
+                strokeDasharray="6,4"
+            ),
+            svg.Text(
+                "Dashed edge: long genomic distance",
+                x="80", y="20"
+            )
+        ]),
+    ]
+)
+
+
 def layout(data=None, initial_size_limit=10):
     all_genomes = get_genomes()
     all_genomes.sort()
@@ -794,7 +866,7 @@ def layout(data=None, initial_size_limit=10):
                                 children=[
 
                                     html.Div(
-                                        style={'width': '200px'},
+                                        style={'width': '300px'},
                                         children=[
                                             dcc.Dropdown(
                                                 id='features-dropdown',
@@ -1095,19 +1167,26 @@ def layout(data=None, initial_size_limit=10):
             'justifyContent': 'space-between'
         }),
         html.Div([
-            # Button on top of the graph
-            html.Button(
-                "🔍 Zoom on selection",
-                id='btn-zoom',
-                title='Before using this button, nodes must be selected by holding left mouse button and Shift key.'
-            ),
-            html.Button(
-                "🔄 Reset Zoom",
-                id='btn-reset-zoom',
-            ),
-            html.Button(
-                "🔄 Zoom out 2000 bp",
-                id='btn-zoom-out',
+            html.Div([
+                # Button on top of the graph
+                html.Button(
+                    "🔍 Zoom on selection",
+                    id='btn-zoom',
+                    title='Before using this button, nodes must be selected by holding left mouse button and Shift key.'
+                ),
+                html.Button(
+                    "🔄 Reset Zoom",
+                    id='btn-reset-zoom',
+                ),
+                html.Button(
+                    "🔄 Zoom out 2000 bp",
+                    id='btn-zoom-out',
+                )
+            ], style={'marginBottom': '10px', 'display': 'flex', 'gap': '10px'}),
+
+            html.Div(
+                legend,
+                style={'marginBottom': '10px'}
             )
         ]),
 

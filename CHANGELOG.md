@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [X.X.X]
+### Added
+- Add warning message if annotation file has no common chromosome with graph
+- Add legend in the visualization panel
+
+### Changed
+- Performance update to load big annotation files
+
+### Fixed
+-
+
+### Removed
+- 
+
+
 ## [1.1.0]
 ### Added
 - Add full name in annotations
