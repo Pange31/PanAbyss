@@ -624,6 +624,24 @@ def get_chromosomes():
     return all_chromosomes
 
 
+# This function will get all chromosomes present in the pangenome graph
+def get_chromosomes_stats():
+    chromosome_stats = None
+    if get_driver() is None:
+        return []
+    with get_driver() as driver:
+
+        query = """
+        MATCH (cs:chromosome_stats) 
+        RETURN cs as cs
+        """
+        with driver.session() as session:
+            result = session.run(query)
+            for record in result:
+                chromosome_stats = dict(record["cs"])
+
+    return chromosome_stats
+
 #This function will get the number of nodes in the graph
 def get_nodes_number(chromosome=None):
     if get_driver() is None :
@@ -743,7 +761,7 @@ def analyse_to_csv(analyse, output_file):
 #deletion : if True the function will look for nodes where no one of the genome set is present
 #region_trim : the shared region will be expanded in order to visualise a small region before and after. Set to 0 if strict shared regions are desired.
 def get_shared_regions(genomes_list, genome_ref=None, chromosomes=None, node_min_size = 10, nodes_max_gap = 100, deletion=False, region_trim = 1000, min_percent_selected_genomes=0, tolerance_percentage = 10):
-    dic_regions, analyse = find_shared_regions(genomes_list, genome_ref, chromosomes, node_min_size, nodes_max_gap, deletion = deletion, min_percent_selected_genomes=min_percent_selected_genomes, tolerance_percentage = tolerance_percentage)
+    dic_regions, analyse, dic_distribution = find_shared_regions(genomes_list, genome_ref, chromosomes, node_min_size, nodes_max_gap, deletion = deletion, min_percent_selected_genomes=min_percent_selected_genomes, tolerance_percentage = tolerance_percentage)
     shared_regions_dict = {}
     annotations_by_regions = {}
     if genome_ref in dic_regions :
@@ -798,6 +816,7 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
     if get_driver is None :
         return {},{}
     dic_regions = {}
+    dic_distribution = {}
     time_0 = time.time()
     if min_percent_selected_genomes > 100:
         min_percent_selected_genomes = 100
@@ -858,6 +877,7 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
                     # And none of the selected haplotypes apart from the defined tolerance
                     logger.debug(f"chromosome : {c}")
                     dic_regions[c] = {}
+                    dic_distribution[c] = []
                     #Looking for shared nodes
                     if node_max_size == 0:
                         query = f"""
@@ -922,6 +942,10 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
                     # Step 2 : find shared deletion. A shared deletion if a node with
                     # all non-selected haplotypes (or the defined proportion) and
                     # none of the selected haplotypes.
+                    # results :
+                    # n = first deleted node
+                    # m = node juste before deleted node (linked to n)
+                    # n2 = end_deletion_nodes = first node after the deletion
                     result1 = list(session.run(query, genomes_list=genomes_list))
                     logger.debug("Nodes selected for chromosomes " + str(c) + " : " + str(len(result1)) + "\nTime : " + str(time.time()-time_0))
                     if deletion :
@@ -1015,11 +1039,13 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
                             if (r["nodes"][g+"_position"] != None):
                                 dic_regions[c][g]["nodes_position_list"].append(r["nodes"][g+"_position"])
                                 dic_regions[c][g]["annotations"].append(r["annotations"])
-
+                                if "deleted_node_size" not in dict(r):
+                                    dic_distribution[c].append((r["nodes"]["position_mean"], r["nodes"]["size"]))
                                 if "deleted_node_size" in dict(r): 
                                     #If deleted nodes are found, we try to reconstruct the size of the deleted regions. 
-                                    #To do this, we check that there is no overlap.
+                                    #To do this, we compute the median of deleted nodes for each haplotype
                                     deleted_nodes_dict = {}
+                                    gap = []
                                     for hap in genomes : 
                                         if hap in r["genomes_deleted_nodes"]:
                                             start_deletion = r["nodes"][hap+"_position"]+r["nodes"]["size"]
@@ -1028,12 +1054,15 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
                                                 end_deletion_tmp = end_deletion
                                                 end_deletion = start_deletion
                                                 start_deletion = end_deletion_tmp
+                                            gap.append(end_deletion-start_deletion)
                                             deleted_nodes_dict[hap]={"start_deletion":start_deletion, "end_deletion":end_deletion}
                                         else:
                                             deleted_nodes_dict[hap] = {"start_deletion":-1, "end_deletion":-1}
                                     dic_regions[c][g]["deleted_nodes"].append(deleted_nodes_dict)
                                     #dic_regions[c][g]["deleted_size"].append(statistics.median(gap))
                                     dic_regions[c][g]["size"].append(0)
+                                    if len(gap) > 0 and statistics.median(gap) is not None :
+                                        dic_distribution[c].append((r["nodes"]["position_mean"]+r["nodes"]["size"], -statistics.median(gap)))
                                                                     
                                 else:
                                     dic_regions[c][g]["size"].append(r["nodes"]["size"]) 
@@ -1183,7 +1212,8 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
             analyse = {}
             logger.debug(f"genomes : {list(dic_regions_2.keys())}")
             total = sum(len(dic_regions_2[g][c]['regions']) for g in dic_regions_2 for c in dic_regions_2[g])
-            with tqdm(total=total) as pbar:
+            #Get annotations for the regions
+            with tqdm(total=total, desc="Processing regions") as pbar:
                 for g in dic_regions_2:
                     logger.debug(f"genome : {g}")
                     analyse[g] = []
@@ -1212,9 +1242,10 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
                                 r["annotation_after"] = annot_tmp
                             analyse[g].append(r)
                             pbar.update(1)
+            # If reference genome is not in the selected genomes list then get the data relative to its genome
             if genome_ref not in analyse:
                 analyse[genome_ref] = []
-                for a in tqdm(analyse[genomes_list[0]]):
+                for a in tqdm(analyse[genomes_list[0]], desc="Getting reference genome annotations"):
                     r = {}
                     r["chromosome"] = a["chromosome"]
                     r["shared_size"] = a["shared_size"]
@@ -1251,7 +1282,7 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
                 analyse[g] = sorted(analyse[g], key=lambda d: d['shared_size'], reverse=True)
             
             logger.debug("Total time : "+ str(time.time()-temps_depart))
-    return dic_regions_2, analyse
+    return dic_regions_2, analyse, dic_distribution
 
 
 

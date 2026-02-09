@@ -80,13 +80,27 @@ def layout():
         html.Div(id='genome-checkboxes'),
        html.H3("Select genomes : ", title="Select haplotypes for which you want to find shared regions."),
 
+        # dcc.Checklist(
+        #     id='genome-list',
+        #     options=[],
+        #     value=[],
+        #     labelStyle={
+        #         'display': 'inline-flex',
+        #         'alignItems': 'center',
+        #         'marginRight': '12px'
+        #     },
+        #     inputStyle={
+        #         'marginRight': '4px'
+        #     }
+        # ),
+
         dcc.Checklist(
-            id='genome-list',
+            id="genome-list",
             options=[],
             value=[],
-            labelStyle={'display': 'inline-block', 'marginRight':'10px'}
+            inline=True
         ),
-        
+
         html.Br(), 
         html.H3("Parameters : "),
         html.Div([
@@ -154,7 +168,11 @@ def layout():
             title="Select the genome for which you want to view the results and obtain annotations. If no genome is selected, the result will be the first genome found with annotations. If there are no annotations, it will be the first genome found."
             ),
         html.Div(
-                dcc.Dropdown(id='gwas_ref_genome_dropdown', placeholder="Reference haplotype : ", style={
+                dcc.Dropdown(id='gwas_ref_genome_dropdown',
+                    options=[],
+                    value=None,
+                    placeholder="Reference haplotype : ",
+                    style={
                     "width": "250px",     
                     "minWidth": "150px",
                     "maxWidth": "100%",   
@@ -170,7 +188,13 @@ def layout():
             #type="circle",  # 'default', 'circle', or 'dot'
             children=html.Div(id="load_spinner_zone")
         ),
-    
+
+        dcc.Graph(
+            id="chromosome-graph",
+            figure={},
+            style={"display": "none"}
+        ),
+
         html.Div(id='shared-status', style={'marginBottom': '15px'}),
         html.Div(id='sequence-zone', style={"fontSize": "18px",
                                             "padding": "10px",

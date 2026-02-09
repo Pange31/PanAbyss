@@ -128,6 +128,78 @@ def create_nodes_batch(session, nodes_dic, node_name="Node", create = False):
                 current_transaction += 1
     return
 
+
+# This function will get all chromosomes present in the pangenome graph
+def get_chromosomes():
+    if get_driver() is None:
+        return []
+    with get_driver() as driver:
+
+        query = """
+        MATCH (s:Stats) 
+        RETURN s.chromosomes as all_chromosomes
+        """
+        all_chromosomes = []
+        with driver.session() as session:
+            result = session.run(query)
+            for record in result:
+                all_chromosomes = record["all_chromosomes"]
+
+    return all_chromosomes
+
+#This function create stats about chromosomes
+@require_authorization
+def create_chromosome_stats():
+    chromosomes = get_chromosomes()
+    if not chromosomes:
+        return
+
+    chromosome_max_values = {}
+    if get_driver() is None:
+        return
+    with get_driver() as driver:
+        with driver.session() as session:
+            for chrom in tqdm(chromosomes, desc="Processing chromosomes"):
+                logger.debug(f"Getting stats for chromosome : {chrom}")
+                max_result = session.run(
+                    """
+                    MATCH (n:Node {chromosome: $chrom})
+                    RETURN max(n.position_mean) AS max_pos
+                    """,
+                    chrom=chrom
+                )
+                max_val = max_result.single()["max_pos"]
+                key_name = f"{chrom}_max_position_mean"
+                chromosome_max_values[key_name] = max_val
+
+            cs_result = session.run(
+                "MATCH (cs:chromosome_stats) RETURN cs LIMIT 1"
+            )
+            cs_record = cs_result.single()
+            if cs_record:
+                #Stats already exists => update
+                # set_clause = ", ".join([f"cs.{k} = $props.{k}" for k in chromosome_max_values])
+                # session.run(
+                #     f"MATCH (cs:chromosome_stats) SET {set_clause}",
+                #     props=chromosome_max_values
+                # )
+                session.run(
+                    "MATCH (cs:chromosome_stats) SET cs += $props",
+                    props=chromosome_max_values
+                )
+                print("Updated chromosome_stats node with:", chromosome_max_values)
+            else:
+                #Stats doesn't exist => create it
+                session.run(
+                    "CREATE (cs:chromosome_stats) SET cs += $props",
+                    props=chromosome_max_values
+                )
+                print("Created chromosome_stats node with:", chromosome_max_values)
+    logger.info("✅ Chromosome stats node created")
+    logger.debug(f"✅ Chromosome stats value : {chromosome_max_values}")
+    return
+
+
 @require_authorization
 def create_stats(set_genomes, set_chromosomes):
     with get_driver() as driver:
@@ -147,7 +219,7 @@ def create_stats(set_genomes, set_chromosomes):
                 SET s.chromosomes = new_chromosomes
                 """
                 tx.run(query, genomes=list(set_genomes), chromosomes = list(set_chromosomes), version=DB_VERSION)
-                
+    create_chromosome_stats()
     return
 
 @require_authorization
@@ -187,7 +259,7 @@ def create_stats_from_nodes():
             """, genomes=all_genomes, chromosomes=all_chromosomes, version=DB_VERSION)
 
             logger.info(f"✅ Stats node created with genomes : {all_genomes} - chromosomes : {all_chromosomes}")
-
+    create_chromosome_stats()
     return
 
 
@@ -680,7 +752,10 @@ def load_sequences(gfa_file_name, chromosome_file = None, create=False, batch_si
                 create_nodes_batch(session, nodes_dic, node_name="Sequence", create = create)
     logger.info("Sequences created. Total time : " + str(time.time()-start_time) + " s")
     file.close()
-    
+
+
+
+
     
 letters_to_num = {
     'UN': '1',

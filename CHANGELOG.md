@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - Add warning message if annotation file has no common chromosome with graph
 - Add legend in the visualization panel
+- Add a graph for shared nodes discovery page
 
 ### Changed
 - Performance update to load big annotation files

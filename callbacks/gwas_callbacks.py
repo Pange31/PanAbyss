@@ -20,6 +20,7 @@ from neo4j_requests import *
 import base64
 import io
 import logging
+import plotly.graph_objects as go
 
 
 logger = logging.getLogger("panabyss_logger")
@@ -68,10 +69,153 @@ def update_dropdown(data):
     return options
 
 
+#Sort chromosome by name (ex : chr1, chr2, chr3, etc.)
+def chromosome_sort_key(chrom):
+
+    chrom_str = str(chrom)
+
+    if chrom_str.isdigit():
+        return (0, int(chrom_str))
+
+    match = re.search(r'(\d+)$', chrom_str)
+    if match:
+        return (1, int(match.group(1)))
+
+    return (2, chrom_str.lower())
+
+#Function used to create the chromosome plot
+def build_chromosome_figure(data):
+    chromosome_stats = get_chromosomes_stats()
+    if not data:
+        return go.Figure()
+
+    fig = go.Figure()
+
+    #Check empty results for a chromosome
+    chrom_data = {
+        chrom: points
+        for chrom, points in data.items()
+        if points
+    }
+
+    if not chrom_data:
+        return go.Figure()
+
+    #Sort chromosome
+    chromosomes = sorted(chrom_data.keys(), key=chromosome_sort_key)
+
+    chrom_max_lengths = {}
+    #Global length for each chromosome
+    for chrom in chromosomes:
+        if chromosome_stats and chromosome_stats.get(f"{chrom}_max_position_mean") is not None:
+            chrom_max_lengths[chrom] = chromosome_stats[f"{chrom}_max_position_mean"]
+        else:
+            chrom_max_lengths[chrom] = max(p[0] for p in chrom_data[chrom])
+    uniform_chrom_length = max(chrom_max_lengths.values())
+
+    all_y = [p[1] for points in chrom_data.values() for p in points]
+    y_min, y_max = min(all_y), max(all_y)
+    y_pad = 0.1 * max(abs(y_min), abs(y_max), 1)
+
+    colors = ["rgba(200,200,200,0.25)", "rgba(150,150,255,0.25)"]
+
+    x_offset = 0
+    chromosome_centers = []
+    chromosome_labels = []
+
+    for i, chrom in enumerate(chromosomes):
+        #Sort by genomic coordinates
+        points_sorted = sorted(chrom_data[chrom], key=lambda p: p[0])
+
+        x_local = [p[0] for p in points_sorted]
+        y = [p[1] for p in points_sorted]
+
+        real_max = chrom_max_lengths[chrom]
+
+        x_start = x_offset
+        x_end = x_offset + real_max
+
+        #global coordinates
+        x_global = [x + x_offset for x in x_local]
+
+        #chromosome area
+        fig.add_shape(
+            type="rect",
+            x0=x_start,
+            x1=x_end,
+            y0=y_min - y_pad,
+            y1=y_max + y_pad,
+            fillcolor=colors[i % len(colors)],
+            line_width=0,
+            layer="below"
+        )
+
+        #Line on beginning ending of chromosome
+        for x in (x_start, x_end):
+            fig.add_shape(
+                type="line",
+                x0=x, x1=x,
+                y0=y_min - y_pad,
+                y1=y_max + y_pad,
+                line=dict(color="black", width=1)
+            )
+
+        #Points
+        fig.add_trace(go.Scatter(
+            x=x_global,
+            y=y,
+            mode="markers",
+            name=str(chrom),
+            customdata=x_local,
+            hovertemplate=(
+                f"{chrom}<br>"
+                "Position: %{customdata}<br>"
+                "Value: %{y}<extra></extra>"
+            )
+        ))
+
+        chromosome_centers.append(x_offset + real_max / 2)
+        chromosome_labels.append(str(chrom))
+
+        x_offset += real_max + 1
+
+    fig.add_hline(
+        y=0,
+        line_dash="dash",
+        line_color="black"
+    )
+
+    fig.update_layout(
+        title=dict(
+            text="Distribution of Shared Regions",
+            x=0.5,
+            xanchor="center",
+            y=0.95,
+            yanchor="top"
+        ),
+        xaxis=dict(
+            tickmode="array",
+            tickvals=chromosome_centers,
+            ticktext=chromosome_labels,
+            title="Chromosomes"
+        ),
+        yaxis=dict(
+            title="Size of the shared region (negative = deletions)",
+            range=[y_min - y_pad, y_max + y_pad]
+        ),
+        showlegend=False,
+        plot_bgcolor="white",
+        margin=dict(l=40, r=20, t=90, b=40)
+    )
+
+    return fig
+
 @app.callback(
     Output('shared-status', 'children'),
     Output("gwas-page-store", "data", allow_duplicate=True),
     Output("load_spinner_zone", "children", allow_duplicate=True),
+    Output("chromosome-graph", "figure", allow_duplicate=True),
+    Output("chromosome-graph", "style"),
     Input('btn-find-shared', 'n_clicks'),
     State('genome-list', 'value'),
     State("gwas-page-store", "data"),
@@ -89,6 +233,7 @@ def update_dropdown(data):
 def handle_shared_region_search(n_clicks, selected_genomes, data, min_node_size, max_node_size,
                                 min_percent_selected, tolerance_percentage, region_gap,
                                 deletion_checkbox, chromosome, ref_genome, deletion_percentage):
+    chromosome_figure = {}
     if min_node_size is not None and min_node_size != "" and isinstance(min_node_size, int):
         min_size = min_node_size
     else:
@@ -119,14 +264,13 @@ def handle_shared_region_search(n_clicks, selected_genomes, data, min_node_size,
     if deletion_percentage is not None:
         data["deletion_percentage"] = deletion_percentage
     if not selected_genomes:
-        return "❌ Choose at least one genome.",no_update, ""
+        return "❌ Choose at least one genome.",no_update, "", chromosome_figure, {"display": "none"}
     deletion = False
     if 'show' in deletion_checkbox : 
         deletion = True
     try:
         #take an annotated genome if no reference genome selected
-
-        dic_region, analyse = find_shared_regions(selected_genomes, genome_ref = ref_genome, chromosomes = c,
+        dic_region, analyse, dic_distribution = find_shared_regions(selected_genomes, genome_ref = ref_genome, chromosomes = c,
                                                   node_min_size = min_size, node_max_size = max_node_size,
                                                   nodes_max_gap=region_gap, deletion = deletion,
                                                   min_percent_selected_genomes=min_percent_selected,
@@ -135,7 +279,8 @@ def handle_shared_region_search(n_clicks, selected_genomes, data, min_node_size,
         if ref_genome is None or ref_genome == "":
             ref_genome = selected_genomes[0]
         analyse_to_plot = analyse[ref_genome]
-                
+        #Compute chromosome figure
+        chromosome_figure = build_chromosome_figure(dic_distribution)
         #logger.info("analyse to plot : " + str(analyse_to_plot))
 
         for r in range(len(analyse_to_plot)):
@@ -163,10 +308,10 @@ def handle_shared_region_search(n_clicks, selected_genomes, data, min_node_size,
             analyse_to_plot[r]["annotation_after"] = annot_after
 
         data["analyse"] = analyse_to_plot
-        return f"{len(analyse_to_plot)} shared regions found.",data, ""
+        return f"{len(analyse_to_plot)} shared regions found.",data, "", chromosome_figure, {"display": "block"}
     
     except Exception as e:
-        return f"❌ Error : {e}",no_update, ""
+        return f"❌ Error : {e}",no_update, "", chromosome_figure, {"display": "none"}
     
 @app.callback(
     Output('selected-region-output', 'children', allow_duplicate=True),
