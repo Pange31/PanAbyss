@@ -149,28 +149,33 @@ def get_chromosomes():
 
 #This function create stats about chromosomes
 @require_authorization
-def create_chromosome_stats():
-    chromosomes = get_chromosomes()
-    if not chromosomes:
-        return
+def create_chromosome_stats(chromosomes_stats = None):
 
     chromosome_max_values = {}
+    if chromosomes_stats is None :
+        chromosomes = get_chromosomes()
+        if not chromosomes:
+            return
+    else :
+        for chrom, stats_dic in chromosomes_stats.items():
+            chromosome_max_values[chrom+"_max_position_mean"] = stats_dic["max_position_mean"]
     if get_driver() is None:
         return
     with get_driver() as driver:
         with driver.session() as session:
-            for chrom in tqdm(chromosomes, desc="Processing chromosomes"):
-                logger.debug(f"Getting stats for chromosome : {chrom}")
-                max_result = session.run(
-                    """
-                    MATCH (n:Node {chromosome: $chrom})
-                    RETURN max(n.position_mean) AS max_pos
-                    """,
-                    chrom=chrom
-                )
-                max_val = max_result.single()["max_pos"]
-                key_name = f"{chrom}_max_position_mean"
-                chromosome_max_values[key_name] = max_val
+            if chromosomes_stats is None :
+                for chrom in tqdm(chromosomes, desc="Processing chromosomes"):
+                    logger.debug(f"Getting stats for chromosome : {chrom}")
+                    max_result = session.run(
+                        """
+                        MATCH (n:Node {chromosome: $chrom})
+                        RETURN max(n.position_mean) AS max_pos
+                        """,
+                        chrom=chrom
+                    )
+                    max_val = max_result.single()["max_pos"]
+                    key_name = f"{chrom}_max_position_mean"
+                    chromosome_max_values[key_name] = max_val
 
             cs_result = session.run(
                 "MATCH (cs:chromosome_stats) RETURN cs LIMIT 1"
@@ -187,21 +192,25 @@ def create_chromosome_stats():
                     "MATCH (cs:chromosome_stats) SET cs += $props",
                     props=chromosome_max_values
                 )
-                print("Updated chromosome_stats node with:", chromosome_max_values)
+                logger.debug(f"Updated chromosome_stats node with: {chromosome_max_values}")
             else:
                 #Stats doesn't exist => create it
                 session.run(
                     "CREATE (cs:chromosome_stats) SET cs += $props",
                     props=chromosome_max_values
                 )
-                print("Created chromosome_stats node with:", chromosome_max_values)
+                logger.debug(f"Created chromosome_stats node with: {chromosome_max_values}")
     logger.info("✅ Chromosome stats node created")
     logger.debug(f"✅ Chromosome stats value : {chromosome_max_values}")
     return
 
 
 @require_authorization
-def create_stats(set_genomes, set_chromosomes):
+def create_stats(set_genomes, chromosomes_stats):
+    if set_genomes and len(set_genomes) > 0 and chromosomes_stats and len(chromosomes_stats) > 0 :
+        set_chromosomes = set(list(chromosomes_stats.keys()))
+    else:
+        return
     with get_driver() as driver:
         with driver.session() as session:
             with session.begin_transaction() as tx:
@@ -219,7 +228,7 @@ def create_stats(set_genomes, set_chromosomes):
                 SET s.chromosomes = new_chromosomes
                 """
                 tx.run(query, genomes=list(set_genomes), chromosomes = list(set_chromosomes), version=DB_VERSION)
-    create_chromosome_stats()
+    create_chromosome_stats(chromosomes_stats)
     return
 
 @require_authorization
@@ -873,6 +882,7 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
     set_all_chromosomes = set()
     liste_relations = []
     chromosomes_list = []
+    chromosomes_stats = {}
     set_relations = set()
     #Create base indexes (name and chromosome)
     create_indexes() 
@@ -897,6 +907,7 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
                 chromosome, genome = get_chromosome_genome(ligne, haplotype = haplotype, chromosome_file=chromosome_file)
                 if chromosome not in set_all_chromosomes :
                     chromosomes_list.append(chromosome)
+                    chromosomes_stats[chromosome]={"max_position_mean":0}
                 if len(set_all_chromosomes) == 0:
                     first_chromosome = chromosome
                     if start_chromosome is not None and start_chromosome != "":
@@ -1108,6 +1119,9 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
                                 nb_genomes += 1
                                 position_mean += nodes_dic[node][g+"_position"]
                             nodes_dic[node]["position_mean"] = int(position_mean/nb_genomes)
+                            chrom = nodes_dic[node]["chromosome"]
+                            if int(position_mean/nb_genomes) > chromosomes_stats[chrom]["max_position_mean"]:
+                                chromosomes_stats[chrom]["max_position_mean"] = int(position_mean/nb_genomes)
                     
                         logger.info("Time of batch analysis : "+ str(time.time()-temps_0_lot) + "\nTotal time : " + str(time.time()-temps_depart))
                         #Create batch nodes in DB
@@ -1119,7 +1133,7 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
                         ref_nodes_dic = None
                         
                         
-            create_stats(set_genome, set_chromosome)
+            create_stats(set_genome, chromosomes_stats)
             nodes_size_dic = None
             logger.info("Nodes creation is terminated\nTotal time : " + str(time.time()-temps_depart) + "\nGenomes analysed : " + str(set_genome) + "\nNodes number : "+str(total_nodes) )
         
@@ -1242,6 +1256,7 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
     set_all_genomes = set()
     set_all_chromosomes = set()
     chromosomes_list = []
+    chromosomes_stats = {}
     dic_nodes_id = {}
     dic_batch_nodes_index = {}
     ref_nodes_dic = {}
@@ -1328,6 +1343,7 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                 chromosome, genome = get_chromosome_genome(ligne, haplotype = haplotype, chromosome_file=chromosome_file)
                 if chromosome not in set_all_chromosomes :
                     chromosomes_list.append(chromosome)
+                    chromosomes_stats[chromosome] = {"max_position_mean":0}
                 if len(set_all_chromosomes) == 0:
                     first_chromosome = chromosome
                     if start_chromosome is not None and start_chromosome != "":
@@ -1611,8 +1627,12 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                         line[idx] = ";".join(line[idx])
    
                     values_position = [v for v in line[csv_fields_index["flow"]+1:-1:2] if v is not None]
+                    chrom = line[csv_fields_index["chromosome"]]
                     values_node = [v for v in line[csv_fields_index["flow"]+2:-1:2] if v is not None]
-                    line[csv_fields_index["position_mean"]] = int(sum(values_position) / len(values_position)) if len(values_position) > 0 else 0
+                    position_mean = int(sum(values_position) / len(values_position)) if len(values_position) > 0 else 0
+                    line[csv_fields_index["position_mean"]] = position_mean
+                    if position_mean > chromosomes_stats[chrom]["max_position_mean"]:
+                        chromosomes_stats[chrom]["max_position_mean"] = position_mean
                 nodes_writer.writerows(csv_nodes_lines)
                 csv_nodes_lines = []
                 batch_node_id = 0
@@ -1626,7 +1646,7 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                                                 
     file.close()
     logger.info("Treatment completed\nTotal time : "+ str(time.time()-temps_depart))
-    return set_genome, chromosomes_list
+    return set_genome, chromosomes_stats
 
 
 

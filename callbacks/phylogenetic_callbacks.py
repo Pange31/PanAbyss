@@ -8,7 +8,7 @@ Created on Wed Jul  2 22:08:19 2025
 
 import base64
 import dash
-from dash import html, Input, Output, callback, State, callback_context, dcc, ctx
+from dash import html, Input, Output, callback, State, callback_context, dcc, ctx, exceptions, no_update
 from dash.exceptions import PreventUpdate
 
 
@@ -185,28 +185,67 @@ stylesheet = [
 def update_dropdown(data):
     if not data or "chromosomes" not in data:
         return []
-    
+
     chromosomes = data["chromosomes"]
     options = [{"label": str(chrom), "value": str(chrom)} for chrom in chromosomes]
     return options
 
 
+
 @app.callback(
-    Output('cytoscape-phylo', 'elements', allow_duplicate=True),
-    Output('upload-status', 'children'),
-    Output("load_spinner_zone", "children", allow_duplicate=True),
-    Output("phylogenetic-page-store", "data"),
-    State('method-dropdown', 'value'),
+    Output("phylo-job-trigger", "data", allow_duplicate=True),
+    Output("phylo-spinner-container", "style", allow_duplicate=True),
+    Output("phylo-job-status", "data", allow_duplicate=True),
+    Output("phylogenetic-page-store", "data", allow_duplicate=True),
     Input('upload-newick', 'contents'),
     Input('btn-plot-global-tree', 'n_clicks'),
     Input("btn-load-last-tree", "n_clicks"),
-    State('upload-newick', 'filename'),
-    State("phylogenetic_chromosomes_dropdown", 'value'),
     State("phylogenetic-page-store", "data"),
     prevent_initial_call=True
 )
-def update_phylo_graph(method,contents, n_clicks_global_tree, n_clicks_last_tree, filename, chromosome, pĥylo_data):
+def trigger_job(contents, n_clicks_global_tree, n_clicks_last_tree, phylo_data):
+
     triggered_id = ctx.triggered_id
+    if triggered_id not in ["upload-newick","btn-plot-global-tree","btn-load-last-tree"]:
+        raise exceptions.PreventUpdate
+    if triggered_id=="upload-newick" and contents is None :
+        raise exceptions.PreventUpdate
+    if phylo_data is not None :
+        phylo_data.pop("newick_global", None)
+    return {"run": True, "contents":contents, "triggered_id":triggered_id}, {"display": "block", "marginTop": "20px"}, {"status":"running"}, phylo_data
+
+
+#Callback to plot the global tree
+@app.callback(
+    Output("phylogenetic-page-store", "data", allow_duplicate=True),
+    Output("global-notification", "data", allow_duplicate=True),
+    Output("phylo-job-status", "data", allow_duplicate=True),
+    Input("phylo-job-trigger", "data"),
+    State('method-dropdown', 'value'),
+    State('upload-newick', 'filename'),
+    State("phylogenetic_chromosomes_dropdown", 'value'),
+    State("phylogenetic-page-store", "data"),
+    prevent_initial_call=True,
+    background=True,
+    # running=[
+    #     (Output("btn-plot-global-tree", "disabled"), True, False),
+    #     #(Output("phylo-spinner-container", "style"), {"display": "block", "marginTop": "20px"}, {"display": "none", "marginTop": "20px"}),
+    #     (Output("btn-load-last-tree", "disabled"), True, False),
+    #     (Output("btn-cancel-plot-global-tree", "disabled"), False, True)
+    # ],
+    cancel=[Input("btn-cancel-plot-global-tree", "n_clicks")],
+    suppress_callback_exceptions=True
+)
+def update_phylo_graph(trigger_data, method, filename, chromosome, phylo_data):
+    triggered_id = trigger_data.get("triggered_id", None)
+    if not triggered_id or not trigger_data:
+        raise exceptions.PreventUpdate
+    else:
+        contents = trigger_data.get("contents", None)
+
+    if phylo_data is None:
+        phylo_data = {}
+
     if triggered_id == "btn-plot-global-tree":
         if chromosome == None or chromosome == "":
             c = None
@@ -214,36 +253,77 @@ def update_phylo_graph(method,contents, n_clicks_global_tree, n_clicks_last_tree
             c = chromosome
         logger.debug(f"Compute global phylo tree using {method} method.")
         newick_str = compute_global_phylo_tree_from_nodes(method=method, chromosome=c)
-        status = f"Tree successfully computed."
+        phylo_data["message"] = f"Tree successfully computed."
     elif triggered_id == "btn-load-last-tree" :
         if os.path.exists(last_tree):
             with open(last_tree, "r") as f:
                 newick_str = f.read()
-                status = f"Tree successfully computed."
+                phylo_data["message"] = f"File '{filename}' successfully load."
+
         else:
-            return [], f"No existing last tree file : {last_tree}","", pĥylo_data
+            toast_message = {
+                "title": "Global tree construction error.",
+                "message": f"No existing last tree file : {last_tree}",
+                "type": "danger",
+            }
+            phylo_data["message"] = f"No existing last tree file : {last_tree}"
+            status_data = {"status":"done"}
+            return  phylo_data, toast_message, status_data
     else:
         if contents is None:
-            return [], "No file loaded.","", pĥylo_data
+            toast_message = {
+                "title": "Global tree construction error.",
+                "message": "No file loaded.",
+                "type": "danger",
+            }
+            phylo_data["message"] = "No file loaded."
+            status_data = {"status":"done"}
+            return  phylo_data, toast_message, status_data
     
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string)
         
         try:
             newick_str = decoded.decode('utf-8')
-            status = f"File '{filename}' successfully load."
         except Exception as e:
-            return [], f"Parsing error : {str(e)}"
+            toast_message = {
+                "title": "Global tree construction error.",
+                "message": f"Parsing error : {str(e)}",
+                "type": "danger",
+            }
+            phylo_data["message"] = f"Parsing error : {str(e)}"
+            status_data = {"status":"done"}
+            return  phylo_data, toast_message, status_data
     if newick_str is not None and newick_str != "":
-        elements = generate_elements(newick_str)
-        if pĥylo_data is None:
-            pĥylo_data = {"newick_global":newick_str}
-        else:
-            pĥylo_data["newick_global"] = newick_str
-        return elements, status,"", pĥylo_data
+        phylo_data["newick_global"] = newick_str
+        toast_message = {
+            "title": "Global tree construction.",
+            "message": "Process terminated.",
+            "type": "success"
+        }
+        status_data = {"status":"done"}
+        return  phylo_data, toast_message, status_data
     else:
-        status = f"Unable to compute global tree."
-        return [], status,"", pĥylo_data
+        toast_message = {
+            "title": "Global tree construction error.",
+            "message": f"Unable to compute global tree.",
+            "type": "danger",
+        }
+        phylo_data["message"] = f"Unable to compute global tree."
+        status_data = {"status":"done"}
+        return phylo_data, toast_message, status_data
+
+
+@app.callback(
+    Output('phylo-job-status', 'data', allow_duplicate=True),
+    Input('btn-cancel-plot-global-tree', 'n_clicks'),
+    prevent_initial_call=True,
+)
+def handle_cancel_click(n_clicks):
+    if not n_clicks:
+        return no_update
+    status_data = {"status": "done"}
+    return status_data
 
 
 @app.callback(
@@ -259,39 +339,43 @@ def color_children(edgeData):
         val = edgeData['source'].split('s')[0]
     else:
         val = edgeData['source']
-    
+
     children_style = [{
         'selector': 'edge[source *= "{}"]'.format(val),
         'style': {
             'line-color': 'blue'
         }
     }]
-    
+
     return stylesheet + children_style
 
-
+#Callback to plot tree of the current displayed region
 @app.callback(
-    Output('cytoscape-phylo-region', 'elements', allow_duplicate=True),
+    #Output('cytoscape-phylo-region', 'elements', allow_duplicate=True),
     Output("phylogenetic-message", "children", allow_duplicate=True),
     Output("phylogenetic-page-store", "data", allow_duplicate=True),
+    Output("phylo-local-tree-job-status", "data"),
     Input('btn-plot-region', 'n_clicks'),
     State('shared_storage_nodes', 'data'),
     State("phylogenetic-page-store", "data"),
     prevent_initial_call=True
 )
 def plot_region(n_clicks, stored_data, phylo_data):
+    if not n_clicks:
+        raise exceptions.PreventUpdate
 
     ctx = dash.callback_context
     if ctx.triggered_id == "btn-plot-region" and n_clicks == 0:
         raise PreventUpdate
-
+    phylo_local_data = {"status": "done"}
     if not stored_data:
-        return [], html.Div(html.P([
+        phylo_local_data = {"status": "done"}
+        return html.Div(html.P([
         "❌ No data to compute tree. Select a region to visualise on the ",
         dcc.Link("home page", href="/", style={'color': 'blue', 'textDecoration': 'underline'}),
         " or on the ",
         dcc.Link("gwas page", href="/gwas", style={'color': 'blue', 'textDecoration': 'underline'})
-        ], style=error_style)), phylo_data
+        ], style=error_style)), phylo_data, phylo_local_data
 
     try:
         # Step 1 : compute tree of the region
@@ -302,15 +386,14 @@ def plot_region(n_clicks, stored_data, phylo_data):
             phylo_data["newick_region"] = newick_str
 
         # Step2 : draw tree
-        elements = generate_elements(newick_str)
-        return elements, "", phylo_data
+        phylo_local_data = {"status": "done"}
+        return "", phylo_data, phylo_local_data
 
     except Exception as e:
         logger.error(f"Error while computing tree : {e}")
-        return [], html.Div(f"❌ Error while computing tree : {e}", style=error_style), phylo_data
+        phylo_local_data = {"status": "done"}
+        return html.Div(f"❌ Error while computing tree : {e}", style=error_style), phylo_data, phylo_local_data
 
-    
-    
 
 
 @app.callback(
@@ -333,31 +416,45 @@ def save_tree(n_clicks, phylo_data):
         return f"File saved : {save_path}", None
     else:
         return "File downloaded.", dcc.send_string(newick_content, "tree.nwk")
-    
+
     
 @app.callback(
-    Output('cytoscape-phylo', 'elements', allow_duplicate=True),
-    Output('cytoscape-phylo-region', 'elements', allow_duplicate=True),
-    Output("btn-load-last-tree", "style"),
+    Output('upload-status', 'children'),
+    Output('cytoscape-phylo', 'elements'),
+    Output('cytoscape-phylo-region', 'elements'),
+    Output("phylo-spinner-container", "style"),
+    Output("btn-plot-global-tree", "disabled"),
+    Output("btn-load-last-tree", "disabled"),
+    Output("btn-cancel-plot-global-tree", "disabled"),
     Input('url', 'pathname'),
-    Input('phylogenetic-page-store', 'data'),
-    prevent_initial_call=True
+    Input("phylo-job-status", "data"),
+    Input("phylo-local-tree-job-status", "data"),
+    State('phylogenetic-page-store', 'data'),
+    #prevent_initial_call='initial_duplicate'
+    prevent_initial_call=False
 
 )
-def update_graph_on_page_load(pathname, pĥylo_data):
+def update_graph_on_page_load(pathname, status_data, local_tree_status, phylo_data ):
+    if pathname != "/phylogenetic":
+        raise PreventUpdate
+    button_search = False
+    button_load = False
+    button_cancel = True
+    spinner_container = {"display": "none", "marginTop": "20px"}
+    if status_data and "status" in status_data and status_data["status"] == "running":
+        button_search = True
+        button_load = True
+        button_cancel = False
+        spinner_container = {"display": "block", "marginTop": "20px"}
     elements_region = []
     elements_global = []
-    if pĥylo_data is None:
-        pĥylo_data = {}
-    if "newick_region" in pĥylo_data and pĥylo_data["newick_region"] is not None:
-        elements_region = generate_elements(pĥylo_data["newick_region"])
-    if "newick_global" in pĥylo_data:
-        elements_global = generate_elements(pĥylo_data["newick_global"])
+    if phylo_data is None:
+        phylo_data = {}
+    message = phylo_data.get("message", "")
+    if "newick_region" in phylo_data and phylo_data["newick_region"] is not None:
+        elements_region = generate_elements(phylo_data["newick_region"])
+    if "newick_global" in phylo_data:
+        elements_global = generate_elements(phylo_data["newick_global"])
     #Display last tree button if a tree has already been computed
-    if os.path.exists(last_tree):
-        last_tree_btn = {"display": "block"}
-    else:
-        last_tree_btn = {"display": "none"}
-    return elements_global, elements_region,last_tree_btn
-    
-        
+
+    return message, elements_global, elements_region, spinner_container, button_search, button_load, button_cancel

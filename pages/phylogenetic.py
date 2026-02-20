@@ -6,7 +6,6 @@ Created on Wed Jul  2 13:52:04 2025
 @author: fgraziani
 """
 
-
 import dash_cytoscape as cyto
 from dash import Dash, html,callback, dcc
 import logging
@@ -60,7 +59,6 @@ stylesheet = [
 
 def layout():
     return html.Div([
-
         html.H2("Phylogenetics tree"),
         
         #Help section
@@ -104,12 +102,38 @@ def layout():
                 multiple=False
             ),
             html.Div([
+                html.Label(
+                    "Chromosome",
+                    title="The regions / annotations will be related only to this chromosome.",
+                    style={'display': 'block', 'marginRight': "10px"}
+                ),
+                dcc.Dropdown(
+                    id='phylogenetic_chromosomes_dropdown',
+                    placeholder="Limit tree to chromosome : ",
+                    style={
+                        "width": "250px",
+                        "minWidth": "150px",
+                        "maxWidth": "100%",
+                        "flexShrink": 0
+                    }
+                ),
+            ], style={"display": "flex", "flexDirection": "row", "alignItems": "center", "marginBottom": "20px"}),
+            html.Div([
                 html.Div([
                     html.Button(
                         "Plot global tree",
                         title="This will compute the tree for the whole pangenome...",
                         style={'marginRight': '15px'},
+                        n_clicks=0,
                         id="btn-plot-global-tree"
+                    ),
+                    html.Button(
+                        "Cancel",
+                        title="This will cancel the global tree construction.",
+                        disabled=True,
+                        n_clicks=0,
+                        style={'marginRight': '15px'},
+                        id="btn-cancel-plot-global-tree"
                     ),
                     dcc.Dropdown(
                         id='method-dropdown',
@@ -122,21 +146,7 @@ def layout():
                         clearable=False,
                         style={'width': '300px', 'marginRight':'20px'}
                     ),
-                    html.Label(
-                        "Chromosome",
-                        title="The regions / annotations will be related only to this chromosome.",
-                        style={'display': 'block', 'marginRight': "10px"}
-                    ),
-                    dcc.Dropdown(
-                        id='phylogenetic_chromosomes_dropdown',
-                        placeholder="Limit tree to chromosome : ",
-                        style={
-                            "width": "250px",
-                            "minWidth": "150px",
-                            "maxWidth": "100%",
-                            "flexShrink": 0
-                        }
-                    ),
+
                 ], style={"display": "flex", "flexDirection": "row", "alignItems": "center"}),
 
                 html.Div([
@@ -144,12 +154,20 @@ def layout():
                         "Load last computed tree",
                         title="This will load the last computed tree.",
                         id="btn-load-last-tree",
-                        style={"display": "none", "marginTop": "10px"}  # un peu d'espace au-dessus
+                        n_clicks=0,
+                        style={"marginTop": "10px"}
                     ),
-                    dcc.Loading(
-                        id="phylogenetic_loading-spinner",
-                        #type="circle",
-                        children=html.Div(id="load_spinner_zone")
+                    # dcc.Loading(
+                    #     id="phylogenetic_loading-spinner",
+                    #     #type="circle",
+                    #     persistence=True,
+                    #     persistence_type="memory",
+                    #     children=html.Div(id="load_spinner_zone")
+                    # ),
+                    html.Div(
+                        html.Div(className="custom-spinner"),
+                        id="phylo-spinner-container",
+                        style={"display": "none", "marginTop": "20px"}
                     ),
                 ], style={"marginTop": "10px"})
             ], style={"marginBottom": "20px"}),

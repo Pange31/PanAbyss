@@ -16,6 +16,7 @@ dependencies:
   - pip:
       - dash
       - dash-cytoscape
+      - dash[diskcache]
       - dash-svg
       - dash-bootstrap-components
       - dash-auth

@@ -6,7 +6,9 @@ Created on Wed Jul  2 11:58:49 2025
 @author: fgraziani
 """
 
-from dash import Dash
+from dash import Dash, DiskcacheManager
+import diskcache
+import dash_bootstrap_components as dbc
 import os
 from config import *
 from logger import setup_logger
@@ -34,7 +36,14 @@ error_style = {"color": "red", "marginTop": "10px"}
 
 logger = setup_logger(name="panabyss_logger")
 
-app = Dash(__name__, suppress_callback_exceptions=True)
+cache = diskcache.Cache("./cache")
+background_callback_manager = DiskcacheManager(cache)
+
+app = Dash(__name__,
+            suppress_callback_exceptions=True,
+            #external_stylesheets=[dbc.themes.BOOTSTRAP],
+            background_callback_manager=background_callback_manager)
+
 server = app.server
 
 

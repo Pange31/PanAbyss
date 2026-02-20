@@ -22,7 +22,6 @@ style_help = {
 
 def layout():
     return html.Div([
-        dcc.Store(id="gwas-page-store",storage_type="session"),
         html.H2("Shared Region Discovery"),
 
         html.Details([
@@ -182,12 +181,16 @@ def layout():
         ),
 
     
-        html.Button("Find shared regions", id='btn-find-shared', n_clicks=0, style={'margin': '15px 0'}),
-        dcc.Loading(
-            id="gwas_loading-spinner",
-            #type="circle",  # 'default', 'circle', or 'dot'
-            children=html.Div(id="load_spinner_zone")
+        html.Button("Find shared regions", id='btn-find-shared', n_clicks=0, style={'margin': '15px 0', 'marginRight':'15px'}),
+        html.Button("Cancel", id='btn-cancel-find-shared', disabled=True, n_clicks=0, style={'margin': '15px 0'}),
+        html.Div(id='shared-status', style={'marginBottom': '15px'}),
+
+        html.Div(
+            html.Div(className="custom-spinner"),
+            id="spinner-container",
+            style={"display": "none", "marginTop": "20px"}
         ),
+
 
         dcc.Graph(
             id="chromosome-graph",
@@ -195,7 +198,7 @@ def layout():
             style={"display": "none"}
         ),
 
-        html.Div(id='shared-status', style={'marginBottom': '15px'}),
+
         html.Div(id='sequence-zone', style={"fontSize": "18px",
                                             "padding": "10px",
                                             "whiteSpace": "pre-wrap",
@@ -220,6 +223,14 @@ def layout():
                 multiple=False
             )
         ]),
+        # dcc.Loading(
+        #     id="gwas_loading-spinner",
+        #     persistence=True,
+        #     persistence_type="memory",
+        #     delay_show=500,
+        #     # type="circle",  # 'default', 'circle', or 'dot'
+        #     children=html.Div(id="load_spinner_zone")
+        # ),
         # Analyse array
         dash_table.DataTable(
             id='shared-region-table',

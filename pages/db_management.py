@@ -11,13 +11,16 @@ from dash import html, dcc, Input, Output, State, ctx
 import dash_cytoscape as cyto
 
 from neo4j_requests import *
-from app import app, DB_VERSION
+from app import DB_VERSION
 
 from neo4j_available_docker_images_conf import AVAILABLE_DOCKER_IMAGES
+
+
 
 PREFIX_CONTAINER_NAME = "DB_"+ DB_VERSION + "_"
 ANNOTATION_DIR = './data/annotations'
 GFA_DIR = './data/gfa'
+
 
 def list_annotation_files():
     """Return all .gff / .gtf / .gff3 files in the annotation directory."""
@@ -40,7 +43,6 @@ def layout():
     if genomes is None :
         genomes = []
     return html.Div([
-        dcc.Store(id='db-management-page-store'),
         html.H2("DB Management"),
         #Help section
         html.Details([
@@ -81,7 +83,7 @@ def layout():
             ])
             ], style={"marginBottom": "20px"}),
     
-        html.H3(id='container-name-label'), 
+        html.H3(id='container-name-label', children=""),
 
 
         html.Hr(),
@@ -248,20 +250,33 @@ def layout():
                 "Create new DB",
                 id="btn-create-db",
                 n_clicks=0,
-                style={"display": "inline-block"}
+                style={"display": "inline-block", "marginRight": "15px"}
             ),
             html.Button(
                 "Add data (DB must be created)",
                 id="btn-load-gfa",
                 n_clicks=0,
-                style={"display": "none"}
+                style={"display": "none", "marginRight": "15px"}
             ),
+            html.Button(
+                "Cancel",
+                id="btn-cancel-create-db",
+                n_clicks=0,
+                disabled=True,
+                style={"display": "inline-block", "marginLeft": "15px"}
+            )
         ], id="create-db-button-container"),
         html.Div(id="create-db-confirmation", style={"marginTop": "10px"}),
-        dcc.Loading(
-            # type="circle",
-            children=html.Div(id="create-db-message", style={"marginTop": "10px"})
+        html.Div(
+            html.Div(className="custom-spinner"),
+            id="db-create-spinner",
+            style={"display": "none", "marginTop": "20px", "marginBottom": "20px"}
         ),
+        # dcc.Loading(
+        #     # type="circle",
+        #     children=html.Div(id="create-db-message", style={"marginTop": "10px"})
+        # ),
+        html.Div(id="create-db-message"),
         dcc.Loading(
             # type="circle",
             children=html.Div(id="add-gfa-message", style={"marginTop": "10px"})
@@ -368,13 +383,19 @@ def layout():
             html.Button("Load",
                         title="This will load annotations into database. Indexes must be created before (can take some time for big data).",
                         id="btn-load-annotations-with-link", n_clicks=0),
+            html.Button("Cancel",
+                        title="This will cancel load annotations operation.",
+                        id="btn-cancel-load-annotations", disabled=True, n_clicks=0),
+
+            html.Div(
+                id="db-load-annotation-spinner",
+                style={"display": "none", "marginTop": "20px", "marginBottom": "20px"},
+                children=html.Div(className="custom-spinner"),
+            ),
+
+            html.Div(id="annotation-message"),
             # html.Button("Load only annotations", id="btn-load-only-annotations", n_clicks=0),
             # html.Button("Link annotations", id="btn-link-annotations", n_clicks=0),
-            dcc.Loading(
-                id="loading-annotation-msg",
-                # type="circle",
-                children=html.Div(id="annotation-message")
-            )
         ]),
 
         ################ Database management #############################

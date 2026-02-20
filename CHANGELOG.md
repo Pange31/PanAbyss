@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 - Performance update to load big annotation files
+- Time consuming processes have been modified to be asynchron : shared regions discovery, global tree computation, database and annotations loading
 
 ### Fixed
 -

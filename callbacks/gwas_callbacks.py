@@ -6,7 +6,9 @@ Created on Wed Jul  2 22:03:10 2025
 @author: fgraziani
 """
 
-from dash import html, Output, Input, State, no_update, dcc, ctx, callback_context
+from dash import html, Output, Input, State, no_update, dcc, ctx, callback_context, exceptions
+import dash_bootstrap_components as dbc
+
 
 
 import os
@@ -22,10 +24,11 @@ import io
 import logging
 import plotly.graph_objects as go
 
-
 logger = logging.getLogger("panabyss_logger")
 
 EXPORT_DIR = "./export/gwas/"
+
+NB_POINTS_WEBGL = 1000
 
 #populates genomes checkboxes
 @app.callback(
@@ -122,7 +125,13 @@ def build_chromosome_figure(data):
     x_offset = 0
     chromosome_centers = []
     chromosome_labels = []
-
+    total_points = sum(len(points) for points in chrom_data.values())
+    use_webgl = total_points > NB_POINTS_WEBGL
+    ScatterClass = go.Scattergl if use_webgl else go.Scatter
+    if use_webgl :
+        logger.debug("WebGL Scatter class used.")
+    else:
+        logger.debug("SVG Scatter class used.")
     for i, chrom in enumerate(chromosomes):
         #Sort by genomic coordinates
         points_sorted = sorted(chrom_data[chrom], key=lambda p: p[0])
@@ -161,7 +170,7 @@ def build_chromosome_figure(data):
             )
 
         #Points
-        fig.add_trace(go.Scatter(
+        fig.add_trace(ScatterClass(
             x=x_global,
             y=y,
             mode="markers",
@@ -197,7 +206,7 @@ def build_chromosome_figure(data):
             tickmode="array",
             tickvals=chromosome_centers,
             ticktext=chromosome_labels,
-            title="Chromosomes"
+            title="Chromosomes and mean position."
         ),
         yaxis=dict(
             title="Size of the shared region (negative = deletions)",
@@ -210,15 +219,17 @@ def build_chromosome_figure(data):
 
     return fig
 
+
+#Callback triggered by clicking on the launch button
+#This callback is required to set the parameters in the store to allow further navigation
 @app.callback(
-    Output('shared-status', 'children'),
+    Output('shared-status', 'children', allow_duplicate=True),
+    Output('parameters-gwas-page-store', 'data', allow_duplicate=True),
     Output("gwas-page-store", "data", allow_duplicate=True),
-    Output("load_spinner_zone", "children", allow_duplicate=True),
-    Output("chromosome-graph", "figure", allow_duplicate=True),
-    Output("chromosome-graph", "style"),
+    Output("spinner-container", "style", allow_duplicate=True),
     Input('btn-find-shared', 'n_clicks'),
     State('genome-list', 'value'),
-    State("gwas-page-store", "data"),
+    State("parameters-gwas-page-store", "data"),
     State("gwas-min-node-size-int", 'value'),
     State("gwas-max-node-size-int", 'value'),
     State("gwas-min-percent_selected", 'value'),
@@ -228,31 +239,35 @@ def build_chromosome_figure(data):
     State("gwas_chromosomes_dropdown", 'value'),
     State("gwas_ref_genome_dropdown", 'value'),
     State("deletion-percentage", 'value'),
-    prevent_initial_call=True
+    State("gwas-page-store", "data"),
+    prevent_initial_call=True,
+
 )
-def handle_shared_region_search(n_clicks, selected_genomes, data, min_node_size, max_node_size,
+def handle_shared_region_search_click(n_clicks, selected_genomes, data, min_node_size, max_node_size,
                                 min_percent_selected, tolerance_percentage, region_gap,
-                                deletion_checkbox, chromosome, ref_genome, deletion_percentage):
-    chromosome_figure = {}
+                                deletion_checkbox, chromosome, ref_genome, deletion_percentage, gwas_data):
+    progress_style = {"display": "none"}
+    if not n_clicks:
+        return no_update, no_update, no_update, progress_style
+    min_size = 10
     if min_node_size is not None and min_node_size != "" and isinstance(min_node_size, int):
         min_size = min_node_size
-    else:
-        min_size = 10
-    if chromosome == None or chromosome == "All" :
+    if chromosome == None or chromosome == "All":
         c = None
     else:
         c = [chromosome]
     if data is None:
         data = {}
+    if gwas_data is None:
+        gwas_data = {}
+    data["chromosomes"]=c
     if max_node_size is None or max_node_size == "" or max_node_size == 0:
         max_node_size = 0
-        data["max_node_size"] = None
-    else:
-        data["max_node_size"] = max_node_size
+    data["max_node_size"] = max_node_size
 
-    data["checkboxes"]= selected_genomes
+    data["checkboxes"] = selected_genomes
     if min_node_size is not None:
-        data["min_node_size"] = min_node_size
+        data["min_node_size"] = min_size
     if min_percent_selected is not None:
         data["min_percent_selected"] = min_percent_selected
     if tolerance_percentage is not None:
@@ -263,25 +278,89 @@ def handle_shared_region_search(n_clicks, selected_genomes, data, min_node_size,
         data["deletion_checkbox"] = deletion_checkbox
     if deletion_percentage is not None:
         data["deletion_percentage"] = deletion_percentage
+    if ref_genome is not None:
+        data["ref_genome"] = ref_genome
     if not selected_genomes:
-        return "❌ Choose at least one genome.",no_update, "", chromosome_figure, {"display": "none"}
-    deletion = False
-    if 'show' in deletion_checkbox : 
-        deletion = True
+        return "❌ Choose at least one genome.", no_update, progress_style
+    data["launch_ts"] = time.time()
+    gwas_data.update({
+        "analyse": [],
+        "gwas_graph_points": {},
+        "message": "",
+        "status": "running"
+    })
+    progress_style = {"display": "block", "marginTop": "20px", "marginBottom": "20px"}
+    return "Processing...", data, gwas_data, progress_style
+
+
+#Callback to launch the search of shared region, triggered by the end of clic button callback
+@app.callback(
+    Output("gwas-page-store", "data", allow_duplicate=True),
+    Output("global-notification", "data"),
+    Input('parameters-gwas-page-store', 'data'),
+    State("gwas-page-store", "data"),
+    #manager=background_callback_manager,
+    prevent_initial_call=True,
+    background=True,
+    # running=[
+    #     (Output("btn-find-shared","disabled"),True,False),
+    #     (Output("btn-cancel-find-shared","disabled"),False,True)
+    # ],
+    cancel=[Input("btn-cancel-find-shared","n_clicks")],
+    suppress_callback_exceptions=True
+)
+def handle_shared_region_search_launch(data, gwas_data):
+    if not data:
+        raise exceptions.PreventUpdate
+
+    if ctx.triggered_id != "parameters-gwas-page-store":
+        raise exceptions.PreventUpdate
+
+    launch_ts = data.get("launch_ts")
+
+    if gwas_data and gwas_data.get("last_launch_ts") == launch_ts:
+        raise exceptions.PreventUpdate
+
+    if gwas_data is None:
+        gwas_data = {}
+
+    gwas_data.update({
+        "analyse": [],
+        "gwas_graph_points": {},
+        "message": "",
+        "status": "running"
+    })
+
+    selected_genomes = data.get("checkboxes", [])
+    min_node_size = data.get("min_node_size", 10)
+    max_node_size = data.get("max_node_size", 0)
+    min_percent_selected = data.get("min_percent_selected", 100)
+    tolerance_percentage = data.get("tolerance_percentage", 0)
+    region_gap = data.get("region_gap", 10000)
+    deletion_checkbox = data.get("deletion_checkbox", [])
+    deletion_percentage = data.get("deletion_percentage", 100)
+    chromosomes = data.get("chromosomes", None)
+    ref_genome = data.get("ref_genome", None)
+    deletion = 'show' in deletion_checkbox
+
+    # logger.debug(f"""Selected genomes : {selected_genomes} min node size : {min_node_size} max node size : {max_node_size} min_percent_selected : {min_percent_selected}
+    #       tolerance_percentage : {tolerance_percentage} region_gap {region_gap} deletion_checkbox {deletion_checkbox} deletion_percentage {deletion_percentage}
+    #       chromosomes {chromosomes} ref_genome {ref_genome} deletion {deletion}
+    #       """)
     try:
-        #take an annotated genome if no reference genome selected
-        dic_region, analyse, dic_distribution = find_shared_regions(selected_genomes, genome_ref = ref_genome, chromosomes = c,
-                                                  node_min_size = min_size, node_max_size = max_node_size,
-                                                  nodes_max_gap=region_gap, deletion = deletion,
-                                                  min_percent_selected_genomes=min_percent_selected,
-                                                  tolerance_percentage = tolerance_percentage,
-                                                  min_deletion_percentage=deletion_percentage)
+        # take an annotated genome if no reference genome selected
+        dic_region, analyse, dic_distribution = find_shared_regions(selected_genomes, genome_ref=ref_genome,
+                                                                    chromosomes=chromosomes,
+                                                                    node_min_size=min_node_size, node_max_size=max_node_size,
+                                                                    nodes_max_gap=region_gap, deletion=deletion,
+                                                                    min_percent_selected_genomes=min_percent_selected,
+                                                                    tolerance_percentage=tolerance_percentage,
+                                                                    min_deletion_percentage=deletion_percentage)
         if ref_genome is None or ref_genome == "":
             ref_genome = selected_genomes[0]
         analyse_to_plot = analyse[ref_genome]
-        #Compute chromosome figure
-        chromosome_figure = build_chromosome_figure(dic_distribution)
-        #logger.info("analyse to plot : " + str(analyse_to_plot))
+
+        # logger.info("analyse to plot : " + str(analyse_to_plot))
 
         for r in range(len(analyse_to_plot)):
             annotation = ""
@@ -297,33 +376,79 @@ def handle_shared_region_search(n_clicks, selected_genomes, data, min_node_size,
             annot_before = ""
             if "annotation_before" in analyse_to_plot[r] and "gene_name" in analyse_to_plot[r]["annotation_before"]:
                 annot_before = "gene_name : " + analyse_to_plot[r]["annotation_before"]["gene_name"] \
-                                +"\nDistance : " + str(analyse_to_plot[r]["annotation_before"]["distance"])
+                               + "\nDistance : " + str(analyse_to_plot[r]["annotation_before"]["distance"])
 
             analyse_to_plot[r]["annotation_before"] = annot_before
             annot_after = ""
             if "annotation_after" in analyse_to_plot[r] and "gene_name" in analyse_to_plot[r]["annotation_after"]:
                 annot_after = "gene_name : " + analyse_to_plot[r]["annotation_after"]["gene_name"] \
-                                +"\nDistance : " + str(analyse_to_plot[r]["annotation_after"]["distance"])
-            
+                              + "\nDistance : " + str(analyse_to_plot[r]["annotation_after"]["distance"])
+
             analyse_to_plot[r]["annotation_after"] = annot_after
 
-        data["analyse"] = analyse_to_plot
-        return f"{len(analyse_to_plot)} shared regions found.",data, "", chromosome_figure, {"display": "block"}
-    
+        gwas_data.update({
+            "analyse": analyse_to_plot,
+            "gwas_graph_points": dic_distribution,
+            "message": f"{len(analyse_to_plot)} shared regions found.",
+            "last_launch_ts" : launch_ts,
+            "status" : "done"
+        })
+        toast_message = {
+            "title": "Shared regions discovery.",
+            "message": "Process terminated.",
+            "type": "success"
+        }
+        cache.clear()
+        return gwas_data, toast_message
+
     except Exception as e:
-        return f"❌ Error : {e}",no_update, "", chromosome_figure, {"display": "none"}
+        toast_message = {
+            "title": "Shared region discovery error.",
+            "message": str(e),
+            "type": "danger",
+        }
+        gwas_data.update({
+            "analyse": [],
+            "gwas_graph_points": {},
+            "message": f"❌ Error : {e}",
+            "status": "done"
+        })
+        return gwas_data, toast_message
+
+
+#Cancel clic callback
+@app.callback(
+    Output("gwas-page-store", "data", allow_duplicate=True),
+    Input('btn-cancel-find-shared', 'n_clicks'),
+    prevent_initial_call=True,
+
+)
+def handle_cancel_click(n_clicks):
+    if not n_clicks:
+        return no_update
+    gwas_data = {
+        "analyse": [],
+        "gwas_graph_points": {},
+        "message": "Job canceled.",
+        "status": "done"
+    }
+    return gwas_data
+
     
 @app.callback(
     Output('selected-region-output', 'children', allow_duplicate=True),
     Output('shared_storage_nodes', 'data',allow_duplicate=True),
     Output("url", "pathname",allow_duplicate=True),
     Output("home-page-store", "data", allow_duplicate=True),
-    Output("load_spinner_zone", "children", allow_duplicate=True),
+    #Output("load_spinner_zone", "children", allow_duplicate=True),
     Output('tabs-navigation', 'value'),
     Input('shared-region-table', 'selected_rows'),
     State('shared-region-table', 'data'),
     State('shared_storage_nodes', 'data'),
     State('home-page-store', 'data'),
+    running=[
+            (Output("spinner-container","style"),{"display": "block", "marginTop": "20px"},{"display": "none", "marginTop": "20px"}),
+        ],
     prevent_initial_call=True
 )
 def handle_row_selection(selected_rows, table_data, data, home_page_data):
@@ -331,7 +456,7 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data):
     if home_page_data is None:
         home_page_data = {}
     if not selected_rows:
-        return no_update, data, redirect, home_page_data, "",redirect
+        return no_update, data, redirect, home_page_data, redirect
     logger.debug(table_data[selected_rows[0]])
     row = table_data[selected_rows[0]]
     logger.debug("selected row to plot : " +str(row))
@@ -352,11 +477,11 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data):
         redirect = "/"
         return html.Div([
             html.P(f"Found nodes into the region : {len(nodes)}")
-        ]), nodes,redirect,home_page_data,"",redirect
+        ]), nodes,redirect,home_page_data,redirect
     except Exception as e:
-        return f"Erreur : {e}", data,redirect,home_page_data,"",redirect
+        return f"Erreur : {e}", data,redirect,home_page_data,redirect
     
-#Restore checklist
+#Update data when navigating or when the process is terminated
 @app.callback(
     Output('shared-status', 'children',allow_duplicate=True),
     Output('shared-region-table', 'data',allow_duplicate=True),
@@ -368,15 +493,26 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data):
     Output("gwas-region-gap", 'value'),
     Output('gwas-toggle-deletion', 'value'),
     Output("deletion-percentage", 'value'),
+    Output("chromosome-graph", "figure"),
+    Output("chromosome-graph", "style"),
+    Output("gwas_chromosomes_dropdown", 'value'),
+    Output("gwas_ref_genome_dropdown", 'value'),
+    Output("spinner-container", "style", allow_duplicate=True),
+    Output("btn-find-shared","disabled"),
+    Output("btn-cancel-find-shared","disabled"),
     Input('url', 'pathname'),
-    Input("gwas-page-store", "modified_timestamp"),
+    #Input("gwas-page-store", "modified_timestamp"),
     Input("gwas-page-store", "data"),
-    State('shared-region-table', 'data'),
-    
+    State('parameters-gwas-page-store', 'data'),
     prevent_initial_call=True
 )
-def restore_checklist_state(path,ts, data, table_data):
-    analyse = table_data
+def update_data(path, data, parameters_data):
+    #analyse = table_data
+    if path != "/gwas":
+        raise exceptions.PreventUpdate
+    logger.debug("#####################################GWAS Update data")
+    analyse = []
+    len_analyse = 0
     checkbox = []
     max_node_size = None
     min_node_size = 10
@@ -385,50 +521,93 @@ def restore_checklist_state(path,ts, data, table_data):
     region_gap = 10000
     deletion_checkbox = ['show']
     deletion_percentage = 100
-    if data is not None: 
+    chromosome_figure = {}
+    figure_display = {"display": "None"}
+    progress_style = {"display": "none"}
+    message = ""
+    message_analyse = ""
+    ref_genome = None
+    chromosome = None
+    search_button = False
+    cancel_button = True
+    if data is not None:
         if "analyse" in data:
-            analyse = data["analyse"]            
-        if "checkboxes" in data:
-            checkbox = data["checkboxes"]
-        if "min_node_size" in data:
-            min_node_size = data["min_node_size"]
-        if "max_node_size" in data:
-            max_node_size = data["max_node_size"]
-        if "min_percent_selected" in data:
-            min_percent_selected = data["min_percent_selected"]
-        if "tolerance_percentage" in data:
-            tolerance_percentage = data["tolerance_percentage"]
-        if "region_gap" in data:
-            region_gap = data["region_gap"]
-        if "deletion_checkbox" in data:
-            deletion_checkbox = data["deletion_checkbox"]
-        if "deletion_percentage" in data:
-            deletion_percentage = data["deletion_percentage"]
+            analyse = data["analyse"]
+        if data.get("status") == "running":
+            progress_style = {"display": "block", "marginTop": "20px", "marginBottom": "20px"}
+            message_analyse = "Progressing..."
+            search_button = True
+            cancel_button = False
+        else:
+            if "analyse" in data:
+                if "message" in data :
+                    message_analyse = data["message"]
+                else:
+                    len_analyse = len(analyse)
+                    message_analyse = f"{len_analyse} shared regions found."
+        if "gwas_graph_points" in data and len(data["gwas_graph_points"]) > 0:
+            chromosome_figure = build_chromosome_figure(data["gwas_graph_points"])
+            figure_display = {"display": "block"}
+    if parameters_data is not None:
+        if "checkboxes" in parameters_data:
+            checkbox = parameters_data["checkboxes"]
+        if "min_node_size" in parameters_data:
+            min_node_size = parameters_data["min_node_size"]
+        if "max_node_size" in parameters_data:
+            if parameters_data["max_node_size"] == 0:
+                max_node_size = None
+            else:
+                max_node_size = parameters_data["max_node_size"]
+        if "min_percent_selected" in parameters_data:
+            min_percent_selected = parameters_data["min_percent_selected"]
+        if "tolerance_percentage" in parameters_data:
+            tolerance_percentage = parameters_data["tolerance_percentage"]
+        if "region_gap" in parameters_data:
+            region_gap = parameters_data["region_gap"]
+        if "deletion_checkbox" in parameters_data:
+            deletion_checkbox = parameters_data["deletion_checkbox"]
+        if "deletion_percentage" in parameters_data:
+            deletion_percentage = parameters_data["deletion_percentage"]
+        if "ref_genome" in parameters_data:
+            ref_genome = parameters_data["ref_genome"]
+        if "chromosomes" in parameters_data:
+            stored = parameters_data["chromosomes"]
+            if isinstance(stored, list) and len(stored) > 0:
+                chromosome = stored[0]
+            else:
+                chromosome = stored
         if analyse is not None:
             for i, row in enumerate(analyse):
                 row['get_sequence'] = "Get sequence"
-    return (f"{len(analyse)} shared regions found.",analyse, checkbox, min_node_size, max_node_size,
-            min_percent_selected,tolerance_percentage,region_gap, deletion_checkbox, deletion_percentage)
+
+    return (message_analyse,analyse, checkbox, min_node_size, max_node_size,
+            min_percent_selected,tolerance_percentage,region_gap, deletion_checkbox, deletion_percentage,
+            chromosome_figure, figure_display, chromosome, ref_genome,progress_style,search_button,cancel_button)
 
 #Callback to save the gwas data table into csv file
 @app.callback(
     Output('save-feedback', 'children'),
-    Output("load_spinner_zone", "children", allow_duplicate=True),
+    #Output("load_spinner_zone", "children", allow_duplicate=True),
     Output("download-csv", "data", allow_duplicate=True),
     Input('save-csv-button', 'n_clicks'),
     Input('save-csv-with_seq-button', 'n_clicks'),
     State('shared-region-table', 'data'),
+    running=[
+            (Output("spinner-container","style"),{"display": "block", "marginTop": "20px"},{"display": "none", "marginTop": "20px"}),
+        ],
     prevent_initial_call=True
 )
 def save_csv(n_clicks, n_clicks_seq, table_data):
     #logger.info(f"Callback triggered: n_clicks={n_clicks}, table_data={table_data}")
+    if not n_clicks and not n_clicks_seq:
+        return (no_update,) * 2
     if len(table_data) > 0:
         triggered_id = ctx.triggered_id
         export_sequences = False
         if triggered_id == 'save-csv-with_seq-button':
             export_sequences = True
         if not table_data:
-            return "No data.",""
+            return "No data.",no_update
         df = pd.DataFrame(table_data).drop(columns=['get_sequence'], errors='ignore')
         if export_sequences :
             sequences = []
@@ -440,12 +619,12 @@ def save_csv(n_clicks, n_clicks_seq, table_data):
             logger.info("save path : " + str(save_path))
             df.to_csv(save_path, index=False)
 
-            return f"File saved : {save_path}","", no_update
+            return f"File saved : {save_path}",no_update
         else:
             logger.info("🌐 Server mode active — file will be downloaded by user.")
-            return "File ready for download.", "", dcc.send_data_frame(df.to_csv, "shared_regions.csv", index=False)
+            return "File ready for download.", dcc.send_data_frame(df.to_csv, "shared_regions.csv", index=False)
     else:
-        return "No data to download.", "", no_update
+        return "No data to download.", no_update
 
 #Callback to loads csv file into data table
 @app.callback(
@@ -458,6 +637,8 @@ def save_csv(n_clicks, n_clicks_seq, table_data):
     prevent_initial_call=True
 )
 def load_csv(contents, filename, gwas_page_store):
+    if not contents:
+        raise exceptions.PreventUpdate
     logger.info("load csv file")
     if contents is None:
         return None, None, gwas_page_store
@@ -485,6 +666,8 @@ def load_csv(contents, filename, gwas_page_store):
     prevent_initial_call=True
 )
 def show_upload_area(n_clicks):
+    if not n_clicks:
+        return no_update
     return {
         'display': 'block',
         'borderWidth': '1px',

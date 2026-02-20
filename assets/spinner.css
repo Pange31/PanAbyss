@@ -1,0 +1,77 @@
+.custom-spinner {
+    width: 50px;
+    height: 50px;
+    border: 6px solid #e9ecef;
+    border-top: 6px solid #9d4edd;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.bar-spinner-purple {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    justify-content: center;
+    height: 40px;
+}
+
+.bar-spinner-purple div {
+    width: 6px;
+    height: 12px;
+    background-color: #7b2cbf;   /* purple */
+    border-radius: 3px;
+    animation: stretch 1.2s infinite ease-in-out;
+}
+
+/* wave effect */
+.bar-spinner-purple div:nth-child(1) { animation-delay: -1.1s; }
+.bar-spinner-purple div:nth-child(2) { animation-delay: -1.0s; }
+.bar-spinner-purple div:nth-child(3) { animation-delay: -0.9s; }
+.bar-spinner-purple div:nth-child(4) { animation-delay: -0.8s; }
+.bar-spinner-purple div:nth-child(5) { animation-delay: -0.7s; }
+
+@keyframes stretch {
+    0%, 40%, 100% {
+        height: 12px;
+        opacity: 0.5;
+    }
+    20% {
+        height: 40px;
+        opacity: 1;
+    }
+}
+
+
+
+.dash-bars-spinner {
+    display: inline-flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 8px;
+}
+
+.dash-bars-spinner div {
+    width: 8px;
+    height: 12px;
+    background-color: #9d4edd;
+    border-radius: 3px;
+    animation: dash-stretch 1s infinite ease-in-out;
+}
+
+/* offset for wave effect */
+.dash-bars-spinner div:nth-child(1) { animation-delay: -0.4s; }
+.dash-bars-spinner div:nth-child(2) { animation-delay: -0.3s; }
+.dash-bars-spinner div:nth-child(3) { animation-delay: -0.2s; }
+.dash-bars-spinner div:nth-child(4) { animation-delay: -0.1s; }
+
+/* keyframes */
+@keyframes dash-stretch {
+    0%, 40%, 100% { height: 12px; opacity: 0.6; }
+    20% { height: 40px; opacity: 1; }
+}
