@@ -309,9 +309,6 @@ def on_click_load_annotations(n_clicks, annotation_checkbox_values, annotation_c
     return "", data, triggered_data, ""
 
 
-
-
-
 #callback to load annotations
 @app.callback(
     [Output('db-management-page-store', 'data', allow_duplicate=True),
@@ -422,10 +419,10 @@ def load_annotations_launch(trigger_data, data, checkbox_values, checkbox_ids, d
 
     # Optionally link annotations if the "with-link" button was clicked
     WARN = None
-    if triggered_id == "btn-load-annotations-with-link":
-        for genome in set(genome_mapping.values()):
-            logger.info(f"Link annotations for genome '{genome}'")
-            WARN = creer_relations_annotations_neo4j(genome)
+    #if triggered_id == "btn-load-annotations-with-link":
+    for genome in set(genome_mapping.values()):
+        logger.info(f"Link annotations for genome '{genome}'")
+        WARN = creer_relations_annotations_neo4j(genome)
 
     if WARN:
         toast_message = {
