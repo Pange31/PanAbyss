@@ -36,6 +36,7 @@ error_style = {"color": "red", "marginTop": "10px"}
 
 logger = setup_logger(name="panabyss_logger")
 
+logger.info(f"🚀 APP START PID = {os.getpid()}")
 cache = diskcache.Cache("./cache")
 background_callback_manager = DiskcacheManager(cache)
 

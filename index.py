@@ -5,8 +5,9 @@ Created on Wed Jul  2 12:06:35 2025
 
 @author: fgraziani
 """
+import time
 
-from dash import Dash, dcc, html, Input, Output, State, ctx,no_update
+from dash import Dash, dcc, html, Input, Output, State, ctx,no_update, exceptions
 import dash_bootstrap_components as dbc
 import dash_auth
 
@@ -22,12 +23,15 @@ import pages.sequences as sequences
 import pages.gwas as gwas
 import pages.db_management as db_management
 import pages.about as about
+import pages.gwas_management as gwas_management
 
 
 from neo4j_requests import *
 from neo4j_container_management import *
 from config import *
+
 import logging
+from sqlite_requests import *
 
 app.config.suppress_callback_exceptions = True
 logger = logging.getLogger("panabyss_logger")
@@ -35,11 +39,12 @@ logger = logging.getLogger("panabyss_logger")
 #Limit upload size for gfa / annotations files to 10 Go
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
 
-
-
 #Limit upload size
 app.server.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
 app.server.secret_key = "KEY_PANABYSS_96598421_CDEYUJH"
+
+shared_storage = None
+
 
 def clean_exit(signum, frame):
     logger.info("\nStopping docker")
@@ -54,6 +59,8 @@ signal.signal(signal.SIGTERM, clean_exit)
 
 logger.info(f"Server mode : {SERVER_MODE} - Admin mode : {ADMIN_MODE}")
 
+
+
 start_container()
 
 if SERVER_MODE and ADMIN_MODE:
@@ -63,7 +70,7 @@ if SERVER_MODE and ADMIN_MODE:
 else:
     logger.info("🔓 No Admin functionnalities or no server mode → public access")
 
-
+#Main menu
 tabs = [
     dcc.Tab(label='Home', value='/', className='custom-tab', selected_className='custom-tab--selected'),
     dcc.Tab(label='Shared regions discovery', value='/gwas', className='custom-tab', selected_className='custom-tab--selected'),
@@ -78,6 +85,7 @@ if not BLOCK_ADMIN_FUNCTIONNALITIES:
 
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
+    dcc.Store(id="init_done", data=False),
     dcc.Store(id='shared_storage_nodes', data=[], storage_type='memory'),
     dcc.Store(id='shared_storage', data={'genomes':[], 'chromosomes':[]}, storage_type='session'),
     dcc.Store(id="home-page-store", storage_type='session'),
@@ -147,16 +155,6 @@ html.Div(id="page-content", style={"marginLeft": "10px", "padding": "20px"}),
 
 
 
-# app.validation_layout = html.Div([
-#     app.layout,
-#     home.layout(),
-#     phylogenetic.layout(),
-#     gwas.layout(),
-#     sequences.layout(),
-#     db_management.layout(),
-#     about.layout()
-# ])
-
 
 app.validation_layout = html.Div([
     dcc.Store(id='shared_storage'),
@@ -176,22 +174,48 @@ import callbacks.gwas_callbacks
 import callbacks.sequences_callbacks
 import callbacks.db_management_callbacks
 import callbacks.about_callbacks
+import callbacks.gwas_management_callbacks
 
 #Getting chromosomes and genomes
+# @app.callback(
+#     Output('shared_storage', 'data'),
+#     Output('init_done', 'data'),
+#     Input('init_done', 'data'),
+#     prevent_initial_call=False
+# )
+# def init_data(init_done):
+#     if init_done:
+#         raise exceptions.PreventUpdate
+#
+#     new_data = {}
+#     all_genomes = get_genomes()
+#     all_genomes.sort()
+#
+#     new_data["genomes"] = all_genomes
+#     new_data["chromosomes"] = get_chromosomes()
+#     new_data["features"] = get_annotations_features()
+#
+#     return new_data, True
+
+
+# @app.callback(
+#     Output('shared_storage', 'data'),
+#     Output('init_done', 'data'),
+#     Input('init_done', 'data'),
+#     prevent_initial_call=False
+# )
+# def init_data(init_done):
+#     if init_done:
+#         raise exceptions.PreventUpdate
+#     return shared_storage, True
+
 @app.callback(
     Output('shared_storage', 'data'),
-    Input('url', 'pathname'),
-    prevent_initial_call=False 
+    Input('url', 'pathname'), prevent_initial_call=False
 )
 def init_data(pathname):
-    new_data = {}
-    all_genomes = get_genomes()
-    all_genomes.sort()
-    #logger.info("all genomes : " + str(all_genomes))
-    new_data["genomes"] = all_genomes
-    new_data["chromosomes"]  = get_chromosomes()
-    new_data["features"] = get_annotations_features()
-    return new_data
+    load_static()
+    return shared_storage
 
 #callback to display toast
 @app.callback(
@@ -330,17 +354,33 @@ def display_page(pathname):
         return sequences.layout()
     elif pathname == "/about":
         return about.layout()
+    elif pathname == "/gwas_management":
+        return gwas_management.layout()
     else:
         return html.H1("Page non trouvée")
 
+def load_static():
+    global shared_storage
 
+    if shared_storage is None:
+        shared_storage = {
+            "genomes": get_genomes(),
+            "chromosomes": get_chromosomes(),
+            "features": get_annotations_features()
+        }
+
+    return shared_storage
 
 
 def run():
     parser = argparse.ArgumentParser(description="Launch server.")
     parser.add_argument("--port", type=int, help="HTTP port to use (default : 8050)")
     args = parser.parse_args()
-    
+    init_db()
+    load_static()
+    logger.info(
+        f"all genomes: {shared_storage.get('genomes', '')} - chromosomes: {shared_storage.get('chromosomes', '')} - features: {shared_storage.get('features', '')}")
+    purge_running_jobs()
     port = args.port or int(8050)
     print("SERVER START")
     app.run(debug=True, port = port)

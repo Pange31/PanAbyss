@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.3.0]
+### Added
+- Store result of shared region discovery in a sqlite database
+- Add a limitation for shared regions discovery in conf file
+- Progression bar in shared region discovery
+
+### Changed
+- Performance improve in shared region discovery
+- Change in method for retrieving annotations in shared region discovery
+
+
+### Fixed
+-
+
+### Removed
+
+
 ## [1.2.0]
 ### Added
 - Add warning message if annotation file has no common chromosome with graph

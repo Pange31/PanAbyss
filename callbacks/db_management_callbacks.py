@@ -582,6 +582,45 @@ def confirm_delete_annotations(n_clicks, data):
 
 
 
+############# delete gwas jobs callback ##################
+@app.callback(
+    Output("delete-gwas-jobs-confirmation", "children"),
+    Input("btn-delete-gwas-jobs", "n_clicks"),
+    prevent_initial_call=True
+)
+@require_authorization
+def delete_annotations_ask_confirmation(n_clicks):
+    if n_clicks > 0:
+        return html.Div([
+            html.Div("⚠️ Confirm: this operation will delete all gwas jobs in database."),
+            html.Button("Confirm Delete", id="btn-delete-gwas-jobs-confirmation", n_clicks=0, style={"marginTop": "5px", "color": "white", "backgroundColor": "red"})
+        ])
+    return ""
+
+@app.callback(
+    Output("delete-gwas-jobs-message", "children", allow_duplicate=True),
+    Output("delete-gwas-jobs-confirmation", "children", allow_duplicate=True),
+    Output('db-management-page-store', 'data', allow_duplicate=True),
+    Input("btn-delete-gwas-jobs-confirmation", "n_clicks"),
+    State('db-management-page-store', 'data'),
+    running=[
+        (Output("btn-delete-gwas-jobs", "disabled"), True, False),
+        (Output("btn-delete-gwas-jobs-confirmation", "disabled"), True, False)
+    ],
+    prevent_initial_call=True
+)
+@require_authorization
+def confirm_delete_annotations(n_clicks, data):
+    data = delete_messages(data)
+    if not n_clicks:
+        raise exceptions.PreventUpdate
+    try:
+        drop_jobs_table()
+        return html.Div("✅ All gwas jobs deleted successfully.", style=success_style), "", data
+    except Exception as e:
+        return html.Div(f"❌ Error while deleting gwas jobs: {str(e)}", style=error_style), "", data
+
+
 ############# Container callbacks#################
 
 
@@ -991,94 +1030,4 @@ def update_page(pathname, data, container_input, checkbox_values, annotation_che
                         annotations_ref_genome_values,annotation_message,
                         button_cancel_annotation_disabled, create_load_annotation_spinner_style,
                         button_load_annotation_disabled)
-
-
-
-# @app.callback(
-#     Output('container-name-label', 'children'),
-#     Output('container-name-input', 'value'),
-#     #Output('db-management-page-store', 'data'),
-#     Output("container-name-input", "disabled"),
-#     Output("btn-load-annotations-with-link", "disabled"),
-#     Output("btn-create-db", "style"),
-#     Output("btn-load-gfa", "style"),
-#     Output("btn-create-index", "disabled"),
-#     Output("btn-create-stats", "disabled"),
-#     Output("btn-dump-db", "disabled"),
-#     Output("create-db-message", "children"),
-#     Output({'type': 'gfa-checkbox', 'index': ALL}, 'value'),
-#     Output("btn-create-db", "disabled"),
-#     Output("btn-load-gfa", "disabled"),
-#     Output("btn-cancel-create-db", "disabled"),
-#     Output("db-create-spinner", "style"),
-#     Output({'type': 'annotation-dropdown', 'index': ALL}, 'options'),
-#     Output("annotation-message", "children"),
-#     Input('url', 'pathname'),
-#     Input('db-management-page-store', 'data'),
-#     State('container-name-input', 'value'),
-#     prevent_initial_call=False
-# )
-# @require_authorization
-# def update_page(pathname, data, container_input, checkbox_values):
-#     if pathname != "/db_management":
-#         raise exceptions.PreventUpdate
-#     if data is None:
-#         data = {}
-#     status_create_db = data.get("create_db_status", "done")
-#     create_db_message = ""
-#     if "db_creation_message" in data and data["db_creation_message"] is not None and data["db_creation_message"] != "":
-#         create_db_message = html.Div(data.get("db_creation_message", ""), style=data.get("db_creation_message_style", success_style))
-#     annotations_option_list = data.get('options_list',[])
-#     gfa_checkbox_values = data.get('gfa_checkbox_values',[[] for _ in checkbox_values])
-#
-#
-#     button_create_db = False
-#     button_load_gfa = False
-#     create_db_spinner_style = {"display": "none", "marginTop": "20px"}
-#
-#     if status_create_db == "running":
-#         create_db_spinner_style = {"display": "block", "marginTop": "20px"}
-#         button_cancel = False
-#         button_create_db = True
-#         button_load_gfa = True
-#         if create_db_message == "" :
-#             create_db_message = html.Div("Creating database...", style=success_style)
-#     else:
-#         button_cancel = True
-#
-#     style_create_db = {"display": "inline-block"}
-#     style_add_gfa = {"display": "none"}
-#
-#     conf = load_config_from_json()
-#     style_create_db = {"display": "none"}
-#     style_add_gfa = {"display": "inline-block"}
-#     btn_create_index_disabled = False
-#     btn_create_state_disabled = False
-#     btn_dump_db_disabled = False
-#     container_name_input_disabled = True
-#     btn_load_annotations_disabled = False
-#     if not conf or "container_name" not in conf or conf['container_name'] is None or conf['container_name'] == "":
-#         style_create_db = {"display": "inline-block"}
-#         style_add_gfa = {"display": "none"}
-#         btn_create_index_disabled = True
-#         btn_create_state_disabled = True
-#         btn_dump_db_disabled = True
-#         container_name_input_disabled = False
-#         btn_load_annotations_disabled = True
-#
-#         container_name = data.get("container_name", container_input if (container_input and container_input != "") else "container_name")
-#         msg_container = f'No conf file found. Use "create new DB" procedure to generate it.'
-#
-#     else:
-#         container_name = get_container_name_no_prefix(conf.get("container_name", "container_name"))
-#         #data['container_name'] = get_container_name_no_prefix(container_name)
-#         #container_name = PREFIX_CONTAINER_NAME + data['container_name']
-#         #get_container_name_no_prefix(container_name)
-#         msg_container = f"Container name: {container_name}"
-#
-#     return (f'No conf file found. Use "create new DB" procedure to generate it.', container_name, container_name_input_disabled,
-#                         btn_load_annotations_disabled, style_create_db, style_add_gfa, btn_create_index_disabled,
-#                         btn_create_state_disabled, btn_dump_db_disabled,
-#                         create_db_message,  gfa_checkbox_values, button_create_db, button_load_gfa, button_cancel,
-#                         create_db_spinner_style, annotations_option_list)
 

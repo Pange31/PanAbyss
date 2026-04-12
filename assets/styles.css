@@ -18,3 +18,97 @@
     border-bottom: 3px solid #3399ff;
     box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
 }
+
+.progress-container {
+    width: 30%;
+    height: 12px;
+    border-radius: 6px;
+    background-color: #e0e0e0;
+    overflow: hidden;
+    margin: 10px auto;
+}
+
+.progress-bar {
+    height: 100%;
+    border-radius: 6px;
+    background-color: #2196F3;
+    transition: width 0.3s ease-in-out;
+}
+
+/* ring of progression */
+#gwas-progress-circle {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 18px;
+    color: #9d4edd; /* blue text */
+    --progress: 0deg; /* dynamical value */
+    background: conic-gradient(
+        #9d4edd 0deg var(--progress),  /* blue part = progression */
+        #e0e0e0 var(--progress) 360deg /* grey part = staying part */
+    );
+}
+
+/* Ring hole */
+#gwas-progress-circle::before {
+    content: "";
+    position: absolute;
+    width: 75%;
+    height: 75%;
+    background: white;
+    border-radius: 50%;
+    z-index: 1;
+}
+
+/* Center text */
+#gwas-progress-text {
+    position: absolute;
+    z-index: 2;
+}
+
+
+/* animate */
+
+#gwas-progress-circle::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+        rgba(157,78,221,0) 0deg 30deg,
+        #c77dff 30deg 90deg,  /* 👈 plus contrasté */
+        rgba(157,78,221,0) 90deg 360deg
+    );
+    z-index: 0;
+    animation: rotateGray 1.5s linear infinite;
+    pointer-events: none;
+}
+/*
+#gwas-progress-circle::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+        rgba(157,78,221,0) 0deg 30deg,
+        #9d4edd 30deg 90deg,
+        rgba(157,78,221,0) 90deg 360deg
+    );
+    z-index: 0;
+    animation: rotateGray 1.5s linear infinite;
+    pointer-events: none;
+}*/
+
+
+
+
+
+@keyframes rotateGray {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

@@ -10,5 +10,8 @@
   "gunicorn_log_level":"error",
   "db_gfa_loading_batch_size":2000000,
   "max_nodes_to_visualize":30000,
-  "read_buffer_size": 64000000
+  "read_buffer_size": 64000000,
+  "max_gwas_store":100,
+  "max_gwas_running_inactivity_hours":5,
+  "max_gwas_regions":0
 }

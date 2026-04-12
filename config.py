@@ -16,6 +16,7 @@ import time
 from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable
 import logging
+import threading
 
 logger = logging.getLogger("panabyss_logger")
 
@@ -29,6 +30,12 @@ DEFAULT_MAX_NODES_TO_VISUALIZE = 50000
 # for long nodes sequences it could be necessary to improve this value
 DEFAULT_MAX_READ_BUFFER_SIZE = 64000000
 
+#Maximum number of gwas to store in sqlite database
+DEFAULT_MAX_GWAS_STORE = 100
+DEFAULT_MAX_GWAS_RUNNING_INACTIVITY_HOURS = 5
+#Default max region is not limitated
+DEFAULT_MAX_GWAS_REGIONS = 0
+
 CONF_FILE = os.path.abspath("./conf.json")
 OLD_CONF_FILE = os.path.abspath("./db_conf.json")
 INSTALL_CONF_FILE = os.path.abspath("./install/conf/conf.json")
@@ -39,6 +46,8 @@ neo4j_start_delay = 10
 #max_iter_test_connexion is the maximum number of pooling database to test if it is up
 max_iter_test_connexion = 60
 
+# #main driver
+# _DRIVER = None
 
 #Default value to add to the old config file
 DEFAULT_ADDITIONS = {
@@ -125,6 +134,11 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
     DB_LOAD_GFA_BATCH_SIZE = int(conf.get("db_gfa_loading_batch_size",DEFAULT_DB_LOAD_GFA_BATCH_SIZE))
     MAX_NODES_TO_VISUALIZE = int(conf.get("max_nodes_to_visualize", DEFAULT_MAX_NODES_TO_VISUALIZE))
     READ_BUFFER_SIZE = int(conf.get("read_buffer_size", DEFAULT_MAX_READ_BUFFER_SIZE))
+    MAX_GWAS_STORE = int(conf.get("max_gwas_store", DEFAULT_MAX_GWAS_STORE))
+    MAX_GWAS_RUNNING_INACTIVITY_HOURS = int(conf.get("max_gwas_running_inactivity_hours",DEFAULT_MAX_GWAS_RUNNING_INACTIVITY_HOURS))
+    MAX_GWAS_REGIONS = int(conf.get("max_gwas_regions",DEFAULT_MAX_GWAS_REGIONS))
+    if MAX_GWAS_REGIONS <= 0:
+        MAX_GWAS_REGIONS = None
     if LOG_LEVEL_PARAM in log_levels:
         LOG_LEVEL= "logging."+LOG_LEVEL_PARAM
     else:
@@ -141,18 +155,22 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
             "AUTH":AUTH, "DB_URL":DB_URL, "SERVER_MODE":SERVER_MODE, "USERS":USERS, "ADMIN_MODE":ADMIN_MODE,
             "SERVER_LOG_MODE":SERVER_LOG_MODE,"LOG_RETENTION_DAYS":LOG_RETENTION_DAYS, "LOG_LEVEL":LOG_LEVEL,
             "GUNICORN_LOG_LEVEL":GUNICORN_LOG_LEVEL, "DB_LOAD_GFA_BATCH_SIZE":DB_LOAD_GFA_BATCH_SIZE,
-            "MAX_NODES_TO_VISUALIZE":MAX_NODES_TO_VISUALIZE, "READ_BUFFER_SIZE":READ_BUFFER_SIZE}
+            "MAX_NODES_TO_VISUALIZE":MAX_NODES_TO_VISUALIZE, "READ_BUFFER_SIZE":READ_BUFFER_SIZE,
+            "MAX_GWAS_STORE":MAX_GWAS_STORE, "MAX_GWAS_RUNNING_INACTIVITY_HOURS":MAX_GWAS_RUNNING_INACTIVITY_HOURS,
+            "MAX_GWAS_REGIONS":MAX_GWAS_REGIONS}
+
+
+CONF = get_conf()
+
 
 def test_connection(DB_URL, AUTH):
     try:
-        driver = GraphDatabase.driver(DB_URL, auth=AUTH)
-        with driver.session() as session:
-            session.run("RETURN 1")
-        driver.close()
+        with GraphDatabase.driver(DB_URL, auth=AUTH) as driver:
+            with driver.session() as session:
+                session.run("RETURN 1")
         return True
     except ServiceUnavailable:
         return False
-
 
 def load_config_from_json():
     if not os.path.exists(CONF_FILE):
@@ -181,8 +199,10 @@ def is_admin_mode():
     return admin_mode
 
 def get_conf_read_buffer_size():
-    conf=get_conf()
-    return conf["READ_BUFFER_SIZE"]
+    if CONF:
+        return CONF["READ_BUFFER_SIZE"]
+    else:
+        return DEFAULT_MAX_READ_BUFFER_SIZE
 
 def set_conf_value(key, value):
     with open(CONF_FILE) as f:
@@ -192,12 +212,21 @@ def set_conf_value(key, value):
         json.dump(conf, f, indent=4)
 
 def get_db_load_gfa_batch_size():
-    conf=get_conf()
-    return conf["DB_LOAD_GFA_BATCH_SIZE"]
+    if CONF:
+        return CONF["DB_LOAD_GFA_BATCH_SIZE"]
+    else :
+        return DEFAULT_DB_LOAD_GFA_BATCH_SIZE
 
 def get_max_nodes_to_visualize():
     conf=get_conf()
     return conf["MAX_NODES_TO_VISUALIZE"]
+
+
+def get_gwas_conf():
+    if CONF:
+        return CONF["MAX_GWAS_STORE"], CONF["MAX_GWAS_RUNNING_INACTIVITY_HOURS"], CONF["MAX_GWAS_REGIONS"]
+    else :
+        return DEFAULT_MAX_GWAS_STORE, DEFAULT_MAX_GWAS_RUNNING_INACTIVITY_HOURS, DEFAULT_MAX_GWAS_REGIONS
 
 #Authorization is set to True for local installation of PanAbyss
 #or if the mode admin is set to True
@@ -217,29 +246,26 @@ def get_users():
      return users
 
     
-def get_driver(max_retries=5, retry_delay=5):
-    if not os.path.exists(CONF_FILE):
-        check_conf_file()
-    if os.path.exists(CONF_FILE):
-        conf=get_conf()
-        if "container_name" in conf and conf["container_name"] != None and conf["container_name"] != "":
-            DB_URL = conf["DB_URL"]
-            AUTH= conf["AUTH"]
-            for attempt in range(1, max_retries + 1):
-                if test_connection(DB_URL, AUTH):
-                    driver = GraphDatabase.driver(DB_URL, auth=AUTH)
-                    return driver
-                else:
-                    logger.warn(f"Retry {attempt}/{max_retries} to connect to driver")
-                    time.sleep(retry_delay)
-
-
-            if test_connection(DB_URL, AUTH):
-                    driver = GraphDatabase.driver(DB_URL, auth=AUTH)
-                    return driver
-            logger.error(f"❌ Fail to access Database of container {conf['container_name']}.")
-            return None
-        else:
-            return None
-    else:
-        return None
+# def get_driver(max_retries=5, retry_delay=5):
+#     if CONF:
+#         if "container_name" in CONF and CONF["container_name"] != None and CONF["container_name"] != "":
+#             DB_URL = CONF["DB_URL"]
+#             AUTH= CONF["AUTH"]
+#             for attempt in range(1, max_retries + 1):
+#                 if test_connection(DB_URL, AUTH):
+#                     driver = GraphDatabase.driver(DB_URL, auth=AUTH)
+#                     return driver
+#                 else:
+#                     logger.warn(f"Retry {attempt}/{max_retries} to connect to driver")
+#                     time.sleep(retry_delay)
+#
+#
+#             if test_connection(DB_URL, AUTH):
+#                     driver = GraphDatabase.driver(DB_URL, auth=AUTH)
+#                     return driver
+#             logger.error(f"❌ Fail to access Database of container {conf['container_name']}.")
+#             return None
+#         else:
+#             return None
+#     else:
+#         return None

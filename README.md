@@ -95,6 +95,10 @@ To configure logging behavior, modify the following parameters in the `./conf.js
   - Phylogenetic: on left it is possible to load a reference phylogenetic tree. On right, by clicking on the "Plot tree..." button it computes the tree of the region defined in the Home page.
   - Sequences: by clicking on the button it computes the sequence for each haplotype of the region selected in the home page.
 
+  **URL query** : it is possible to access directly a pangenome region via URL. For example: 
+  - Search by gene name (any kind of feature can be used): https://panabyss-dev.toulouse.inrae.fr/?haplotype=ARS_UCD12_0&chromosome=6&featureName=gene_name&featureValue=KIT
+  - Search by coordinates: https://panabyss-dev.toulouse.inrae.fr/?haplotype=ARS_UCD12_0&chromosome=6&start=70099514&end=70120129
+
 
 ## Generate the database
 * There are 3 ways to generate database:
@@ -139,7 +143,8 @@ The parameter file is named `./conf.json`. It contains the following parameters:
 - `"gunicorn_log_level"`: `"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"` - log level for gunicorn server. If not set then there won't be log from gunicorn.
 - `"db_gfa_loading_batch_size"`: According to the ram available: bigger batch size will go faster but will consume more memory. Default value is 2,000,000.
 - `"max_nodes_to_visualize"`: set the maximum number of nodes to visualize in GUI. Default value is 30,000.
-- `"read_buffer_size"`: set the maximum line size to import csv file in Neo4j. Default value is 64,000,000.
+- `"max_gwas_store"`: set the maximum of stored results for shared region discovery.
+- `"max_gwas_running_inactivity_hours"`: set the maximum refresh time for running job before deleting them.
 
 
 ## Contacts

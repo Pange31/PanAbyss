@@ -436,6 +436,19 @@ def layout():
         ),
         html.Br(),
         html.Label(
+            "Reset all the gwas stored.",
+            style={'display': 'block', 'marginBottom': '8px'}),
+        html.Button("Delete gwas jobs", title="This will delete all gwas jobs in database.",
+                    id="btn-delete-gwas-jobs",
+                    n_clicks=0),
+        # Confirm deletion
+        html.Div(id="delete-gwas-jobs-confirmation", style={"marginTop": "10px"}),
+        dcc.Loading(
+            # type="circle",
+            children=html.Div(id="delete-gwas-jobs-message", style={"marginTop": "10px"})
+        ),
+        html.Br(),
+        html.Label(
             "Create csv import files : this will generate neo4j import csv files into /data/import directory. These files can be used to create a new DB.",
             style={'display': 'block', 'marginBottom': '8px'}),
         html.Button("Generate CSV Import file",

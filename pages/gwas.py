@@ -184,11 +184,27 @@ def layout():
         html.Button("Find shared regions", id='btn-find-shared', n_clicks=0, style={'margin': '15px 0', 'marginRight':'15px'}),
         html.Button("Cancel", id='btn-cancel-find-shared', disabled=True, n_clicks=0, style={'margin': '15px 0'}),
         html.Div(id='shared-status', style={'marginBottom': '15px'}),
-
+        html.Div(
+            id="gwas-progress-circle",
+            style={"display": "none", "width": "100px", "height": "100px", "margin": "auto", "position": "relative",
+                   "border-radius": "50%"},
+            children=[
+                html.Span(id="gwas-progress-text", children="0%",
+                          style={"position": "absolute", "width": "100%", "text-align": "center",
+                                 "line-height": "100px", "font-weight": "bold", "color": "#9d4edd"})
+            ]
+        ),
         html.Div(
             html.Div(className="custom-spinner"),
             id="spinner-container",
             style={"display": "none", "marginTop": "20px"}
+        ),
+
+        dcc.Interval(
+            id='gwas-poll-interval',
+            interval=5 * 1000,  # poll every 2 seconds
+            n_intervals=0,
+            disabled=True
         ),
 
 
@@ -239,9 +255,9 @@ def layout():
                 {"name": "chromosome", "id": "chromosome"},
                 {"name": "start", "id": "start"},
                 {"name": "stop", "id": "stop"},
-                {"name": "annotation before", "id": "annotation_before"},
-                {"name": "annotations", "id": "annotations"},
-                {"name": "annotation after", "id": "annotation_after"},
+                {"name": "annotation before", "id": "annotation_before", "presentation": "markdown"},
+                {"name": "annotations", "id": "annotations", "presentation": "markdown"},
+                {"name": "annotation after", "id": "annotation_after", "presentation": "markdown"},
                 {"name": "region size", "id": "region_size"},
                 {"name": "shared size", "id": "shared_size"},
                 {"name": "shared deleted nodes size", "id": "shared_deleted_size"},

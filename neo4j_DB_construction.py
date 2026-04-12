@@ -1,7 +1,6 @@
 import re
 from tqdm import tqdm
 from math import *
-from neo4j import GraphDatabase
 from neo4j.exceptions import Neo4jError
 import time
 import hashlib
@@ -11,6 +10,7 @@ import numpy as np
 import os
 import csv
 from config import *
+from neo4j_driver import get_driver
 from auth_utils import require_authorization
 import logging
 

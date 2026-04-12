@@ -1520,7 +1520,6 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             genome_position = genome + "_position"
             nodes_with_position = [node for node in new_data.values() if genome_position in node]
             if len(nodes_with_position) > 1:
-                print(f"new data length {len(new_data)}")
                 min_node = min(nodes_with_position, key=lambda x: x[genome_position])
                 max_node = max(nodes_with_position, key=lambda x: x[genome_position])
 
@@ -1824,7 +1823,6 @@ def update_parameters_on_page_load(pathname, search, data, shared_data, options_
 def save_image_to_file(image_data, chromosome, genome, data):
     start = data.get("start", "")
     end =  data.get("end", "")
-    print(f"start : {start}")
     if not image_data:
         raise PreventUpdate
     # check directory exists
