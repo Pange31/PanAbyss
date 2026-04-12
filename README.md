@@ -143,8 +143,9 @@ The parameter file is named `./conf.json`. It contains the following parameters:
 - `"gunicorn_log_level"`: `"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"` - log level for gunicorn server. If not set then there won't be log from gunicorn.
 - `"db_gfa_loading_batch_size"`: According to the ram available: bigger batch size will go faster but will consume more memory. Default value is 2,000,000.
 - `"max_nodes_to_visualize"`: set the maximum number of nodes to visualize in GUI. Default value is 30,000.
-- `"max_gwas_store"`: set the maximum of stored results for shared region discovery.
+- `"max_gwas_store"`: set the maximum of stored results for shared region discovery. Set to 0 (or not set) for no limit.
 - `"max_gwas_running_inactivity_hours"`: set the maximum refresh time for running job before deleting them.
+- `"max_gwas_regions"`: set the maximum regions to visualize in shared regions discovery. Set to 0 (or not set) for no limit.
 
 
 ## Contacts

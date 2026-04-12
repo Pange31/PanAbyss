@@ -76,24 +76,25 @@ def insert_job(job_id, params, params_hash):
         """)
         success_count = cursor.fetchone()[0]
 
-        logger.debug(f"number of gwas jobs in database : {success_count + 1}, limit : {MAX_GWAS_STORE}")
+        if MAX_GWAS_STORE is not None:
+            logger.debug(f"number of gwas jobs in database : {success_count + 1}, limit : {MAX_GWAS_STORE}")
 
-        if success_count >= MAX_GWAS_STORE:
-            to_delete = success_count - MAX_GWAS_STORE + 1
+            if success_count >= MAX_GWAS_STORE:
+                to_delete = success_count - MAX_GWAS_STORE + 1
+                logger.debug(f"Deleting {to_delete} oldest result.")
+                cursor.execute("""
+                    SELECT job_id FROM jobs
+                    WHERE status = 'SUCCESS'
+                    ORDER BY modified_at ASC
+                    LIMIT ?
+                """, (to_delete,))
 
-            cursor.execute("""
-                SELECT job_id FROM jobs
-                WHERE status = 'SUCCESS'
-                ORDER BY modified_at ASC
-                LIMIT ?
-            """, (to_delete,))
+                old_job_ids = [row[0] for row in cursor.fetchall()]
 
-            old_job_ids = [row[0] for row in cursor.fetchall()]
-
-            if old_job_ids:
-                cursor.executemany("""
-                    DELETE FROM jobs WHERE job_id = ?
-                """, [(jid,) for jid in old_job_ids])
+                if old_job_ids:
+                    cursor.executemany("""
+                        DELETE FROM jobs WHERE job_id = ?
+                    """, [(jid,) for jid in old_job_ids])
 
 
 
