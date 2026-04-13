@@ -377,7 +377,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
     progress_value = "0"
     progress_background = {"background": "conic-gradient(#e0e0e0 0deg 360deg)"}
     #job_data = get_job(job_id)  # retrieve job info from SQLite
-    status = get_status(job_id)
+    status = get_gwas_status(job_id)
     if not status:
         enable_poll = True
         search_button = False
@@ -386,7 +386,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
         return (no_update,) * 5, True,
 
     if status == "SUCCESS":
-        job_data = get_job(job_id)
+        job_data = get_gwas_job(job_id)
         #Job finished successfully => fetch results
         progress_value = "100"
         msg = ""
@@ -467,7 +467,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
         return msg, gwas_data, toast, progress_style, progress_value, enable_poll, search_button, cancel_button
 
     elif status == "ERROR":
-        job_data = get_job(job_id)
+        job_data = get_gwas_job(job_id)
         enable_poll = True
         msg = f"❌ Error: {job_data.get('error_message', 'Unknown')}"
         #Job finished with error
@@ -481,7 +481,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
         return msg, gwas_data, toast,  progress_style, progress_value, enable_poll, search_button, cancel_button
 
     elif status == "RUNNING":
-        current_progress = int(get_progress(job_id))
+        current_progress = int(get_gwas_progress(job_id))
 
         deg = current_progress * 3.6
         progress_style = {
@@ -539,7 +539,7 @@ def handle_cancel_click(n_clicks, gwas_data):
     progress_style = {"display": "none"}
     logger.debug("Cancel job")
     job_id = gwas_data["job_id"]
-    set_job_cancel(job_id)
+    set_gwas_job_cancel(job_id)
     gwas_data["job_id"] = None
     gwas_data.update({
         "analyse": [],
@@ -657,7 +657,7 @@ def update_data(path, data, parameters_data):
 
         job_id = data.get("job_id", None)
         if job_id:
-            job_data = get_job(job_id)  # retrieve job info from SQLite
+            job_data = get_gwas_job(job_id)  # retrieve job info from SQLite
             if job_data and job_data["status"] == "RUNNING":
                 message_analyse = "Processing..."
                 search_button = True

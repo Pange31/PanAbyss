@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger("panabyss_logger")
 
 from dash import Input, Output, State, ctx, no_update, html, ALL
-from sqlite_requests import *
+from sqlite_gwas_requests import *
 import json
 
 
@@ -50,7 +50,7 @@ def load_table(pathname):
     if pathname != "/gwas_management":
         return no_update, no_update
 
-    df = load_jobs()
+    df = load_gwas_jobs()
 
     # 👉 expansion JSON + flatten lists
     df = expand_jobs(df)
@@ -85,12 +85,12 @@ def handle_action(active_cell, rows):
     status = job["status"]
 
     if status == "RUNNING":
-        set_job_cancel(job_id)
+        set_gwas_job_cancel(job_id)
     else:
-        delete_job(job_id)
+        delete_gwas_job(job_id)
 
     # reload propre
-    df = load_jobs()
+    df = load_gwas_jobs()
     df = expand_jobs(df)
 
     df["action"] = df["status"].apply(

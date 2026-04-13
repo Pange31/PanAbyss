@@ -17,18 +17,18 @@ MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS = get_gwas_conf()
 def now_utc():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
-def get_connection():
+def get_gwas_connection():
     # Create the folder if it doesn't exist
     os.makedirs(DB_PATH, exist_ok=True)
     return sqlite3.connect(DB_FILENAME, check_same_thread=False)
 
 
-def init_db():
-    with get_connection() as conn:
+def init_gwas_db():
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS jobs (
+            CREATE TABLE IF NOT EXISTS gwas_jobs (
                 job_id TEXT PRIMARY KEY,
                 status TEXT,
                 progression REAL,
@@ -44,22 +44,22 @@ def init_db():
             )
         """)
 
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_params_hash ON jobs(params_hash)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_job_id ON jobs(job_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_params_hash ON gwas_jobs(params_hash)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_job_id ON gwas_jobs(job_id)")
 
         logger.debug(f"Database initialized at {DB_FILENAME}")
 
 
 #Function used to create a job
 #Checks if the number of jobs doesn't exceed the MAX_GWAS_STORE limit
-def insert_job(job_id, params, params_hash):
-    with get_connection() as conn:
+def insert_gwas_job(job_id, params, params_hash):
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
 
         now = now_utc()
 
         cursor.execute("""
-            INSERT INTO jobs (job_id, status, progression, created_at, params, params_hash, modified_at)
+            INSERT INTO gwas_jobs (job_id, status, progression, created_at, params, params_hash, modified_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             job_id,
@@ -72,7 +72,7 @@ def insert_job(job_id, params, params_hash):
         ))
 
         cursor.execute("""
-            SELECT COUNT(*) FROM jobs WHERE status = 'SUCCESS'
+            SELECT COUNT(*) FROM gwas_jobs WHERE status = 'SUCCESS'
         """)
         success_count = cursor.fetchone()[0]
 
@@ -83,7 +83,7 @@ def insert_job(job_id, params, params_hash):
                 to_delete = success_count - MAX_GWAS_STORE + 1
                 logger.debug(f"Deleting {to_delete} oldest result.")
                 cursor.execute("""
-                    SELECT job_id FROM jobs
+                    SELECT job_id FROM gwas_jobs
                     WHERE status = 'SUCCESS'
                     ORDER BY modified_at ASC
                     LIMIT ?
@@ -93,18 +93,18 @@ def insert_job(job_id, params, params_hash):
 
                 if old_job_ids:
                     cursor.executemany("""
-                        DELETE FROM jobs WHERE job_id = ?
+                        DELETE FROM gwas_jobs WHERE job_id = ?
                     """, [(jid,) for jid in old_job_ids])
 
 
 
 
 #Function to update job status to running
-def set_job_running(job_id):
-    with get_connection() as conn:
+def set_gwas_job_running(job_id):
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            UPDATE jobs
+            UPDATE gwas_jobs
             SET status=?, started_at=?, modified_at=?
             WHERE job_id=?
         """, ("RUNNING", now_utc(), now_utc(), job_id))
@@ -113,11 +113,11 @@ def set_job_running(job_id):
 
 
 #Function to update job status to cancel
-def set_job_cancel(job_id):
-    with get_connection() as conn:
+def set_gwas_job_cancel(job_id):
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            UPDATE jobs
+            UPDATE gwas_jobs
             SET status=?, started_at=?, modified_at=?
             WHERE job_id=?
         """, ("CANCEL", now_utc(), now_utc(), job_id))
@@ -125,7 +125,7 @@ def set_job_cancel(job_id):
 
 #Function to set the job to success and store the results
 
-def set_job_success(job_id, analyse, dic_distribution):
+def set_gwas_job_success(job_id, analyse, dic_distribution):
     try:
         analyse_json = json.dumps(analyse, default=str)
         distribution_json = json.dumps(dic_distribution, default=str)
@@ -134,11 +134,11 @@ def set_job_success(job_id, analyse, dic_distribution):
         analyse_compressed = zlib.compress(analyse_json.encode("utf-8"))
         distribution_compressed = zlib.compress(distribution_json.encode("utf-8"))
 
-        conn = get_connection()
+        conn = get_gwas_connection()
         cursor = conn.cursor()
 
         cursor.execute("""
-            UPDATE jobs
+            UPDATE gwas_jobs
             SET status = ?,
                 progression = ?,
                 finished_at = ?,
@@ -168,11 +168,11 @@ def set_job_success(job_id, analyse, dic_distribution):
         conn.close()
 
 #Function to set the job to error
-def set_job_error(job_id, error_message):
-    with get_connection() as conn:
+def set_gwas_job_error(job_id, error_message):
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            UPDATE jobs
+            UPDATE gwas_jobs
             SET status=?, finished_at=?, error_message=?, modified_at = ?
             WHERE job_id=?
         """, (
@@ -186,14 +186,14 @@ def set_job_error(job_id, error_message):
 
 
 #Function use to read a job
-def get_job(job_id):
-    with get_connection() as conn:
+def get_gwas_job(job_id):
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
             SELECT job_id, status, progression, created_at, started_at, finished_at, modified_at,
                    params, result_gwas_regions, result_gwas_points, params_hash, error_message
-            FROM jobs
+            FROM gwas_jobs
             WHERE job_id=?
         """, (job_id,))
 
@@ -228,13 +228,13 @@ def get_job(job_id):
 
 
 #Function to get a job from params information
-def find_existing_job(params_hash):
-    with get_connection() as conn:
+def find_existing_gwas_job(params_hash):
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
             SELECT job_id, status
-            FROM jobs
+            FROM gwas_jobs
             WHERE params_hash=?
             ORDER BY created_at DESC
             LIMIT 1
@@ -253,30 +253,30 @@ def find_existing_job(params_hash):
 
 
 #Cancel job in the database
-def delete_job(job_id: str):
-    with get_connection() as conn:
+def delete_gwas_job(job_id: str):
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT status FROM jobs WHERE job_id = ?", (job_id,))
+        cursor.execute("SELECT status FROM gwas_jobs WHERE job_id = ?", (job_id,))
         row = cursor.fetchone()
 
         if not row:
             return
 
         logger.debug(f"Deleting job {job_id}")
-        cursor.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
+        cursor.execute("DELETE FROM gwas_jobs WHERE job_id = ?", (job_id,))
 
 
 
 #Update timestamp of a job
-def update_job_timestamp(job_id, timestamp_field="modified_at"):
+def update_gwas_job_timestamp(job_id, timestamp_field="modified_at"):
     try:
-        conn = get_connection()
+        conn = get_gwas_connection()
         cursor = conn.cursor()
 
         # Update the timestamp field for the given job_id
         cursor.execute(f"""
-            UPDATE jobs
+            UPDATE gwas_jobs
             SET {timestamp_field} = ?
             WHERE job_id = ?
         """, (now_utc(), job_id))
@@ -292,14 +292,14 @@ def update_job_timestamp(job_id, timestamp_field="modified_at"):
 
 
 #Update progression of a job
-def update_progression(job_id, progression_value, progression_field="progression"):
+def update_gwas_progression(job_id, progression_value, progression_field="progression"):
     try:
-        conn = get_connection()
+        conn = get_gwas_connection()
         cursor = conn.cursor()
 
         # Update the timestamp field for the given job_id
         cursor.execute(f"""
-            UPDATE jobs
+            UPDATE gwas_jobs
             SET {progression_field} = ?, modified_at = ?
             WHERE job_id = ?
         """, (progression_value, now_utc(), job_id))
@@ -314,10 +314,10 @@ def update_progression(job_id, progression_value, progression_field="progression
         conn.close()
 
 #This function get the status of a job
-def get_status(job_id):
-    with get_connection() as conn:
+def get_gwas_status(job_id):
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT status FROM jobs WHERE job_id = ?", (job_id,))
+        cursor.execute("SELECT status FROM gwas_jobs WHERE job_id = ?", (job_id,))
         row = cursor.fetchone()
 
     return None if row is None else str(row[0])
@@ -325,10 +325,10 @@ def get_status(job_id):
 
 
 #This function get the progress of a job
-def get_progress(job_id):
-    with get_connection() as conn:
+def get_gwas_progress(job_id):
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT progression FROM jobs WHERE job_id = ?", (job_id,))
+        cursor.execute("SELECT progression FROM gwas_jobs WHERE job_id = ?", (job_id,))
         row = cursor.fetchone()
 
     return 0 if row is None else int(row[0])
@@ -336,7 +336,7 @@ def get_progress(job_id):
 
 #This function checks the running jobs that are freezed and delete them
 def check_running_gwas():
-    with get_connection() as conn:
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
 
         threshold = (
@@ -345,7 +345,7 @@ def check_running_gwas():
         ).isoformat()
 
         cursor.execute("""
-            DELETE FROM jobs
+            DELETE FROM gwas_jobs
             WHERE status = 'RUNNING'
             AND modified_at IS NOT NULL
             AND modified_at < ?
@@ -354,25 +354,25 @@ def check_running_gwas():
 
 
 #This function will delete all running jobs
-def purge_running_jobs():
-    with get_connection() as conn:
+def purge_running_gwas_jobs():
+    with get_gwas_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            DELETE FROM jobs
+            DELETE FROM gwas_jobs
             WHERE status = ?
         """, ("RUNNING",))
 
 
 #This function get metadata from database
-def load_jobs():
-    conn = get_connection()
+def load_gwas_jobs():
+    conn = get_gwas_connection()
 
     query = """
         SELECT 
             job_id, status, progression, created_at,
             started_at, finished_at, modified_at,
             params, error_message
-        FROM jobs
+        FROM gwas_jobs
         ORDER BY created_at DESC
     """
 
@@ -383,11 +383,11 @@ def load_jobs():
 
 
 #This function will delete all the jobs table
-def drop_jobs_table():
-    conn = get_connection()
+def drop_gwas_jobs_table():
+    conn = get_gwas_connection()
     cursor = conn.cursor()
 
-    cursor.execute("DROP TABLE IF EXISTS jobs")
+    cursor.execute("DROP TABLE IF EXISTS gwas_jobs")
 
     conn.commit()
     conn.close()

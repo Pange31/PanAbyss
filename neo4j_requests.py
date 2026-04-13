@@ -34,7 +34,7 @@ from config import *
 from neo4j_driver import get_driver,  get_scoped_driver
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import uuid
-from sqlite_requests import *
+from sqlite_gwas_requests import *
 import hashlib
 
 
@@ -115,12 +115,12 @@ def run_queries_parallel(queries_dict, max_threads=10, job_id=None):
                 if job_id:
                     completed += 1
 
-                    if get_status(job_id) == "CANCEL":
+                    if get_gwas_status(job_id) == "CANCEL":
                         logger.debug(f"Cancel job id : {job_id}")
                         return {}
 
                     progress = round((completed / total_queries) * 75, 2)
-                    update_progression(job_id, progress)
+                    update_gwas_progression(job_id, progress)
 
         return results
 
@@ -1065,7 +1065,7 @@ def compute_params_hash(params):
 def submit_job_gwas(params):
     check_running_gwas()
     params_hash = compute_params_hash(params)
-    existing_job = find_existing_job(params_hash)
+    existing_job = find_existing_gwas_job(params_hash)
 
     if existing_job:
         job_id = existing_job["job_id"]
@@ -1073,7 +1073,7 @@ def submit_job_gwas(params):
     else:
         # New job => create and launch
         job_id = str(uuid.uuid4())
-        insert_job(job_id, params, params_hash)
+        insert_gwas_job(job_id, params, params_hash)
         logger.debug(f"Launching new job {job_id}")
     EXECUTOR.submit(_run_job_gwas, job_id, params)
     return job_id
@@ -1085,7 +1085,7 @@ def submit_job_gwas(params):
 def _run_job_gwas(job_id, params):
     try:
         #Retrieve the current job from the database from params values
-        job_data = get_job(job_id)
+        job_data = get_gwas_job(job_id)
         if not job_data:
             logger.error(f"Job {job_id} not found in the database")
             return None
@@ -1095,7 +1095,7 @@ def _run_job_gwas(job_id, params):
             #Result already computed for this job_id
             logger.debug(f"Job {job_id} already SUCCESS, retrieving results from the database")
             #Update timestamp
-            update_job_timestamp(job_id)
+            update_gwas_job_timestamp(job_id)
             return job_data["result_gwas_regions"], job_data["result_gwas_points"]
 
         if status == "RUNNING":
@@ -1103,7 +1103,7 @@ def _run_job_gwas(job_id, params):
             return None
 
         #Mark the job as RUNNING
-        set_job_running(job_id)
+        set_gwas_job_running(job_id)
 
         #Launch the search region process
         logger.debug("Calling find_shared_regions...")
@@ -1111,14 +1111,14 @@ def _run_job_gwas(job_id, params):
                                                                      results_only_for_ref=True, max_gwas_region=MAX_GWAS_REGIONS)
 
         #Store results
-        if get_status(job_id) == "RUNNING":
-            set_job_success(job_id, analyse, dic_distribution)
+        if get_gwas_status(job_id) == "RUNNING":
+            set_gwas_job_success(job_id, analyse, dic_distribution)
 
         #Return results for the current job
         return analyse, dic_distribution
 
     except Exception as e:
-        set_job_error(job_id, str(e))
+        set_gwas_job_error(job_id, str(e))
         logger.exception(f"Error while running job {job_id}")
         return None
 
@@ -1634,11 +1634,11 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
                                 percent = int((cpt_regions / total_regions) * 25)
                                 progress = 75 + percent
                                 if percent > last_percent+1:
-                                    if get_status(job_id) == "CANCEL":
+                                    if get_gwas_status(job_id) == "CANCEL":
                                         logger.debug(f"Cancel job id : {job_id}")
                                         #delete_job(job_id)
                                         return {},{},{}
-                                    update_progression(job_id, progress)
+                                    update_gwas_progression(job_id, progress)
                                     last_percent = percent
 
                                 annot_before_tmp = get_annotation_before_or_after_position(genome_ref=g, chromosome=c,
@@ -1662,7 +1662,7 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
                                 r["annotation_after"] = annot_tmp
                             analyse[g].append(r)
                             pbar.update(1)
-                    update_progression(job_id, 100)
+                    update_gwas_progression(job_id, 100)
             # If reference genome is not in the selected genomes list then get the data relative to its genome
             if genome_ref not in analyse:
                 analyse[genome_ref] = []
@@ -1677,11 +1677,11 @@ def find_shared_regions(genomes_list, genome_ref=None, chromosomes=None,
                     percent = int((cpt_regions / total_regions) * 25)
                     progress = 75 + percent
                     if percent > last_percent + 1:
-                        if get_status(job_id) == "CANCEL":
+                        if get_gwas_status(job_id) == "CANCEL":
                             logger.debug(f"Cancel job id : {job_id}")
                             # delete_job(job_id)
                             return {}, {}, {}
-                        update_progression(job_id, progress)
+                        update_gwas_progression(job_id, progress)
                         last_percent = percent
                     r = {}
                     r["chromosome"] = a["chromosome"]

@@ -31,7 +31,7 @@ from neo4j_container_management import *
 from config import *
 
 import logging
-from sqlite_requests import *
+from sqlite_gwas_requests import *
 
 app.config.suppress_callback_exceptions = True
 logger = logging.getLogger("panabyss_logger")
@@ -376,11 +376,11 @@ def run():
     parser = argparse.ArgumentParser(description="Launch server.")
     parser.add_argument("--port", type=int, help="HTTP port to use (default : 8050)")
     args = parser.parse_args()
-    init_db()
+    init_gwas_db()
     load_static()
     logger.info(
         f"all genomes: {shared_storage.get('genomes', '')} - chromosomes: {shared_storage.get('chromosomes', '')} - features: {shared_storage.get('features', '')}")
-    purge_running_jobs()
+    purge_running_gwas_jobs()
     port = args.port or int(8050)
     print("SERVER START")
     app.run(debug=True, port = port)

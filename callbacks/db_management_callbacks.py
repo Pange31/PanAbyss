@@ -615,7 +615,7 @@ def confirm_delete_annotations(n_clicks, data):
     if not n_clicks:
         raise exceptions.PreventUpdate
     try:
-        drop_jobs_table()
+        drop_gwas_jobs_table()
         return html.Div("✅ All gwas jobs deleted successfully.", style=success_style), "", data
     except Exception as e:
         return html.Div(f"❌ Error while deleting gwas jobs: {str(e)}", style=error_style), "", data
