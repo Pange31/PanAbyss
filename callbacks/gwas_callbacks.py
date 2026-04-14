@@ -415,25 +415,17 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
 
             if set_gene_name:
                 genes = sorted(set_gene_name)
-                full_text = ", ".join(genes)
+                full_text = " ".join(genes)
+                annotation = full_text
 
                 # short visualization (60 chars)
-                short_text = full_text[:60]
-                if len(full_text) > 60:
-                    short_text += "..."
-                annotation = f'<details><summary style="cursor:pointer; white-space: pre-wrap;">{short_text}</summary><div style="white-space: pre-wrap;">{full_text}</div></details>'
+                # short_text = full_text[:60]
+                # if len(full_text) > 60:
+                #     short_text += "..."
+                # annotation = f'<details><summary style="cursor:pointer; white-space: pre-wrap;">{short_text}</summary><div style="white-space: pre-wrap;">{full_text}</div></details>'
             else:
                 annotation = ""
 
-            # annotation = ""
-            # set_gene_name = set()
-            # if len(analyse_to_plot[r]["annotations"]) > 0:
-            #     for annot in analyse_to_plot[r]["annotations"]:
-            #         if "gene_name" in annot and annot["gene_name"] is not None:
-            #             set_gene_name.add(annot["gene_name"])
-            # if set_gene_name is not None and len(list(set_gene_name)) > 0:
-            #     for gene in list(set_gene_name):
-            #         annotation += gene + "\n"
             analyse_to_plot[r]["annotations"] = annotation
 
             annot_before = ""
@@ -441,7 +433,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
             if annot_data:
                 gene_name = annot_data.get("gene_name")
                 distance = annot_data.get("distance")
-                annot_before = f"gene_name: {gene_name}<br>Distance: {distance}"
+                annot_before = f"Gene_name: {gene_name}<br>Distance: {distance}"
             analyse_to_plot[r]["annotation_before"] = annot_before
 
             annot_after = ""
@@ -450,7 +442,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
                 gene_name = annot_data.get("gene_name")
                 distance = annot_data.get("distance")
 
-                annot_after = f"gene_name: {gene_name}<br>Distance: {distance}"
+                annot_after = f"Gene_name: {gene_name}<br>Distance: {distance}"
             analyse_to_plot[r]["annotation_after"] = annot_after
 
         message = f"{len(analyse_to_plot)} shared regions found."
@@ -812,6 +804,7 @@ def load_csv(contents, filename, gwas_page_store):
             content = "\n".join(lines[1:])
 
         df = pd.read_csv(io.StringIO(content))
+        df = df.fillna("")
         analyse = df[[c for c in df.columns if c != "sequence"]].to_dict('records')
         for row in analyse:
             row['get_sequence'] = "Get sequence"
@@ -849,6 +842,7 @@ def show_upload_area(n_clicks):
     }
 
 
+#Callback to display sequence on click on the get sequence column
 @app.callback(
     Output('sequence-zone', 'children'),
     Input("shared-region-table", "active_cell"),

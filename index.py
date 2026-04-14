@@ -12,6 +12,7 @@ import dash_bootstrap_components as dbc
 import dash_auth
 
 from app import *
+from pages import phylo_management
 
 from sidebar import sidebar
 import signal
@@ -24,6 +25,7 @@ import pages.gwas as gwas
 import pages.db_management as db_management
 import pages.about as about
 import pages.gwas_management as gwas_management
+import pages.phylo_management as phylo_management
 
 
 from neo4j_requests import *
@@ -32,6 +34,7 @@ from config import *
 
 import logging
 from sqlite_gwas_requests import *
+from sqlite_phylo_requests import *
 
 app.config.suppress_callback_exceptions = True
 logger = logging.getLogger("panabyss_logger")
@@ -95,7 +98,6 @@ app.layout = html.Div([
     dcc.Store(id="gwas-page-store", storage_type="memory"),
     dcc.Store(id="parameters-gwas-page-store", data={}, storage_type="memory"),
     dcc.Store(id="phylogenetic-page-store",storage_type="memory"),
-    dcc.Store(id="phylo-job-trigger",storage_type="memory"),
     dcc.Store(id="phylo-job-status",storage_type="memory"),
     dcc.Store(id="phylo-local-tree-job-status",storage_type="memory"),
     dcc.Store(id="sequences-page-store", data={'sequences':[]},storage_type="memory"),
@@ -163,7 +165,6 @@ app.validation_layout = html.Div([
     dcc.Store(id='gwas-page-store'),
     dcc.Store(id='parameters-gwas-page-store'),
     dcc.Store(id='phylogenetic-page-store'),
-    dcc.Store(id='phylo-job-trigger'),
     dcc.Store(id='phylo-job-status'),
     dcc.Store(id='sequences-page-store'),
     dcc.Store(id='db-management-job-trigger'),
@@ -175,39 +176,8 @@ import callbacks.sequences_callbacks
 import callbacks.db_management_callbacks
 import callbacks.about_callbacks
 import callbacks.gwas_management_callbacks
+import callbacks.phylo_management_callbacks
 
-#Getting chromosomes and genomes
-# @app.callback(
-#     Output('shared_storage', 'data'),
-#     Output('init_done', 'data'),
-#     Input('init_done', 'data'),
-#     prevent_initial_call=False
-# )
-# def init_data(init_done):
-#     if init_done:
-#         raise exceptions.PreventUpdate
-#
-#     new_data = {}
-#     all_genomes = get_genomes()
-#     all_genomes.sort()
-#
-#     new_data["genomes"] = all_genomes
-#     new_data["chromosomes"] = get_chromosomes()
-#     new_data["features"] = get_annotations_features()
-#
-#     return new_data, True
-
-
-# @app.callback(
-#     Output('shared_storage', 'data'),
-#     Output('init_done', 'data'),
-#     Input('init_done', 'data'),
-#     prevent_initial_call=False
-# )
-# def init_data(init_done):
-#     if init_done:
-#         raise exceptions.PreventUpdate
-#     return shared_storage, True
 
 @app.callback(
     Output('shared_storage', 'data'),
@@ -356,6 +326,8 @@ def display_page(pathname):
         return about.layout()
     elif pathname == "/gwas_management":
         return gwas_management.layout()
+    elif pathname == "/phylogenetic_management":
+        return phylo_management.layout()
     else:
         return html.H1("Page non trouvée")
 
@@ -377,6 +349,7 @@ def run():
     parser.add_argument("--port", type=int, help="HTTP port to use (default : 8050)")
     args = parser.parse_args()
     init_gwas_db()
+    init_phylo_db()
     load_static()
     logger.info(
         f"all genomes: {shared_storage.get('genomes', '')} - chromosomes: {shared_storage.get('chromosomes', '')} - features: {shared_storage.get('features', '')}")

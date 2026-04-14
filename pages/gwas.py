@@ -261,14 +261,17 @@ def layout():
                 {"name": "region size", "id": "region_size"},
                 {"name": "shared size", "id": "shared_size"},
                 {"name": "shared deleted nodes size", "id": "shared_deleted_size"},
-                {"name": "Sequences", "id": "get_sequence", "presentation": "markdown"}
+                #{"name": "Sequences", "id": "get_sequence", "presentation": "markdown", "selectable": True}
+                {"name": "Sequences", "id": "get_sequence"}
             ],
             data=[],
             sort_action='native',
+            cell_selectable=True,
             style_cell={
-                'whiteSpace':'normal',
+                'whiteSpace': 'pre-line',
                 'height':'auto',
-                'textAlign':'left'},
+                'textAlign':'left',
+                'userSelect': 'text'},
             style_table={'overflowX': 'auto'},
             row_selectable='single',
             markdown_options={"html": True},

@@ -35,6 +35,7 @@ from neo4j_driver import get_driver,  get_scoped_driver
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import uuid
 from sqlite_gwas_requests import *
+from sqlite_phylo_requests import *
 import hashlib
 
 
@@ -948,7 +949,8 @@ def get_sequence_from_names(names):
 
 # This function get a sequence from a start - end / chromosome position for a given genome
 def get_sequence_from_position(genome, chromosome, start, end):
-    if get_driver() is None:
+    driver = get_driver()
+    if driver is None:
         return None
     sequence = ""
     if genome is None or genome == "" or chromosome is None or chromosome == "" or start is None or end is None:
@@ -1050,7 +1052,7 @@ def find_first_ref_node_node(genome, genome_ref, genome_position, type_search="b
 
 #Function used to hash params : if the params already exist in database that will avoid to launch the process
 #and this will return the results directly
-def compute_params_hash(params):
+def compute_gwas_params_hash(params):
     #Sort list of genomes
     if "genomes_list" in params and isinstance(params["genomes_list"], list):
         params["genomes_list"].sort()
@@ -1064,7 +1066,7 @@ def compute_params_hash(params):
 #Otherwise, create a new job and launch the background process.
 def submit_job_gwas(params):
     check_running_gwas()
-    params_hash = compute_params_hash(params)
+    params_hash = compute_gwas_params_hash(params)
     existing_job = find_existing_gwas_job(params_hash)
 
     if existing_job:
@@ -1948,7 +1950,7 @@ Strategy:
 """
 
 
-def sample_random_nodes(sample_size, chromosome=None, label="Node"):
+def sample_random_nodes(sample_size, chromosome=None, label="Node", driver=None):
     if chromosome is None or chromosome == "":
         query = f"""
         MATCH (n:Node)
@@ -1967,12 +1969,78 @@ def sample_random_nodes(sample_size, chromosome=None, label="Node"):
         return distinct(n) as nodes
         """
     nodes_list = []
-    with get_driver() as driver:
-        with driver.session() as session:
-            result = session.run(query)
-            for record in result:
-                nodes_list.append(dict(record["nodes"]))
+    if not driver:
+        driver = get_driver()
+    with driver.session() as session:
+        result = session.run(query)
+        for record in result:
+            nodes_list.append(dict(record["nodes"]))
     return nodes_list
+
+def compute_phylo_params_hash(params):
+
+    normalized = json.dumps(params, sort_keys=True)
+    return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+def run_phylo_job(job_id, params, params_hash, method="raxml", strand=True, chromosome=None,
+                                         project_name="panabyss_phylo_tree", max_nodes=1000000, min_sample_size=10000,
+                                         min_nodes_number=1000, force_reload=False):
+    if job_id:
+        try:
+            logger.debug(f"Computing the global tree - job_id : {job_id}.")
+            set_phylo_job_running(job_id, params, params_hash)
+            newick_tree = compute_global_phylo_tree_from_nodes(method=method, strand=strand, chromosome=chromosome,
+                                                           base_dir="./export/phylo/"+job_id, project_name=project_name, max_nodes=max_nodes,
+                                                           min_sample_size=min_sample_size, min_nodes_number=min_nodes_number, job_id=job_id)
+
+            if newick_tree :
+                set_phylo_job_success(job_id, newick_tree)
+
+        except Exception as e:
+            set_phylo_job_error(job_id, str(e))
+
+#This function if juste a wrapper of compute_global_phylo_tree_from_nodes to manage job in sqlite
+#It is only required for job launched from IHM
+def compute_global_phylo_tree_from_nodes_wrapper(method="raxml", strand=True, chromosome=None,
+                                         project_name="panabyss_phylo_tree", max_nodes=1000000, min_sample_size=10000,
+                                         min_nodes_number=1000, force_reload=False):
+    params = {"method": method, "strand":strand, "chromosome": chromosome}
+    params_hash = compute_phylo_params_hash(params)
+
+    phylo_job = find_existing_phylo_job(params_hash)
+
+    if phylo_job and phylo_job["status"] == "SUCCESS" and not force_reload:
+        return {
+            "status": "SUCCESS",
+            "job_id": phylo_job["job_id"],
+            "newick_tree": phylo_job["global_tree"]
+        }
+
+    if phylo_job and phylo_job["status"] == "RUNNING":
+        return {
+            "status": "RUNNING",
+            "job_id": phylo_job["job_id"]
+        }
+    #If Job doesn't exist => create it and launch it
+    if not phylo_job or "job_id" not in phylo_job:
+        job_id = str(uuid.uuid4())
+        insert_phylo_job(job_id, params, params_hash)
+    else:
+        job_id = phylo_job["job_id"]
+
+    thread = threading.Thread(
+        target=run_phylo_job,
+        args=(job_id, params, params_hash, method, strand, chromosome, project_name, max_nodes, min_sample_size, min_nodes_number),
+        daemon=True
+    )
+    thread.start()
+
+    return {
+        "status": "RUNNING",
+        "job_id": job_id
+    }
+
 
 
 # This function compute a global tree from a random selection of nodes taking account of direct / reverse traversing (if strnd is True)
@@ -1987,24 +2055,18 @@ def sample_random_nodes(sample_size, chromosome=None, label="Node"):
 # - max_nodes is used to limit the number of sampled nodes
 # - min_sample_size is the minimal sampled size for pangenome of size >= min_sample_size
 # - min_nodes_number : tree won't be computed on pangenomes with less than min_nodes_number nodes
-def compute_global_phylo_tree_from_nodes(method="raxml", output_dir="", strand=True, chromosome=None,
-                                         project_name="panabyss_phylo_tree", max_nodes=1000000, min_sample_size=10000,
-                                         min_nodes_number=1000):
+def compute_global_phylo_tree_from_nodes(method="raxml", strand=True, chromosome=None,
+                                         base_dir="./export/phylo", project_name="panabyss_phylo_tree",
+                                         max_nodes=1000000, min_sample_size=10000,min_nodes_number=1000, job_id=None):
     total_nodes_number = 0
-
-    dir_raxml = "./export/phylo/raxml"
-    dir_phylo = "./export/phylo"
     distance_matrix_filename = "distance_matrix.phy"
-    tree_newick_filename = os.path.join(dir_raxml, project_name + ".raxml.bestTree")
-    last_tree = "./export/phylo/last_tree.nwk"
-
-    # Copier le fichier
-    distance_matrix_phylip_filename = os.path.join(dir_phylo, distance_matrix_filename)
-    if not os.path.exists(dir_raxml):
-        os.makedirs(dir_raxml)
-    driver = get_driver()
+    distance_matrix_phylip_filename = os.path.join(base_dir, distance_matrix_filename)
+    if not os.path.exists(base_dir):
+        os.makedirs(base_dir)
+    driver = get_scoped_driver()
     if driver is None:
         return None
+
 
     if chromosome is None:
         query = f"""
@@ -2045,7 +2107,7 @@ def compute_global_phylo_tree_from_nodes(method="raxml", output_dir="", strand=T
         sample_nodes_number = max(min_sample_size, min(int(f(total_nodes_number)), max_nodes))
     # sample_nodes_number = max(min_sample_size,min(int(node_selection_percentage*total_nodes_number/100), max_nodes))
     logger.info(f"Number of nodes to sample : {sample_nodes_number} - Total node {total_nodes_number}")
-    nodes_list = sample_random_nodes(sample_nodes_number, chromosome)
+    nodes_list = sample_random_nodes(sample_nodes_number, chromosome, driver)
 
     logger.info(f"Number of sampled nodes : {len(nodes_list)}")
     sample_size = len(nodes_list)
@@ -2070,8 +2132,20 @@ def compute_global_phylo_tree_from_nodes(method="raxml", output_dir="", strand=T
                 else:
                     pav_matrix[g][i] = int(1)
         pav_to_phylip(pav_matrix, distance_matrix_phylip_filename)
+        #Check if job has been canceled
+        if job_id:
+            status = get_phylo_status(job_id)
+            if status == "CANCEL":
+                logger.debug(f"Phylo job {job_id} canceled")
+                return None
         if method == "raxml":
             logger.debug("RaxML method...")
+            dir_raxml = os.path.join(base_dir, "raxml")
+            tree_newick_filename = os.path.join(dir_raxml, project_name + ".raxml.bestTree")
+
+            # Copier le fichier
+            if not os.path.exists(dir_raxml):
+                os.makedirs(dir_raxml)
             pattern = os.path.join(dir_raxml, f"{project_name}.*")
             for f in glob.glob(pattern):
                 os.remove(f)
@@ -2105,7 +2179,6 @@ def compute_global_phylo_tree_from_nodes(method="raxml", output_dir="", strand=T
             result = subprocess.run(raxml_command, check=True, cwd=dir_raxml)
             try:
                 with open(tree_newick_filename, 'r') as f:
-                    shutil.copy(tree_newick_filename, last_tree)
                     return f.read()
             except FileNotFoundError:
                 return None
@@ -2125,8 +2198,6 @@ def compute_global_phylo_tree_from_nodes(method="raxml", output_dir="", strand=T
             constructor = DistanceTreeConstructor()
             tree = constructor.nj(dm)
             newick_tree = tree.format('newick')
-            with open(last_tree, 'w') as f:
-                f.write(newick_tree)
             return newick_tree
 
     else:

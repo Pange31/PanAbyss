@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [1.3.0]
 ### Added
-- Store result of shared region discovery in a sqlite database
+- Store result of shared region discovery and phylogenetics in a sqlite database
 - Add a limitation for shared regions discovery in conf file
 - Progression bar in shared region discovery
 

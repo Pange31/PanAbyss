@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger("panabyss_logger")
 
 from dash import Input, Output, State, ctx, no_update, html, ALL
-from sqlite_gwas_requests import *
+from sqlite_phylo_requests import *
 import json
 
 
@@ -41,17 +41,15 @@ def expand_jobs(df):
     return df
 
 @app.callback(
-    Output("jobs-table", "data"),
-    Output("jobs-table", "columns"),
+    Output("phylo-jobs-table", "data"),
+    Output("phylo-jobs-table", "columns"),
     Input("url", "pathname"),
 )
 def load_table(pathname):
-
-    if pathname != "/gwas_management":
+    if pathname != "/phylogenetic_management":
         return no_update, no_update
 
-    df = load_gwas_jobs()
-
+    df = load_phylo_jobs()
     # 👉 expansion JSON + flatten lists
     df = expand_jobs(df)
 
@@ -65,10 +63,10 @@ def load_table(pathname):
     return df.to_dict("records"), columns
 
 @app.callback(
-    Output("jobs-table", "data", allow_duplicate=True),
-    Output("jobs-table", "columns", allow_duplicate=True),
-    Input("jobs-table", "active_cell"),
-    State("jobs-table", "data"),
+    Output("phylo-jobs-table", "data", allow_duplicate=True),
+    Output("phylo-jobs-table", "columns", allow_duplicate=True),
+    Input("phylo-jobs-table", "active_cell"),
+    State("phylo-jobs-table", "data"),
     prevent_initial_call=True
 )
 def handle_action(active_cell, rows):
@@ -84,12 +82,12 @@ def handle_action(active_cell, rows):
     status = job["status"]
 
     if status == "RUNNING":
-        set_gwas_job_cancel(job_id)
+        set_phylo_job_cancel(job_id)
     else:
-        delete_gwas_job(job_id)
+        delete_phylo_job(job_id)
 
     # reload
-    df = load_gwas_jobs()
+    df = load_phylo_jobs()
     df = expand_jobs(df)
 
     df["action"] = df["status"].apply(

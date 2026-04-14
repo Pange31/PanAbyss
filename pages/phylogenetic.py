@@ -122,7 +122,7 @@ def layout():
                 html.Div([
                     html.Button(
                         "Plot global tree",
-                        title="This will compute the tree for the whole pangenome...",
+                        title="This will compute the tree for the whole pangenome or load last computed tree if exist...",
                         style={'marginRight': '15px'},
                         n_clicks=0,
                         id="btn-plot-global-tree"
@@ -151,9 +151,16 @@ def layout():
 
                 html.Div([
                     html.Button(
-                        "Load last computed tree",
-                        title="This will load the last computed tree.",
-                        id="btn-load-last-tree",
+                        "Compute new tree",
+                        title="This will compute a new tree even it already exist.",
+                        id="btn-force-compute-tree",
+                        n_clicks=0,
+                        style={"marginTop": "10px", "marginRight": "20px"}
+                    ),
+                    html.Button(
+                        "Save tree",
+                        title="This will compute a new tree even it already exist.",
+                        id="btn-save-global-tree",
                         n_clicks=0,
                         style={"marginTop": "10px"}
                     ),
@@ -171,6 +178,12 @@ def layout():
                     ),
                 ], style={"marginTop": "10px"})
             ], style={"marginBottom": "20px"}),
+            dcc.Interval(
+                id="phylo-job-poller",
+                interval=5000,
+                n_intervals=0,
+                disabled=True
+            ),
             html.H4("Reference tree"),
             html.Div(id='upload-status'),
             cyto.Cytoscape(

@@ -436,16 +436,16 @@ def layout():
         ),
         html.Br(),
         html.Label(
-            "Reset all the gwas stored.",
+            "Reset all the gwas and phylo stored.",
             style={'display': 'block', 'marginBottom': '8px'}),
-        html.Button("Delete gwas jobs", title="This will delete all gwas jobs in database.",
-                    id="btn-delete-gwas-jobs",
+        html.Button("Delete all jobs", title="This will delete all gwas and phylo jobs in database.",
+                    id="btn-delete-sqlite-jobs",
                     n_clicks=0),
         # Confirm deletion
-        html.Div(id="delete-gwas-jobs-confirmation", style={"marginTop": "10px"}),
+        html.Div(id="delete-sqlite-jobs-confirmation", style={"marginTop": "10px"}),
         dcc.Loading(
             # type="circle",
-            children=html.Div(id="delete-gwas-jobs-message", style={"marginTop": "10px"})
+            children=html.Div(id="delete-sqlite-jobs-message", style={"marginTop": "10px"})
         ),
         html.Br(),
         html.Label(

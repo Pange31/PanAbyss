@@ -10,7 +10,7 @@ logger = logging.getLogger("panabyss_logger")
 
 #Path to the sqlite job database
 DB_PATH = "./sqlite"
-DB_FILENAME = DB_PATH +"/jobs.db"
+DB_FILENAME = DB_PATH +"/gwas_jobs.db"
 
 MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS = get_gwas_conf()
 

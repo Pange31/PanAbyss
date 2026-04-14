@@ -1749,7 +1749,7 @@ def update_parameters_on_page_load(pathname, search, data, shared_data, options_
                                             "url_feature_value":url_feature_value, "url_start":url_start, "url_end":url_end}
             logger.debug(update_graph_command_storage)
     if no_query_params :
-        logger.debug("No query params")
+        #logger.debug("No query params")
         if "selected_genome" in data:
             selected_genome = data["selected_genome"]
         else:

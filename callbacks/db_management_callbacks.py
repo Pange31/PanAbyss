@@ -12,6 +12,8 @@ from dash.dependencies import ALL, MATCH
 
 import os
 import sys
+
+
 root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if root_path not in sys.path:
     sys.path.append(root_path)
@@ -582,43 +584,46 @@ def confirm_delete_annotations(n_clicks, data):
 
 
 
-############# delete gwas jobs callback ##################
+############# delete sqlite jobs callback ##################
 @app.callback(
-    Output("delete-gwas-jobs-confirmation", "children"),
-    Input("btn-delete-gwas-jobs", "n_clicks"),
+    Output("delete-sqlite-jobs-confirmation", "children"),
+    Input("btn-delete-sqlite-jobs", "n_clicks"),
     prevent_initial_call=True
 )
 @require_authorization
-def delete_annotations_ask_confirmation(n_clicks):
+def delete_sqlite_ask_confirmation(n_clicks):
     if n_clicks > 0:
         return html.Div([
-            html.Div("⚠️ Confirm: this operation will delete all gwas jobs in database."),
+            html.Div("⚠️ Confirm: this operation will delete all gwas and phylo jobs in database."),
             html.Button("Confirm Delete", id="btn-delete-gwas-jobs-confirmation", n_clicks=0, style={"marginTop": "5px", "color": "white", "backgroundColor": "red"})
         ])
     return ""
 
 @app.callback(
-    Output("delete-gwas-jobs-message", "children", allow_duplicate=True),
-    Output("delete-gwas-jobs-confirmation", "children", allow_duplicate=True),
+    Output("delete-sqlite-jobs-message", "children", allow_duplicate=True),
+    Output("delete-sqlite-jobs-confirmation", "children", allow_duplicate=True),
     Output('db-management-page-store', 'data', allow_duplicate=True),
-    Input("btn-delete-gwas-jobs-confirmation", "n_clicks"),
+    Input("btn-delete-sqlite-jobs-confirmation", "n_clicks"),
     State('db-management-page-store', 'data'),
     running=[
-        (Output("btn-delete-gwas-jobs", "disabled"), True, False),
-        (Output("btn-delete-gwas-jobs-confirmation", "disabled"), True, False)
+        (Output("btn-delete-sqlite-jobs", "disabled"), True, False),
+        (Output("btn-delete-sqlite-jobs-confirmation", "disabled"), True, False)
     ],
     prevent_initial_call=True
 )
 @require_authorization
-def confirm_delete_annotations(n_clicks, data):
+def confirm_delete_sqlite(n_clicks, data):
     data = delete_messages(data)
     if not n_clicks:
         raise exceptions.PreventUpdate
     try:
         drop_gwas_jobs_table()
-        return html.Div("✅ All gwas jobs deleted successfully.", style=success_style), "", data
+        drop_phylo_jobs_table()
+        init_gwas_db()
+        init_phylo_db()
+        return html.Div("✅ All gwas and phylo jobs deleted successfully.", style=success_style), "", data
     except Exception as e:
-        return html.Div(f"❌ Error while deleting gwas jobs: {str(e)}", style=error_style), "", data
+        return html.Div(f"❌ Error while deleting gwas and phylo jobs: {str(e)}", style=error_style), "", data
 
 
 ############# Container callbacks#################
