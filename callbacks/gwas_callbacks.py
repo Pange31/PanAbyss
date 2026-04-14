@@ -43,9 +43,10 @@ def compute_gwas_file_name(selected_genomes_list, min_node_size, max_node_size, 
     Input('shared_storage', 'data')
 )
 def update_genome_checkboxes(data):
-    
-    if not data or "genomes" not in data:
-        return []
+    if not data:
+        data  = {}
+    if "genomes" not in data:
+        data['genomes'] = get_genomes()
     #logger.info("update data : " + str(data))
     return [{'label': genome, 'value': genome} for genome in data['genomes']]
 
@@ -56,9 +57,11 @@ def update_genome_checkboxes(data):
     Input('shared_storage', 'data')
 )
 def update_dropdown(data):
-    if not data or "chromosomes" not in data:
-        return []
-    
+    if not data:
+        data  = {}
+    if "chromosomes" not in data:
+        data["chromosomes"] = get_chromosomes()
+
     chromosomes = data["chromosomes"]
     options = [{"label": "All", "value": "All"}] + [
         {"label": str(chrom), "value": str(chrom)} for chrom in chromosomes
@@ -621,7 +624,7 @@ def update_data(path, data, parameters_data):
     #analyse = table_data
     if path != "/gwas":
         raise exceptions.PreventUpdate
-    #logger.debug("#####################################GWAS Update data")
+    #logger.debug(f"#####################################GWAS Update data")
     analyse = []
     len_analyse = 0
     checkbox = []

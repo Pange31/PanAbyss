@@ -502,6 +502,7 @@ def delete_data_ask_confirmation(n_clicks):
     Output('db-management-page-store', 'data', allow_duplicate=True),
     Output("annotation-message", "children", allow_duplicate=True),
     Output("create-db-message", "children", allow_duplicate=True),
+    Output('shared_storage', 'data', allow_duplicate=True),
     Input("btn-confirm-delete", "n_clicks"),
     State('db-management-page-store', 'data'),
     running=[
@@ -513,6 +514,7 @@ def delete_data_ask_confirmation(n_clicks):
 @require_authorization
 def confirm_delete_data(n_clicks, data):
     data = delete_messages(data)
+    shared_storage = {"genomes":[],"chromosomes":[], "features":[]}
     if not n_clicks:
         raise exceptions.PreventUpdate
     stop_container()
@@ -538,9 +540,9 @@ def confirm_delete_data(n_clicks, data):
                 json.dump(conf, f, indent=4)
         if data is not None and "container_name" in data:
             data.pop("container_name")
-        return html.Div("✅ All data deleted successfully.", style=success_style), "", data, "", ""
+        return html.Div("✅ All data deleted successfully.", style=success_style), "", data, "", "", shared_storage
     except Exception as e:
-        return html.Div(f"❌ Error while deleting data: {str(e)}", style=error_style), "", data, "", ""
+        return html.Div(f"❌ Error while deleting data: {str(e)}", style=error_style), "", data, "", "", no_update
 
 
 ############# delete annotations callback ##################
@@ -595,7 +597,7 @@ def delete_sqlite_ask_confirmation(n_clicks):
     if n_clicks > 0:
         return html.Div([
             html.Div("⚠️ Confirm: this operation will delete all gwas and phylo jobs in database."),
-            html.Button("Confirm Delete", id="btn-delete-gwas-jobs-confirmation", n_clicks=0, style={"marginTop": "5px", "color": "white", "backgroundColor": "red"})
+            html.Button("Confirm Delete", id="btn-delete-sqlite-jobs-confirmation", n_clicks=0, style={"marginTop": "5px", "color": "white", "backgroundColor": "red"})
         ])
     return ""
 

@@ -10,7 +10,7 @@ import numpy as np
 import os
 import csv
 from config import *
-from neo4j_driver import get_driver
+from neo4j_driver import get_driver, get_scoped_driver
 from auth_utils import require_authorization
 import logging
 
@@ -131,19 +131,18 @@ def create_nodes_batch(session, nodes_dic, node_name="Node", create = False):
 
 # This function will get all chromosomes present in the pangenome graph
 def get_chromosomes():
-    if get_driver() is None:
-        return []
-    with get_driver() as driver:
-
-        query = """
-        MATCH (s:Stats) 
-        RETURN s.chromosomes as all_chromosomes
-        """
-        all_chromosomes = []
-        with driver.session() as session:
-            result = session.run(query)
-            for record in result:
-                all_chromosomes = record["all_chromosomes"]
+    driver = get_driver()
+    if driver is None:
+        return None
+    query = """
+    MATCH (s:Stats) 
+    RETURN s.chromosomes as all_chromosomes
+    """
+    all_chromosomes = []
+    with driver.session() as session:
+        result = session.run(query)
+        for record in result:
+            all_chromosomes = record["all_chromosomes"]
 
     return all_chromosomes
 
@@ -159,47 +158,47 @@ def create_chromosome_stats(chromosomes_stats = None):
     else :
         for chrom, stats_dic in chromosomes_stats.items():
             chromosome_max_values[chrom+"_max_position_mean"] = stats_dic["max_position_mean"]
-    if get_driver() is None:
-        return
-    with get_driver() as driver:
-        with driver.session() as session:
-            if chromosomes_stats is None :
-                for chrom in tqdm(chromosomes, desc="Processing chromosomes"):
-                    logger.debug(f"Getting stats for chromosome : {chrom}")
-                    max_result = session.run(
-                        """
-                        MATCH (n:Node {chromosome: $chrom})
-                        RETURN max(n.position_mean) AS max_pos
-                        """,
-                        chrom=chrom
-                    )
-                    max_val = max_result.single()["max_pos"]
-                    key_name = f"{chrom}_max_position_mean"
-                    chromosome_max_values[key_name] = max_val
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
+    with driver.session() as session:
+        if chromosomes_stats is None :
+            for chrom in tqdm(chromosomes, desc="Processing chromosomes"):
+                logger.debug(f"Getting stats for chromosome : {chrom}")
+                max_result = session.run(
+                    """
+                    MATCH (n:Node {chromosome: $chrom})
+                    RETURN max(n.position_mean) AS max_pos
+                    """,
+                    chrom=chrom
+                )
+                max_val = max_result.single()["max_pos"]
+                key_name = f"{chrom}_max_position_mean"
+                chromosome_max_values[key_name] = max_val
 
-            cs_result = session.run(
-                "MATCH (cs:chromosome_stats) RETURN cs LIMIT 1"
+        cs_result = session.run(
+            "MATCH (cs:chromosome_stats) RETURN cs LIMIT 1"
+        )
+        cs_record = cs_result.single()
+        if cs_record:
+            #Stats already exists => update
+            # set_clause = ", ".join([f"cs.{k} = $props.{k}" for k in chromosome_max_values])
+            # session.run(
+            #     f"MATCH (cs:chromosome_stats) SET {set_clause}",
+            #     props=chromosome_max_values
+            # )
+            session.run(
+                "MATCH (cs:chromosome_stats) SET cs += $props",
+                props=chromosome_max_values
             )
-            cs_record = cs_result.single()
-            if cs_record:
-                #Stats already exists => update
-                # set_clause = ", ".join([f"cs.{k} = $props.{k}" for k in chromosome_max_values])
-                # session.run(
-                #     f"MATCH (cs:chromosome_stats) SET {set_clause}",
-                #     props=chromosome_max_values
-                # )
-                session.run(
-                    "MATCH (cs:chromosome_stats) SET cs += $props",
-                    props=chromosome_max_values
-                )
-                logger.debug(f"Updated chromosome_stats node with: {chromosome_max_values}")
-            else:
-                #Stats doesn't exist => create it
-                session.run(
-                    "CREATE (cs:chromosome_stats) SET cs += $props",
-                    props=chromosome_max_values
-                )
-                logger.debug(f"Created chromosome_stats node with: {chromosome_max_values}")
+            logger.debug(f"Updated chromosome_stats node with: {chromosome_max_values}")
+        else:
+            #Stats doesn't exist => create it
+            session.run(
+                "CREATE (cs:chromosome_stats) SET cs += $props",
+                props=chromosome_max_values
+            )
+            logger.debug(f"Created chromosome_stats node with: {chromosome_max_values}")
     logger.info("✅ Chromosome stats node created")
     logger.debug(f"✅ Chromosome stats value : {chromosome_max_values}")
     return
@@ -207,67 +206,71 @@ def create_chromosome_stats(chromosomes_stats = None):
 
 @require_authorization
 def create_stats(set_genomes, chromosomes_stats):
+    logger.debug(f"Creating stats with set_genomes = {set_genomes} and chromosomes_stats = {chromosomes_stats}")
     if set_genomes and len(set_genomes) > 0 and chromosomes_stats and len(chromosomes_stats) > 0 :
         set_chromosomes = set(list(chromosomes_stats.keys()))
-    else:
-        return
-    with get_driver() as driver:
-        with driver.session() as session:
-            with session.begin_transaction() as tx:
-                query ="""
-                MERGE (s:Stats)
-                WITH s, coalesce(s.genomes, []) + $genomes AS all_genomes, $chromosomes as liste_chromosome
-                UNWIND all_genomes AS g
-                WITH s, collect(DISTINCT g) AS new_genomes, liste_chromosome
-                SET s.genomes = new_genomes, s.version=$version
-                
-                // Mise à jour de s.chromosomes
-                WITH s, coalesce(s.chromosomes, []) + liste_chromosome AS all_chromosomes
-                UNWIND all_chromosomes AS c
-                WITH s, collect(DISTINCT c) AS new_chromosomes
-                SET s.chromosomes = new_chromosomes
-                """
-                tx.run(query, genomes=list(set_genomes), chromosomes = list(set_chromosomes), version=DB_VERSION)
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
+    with driver.session() as session:
+        with session.begin_transaction() as tx:
+            query ="""
+            MERGE (s:Stats)
+            WITH s, coalesce(s.genomes, []) + $genomes AS all_genomes, $chromosomes as liste_chromosome
+            UNWIND all_genomes AS g
+            WITH s, collect(DISTINCT g) AS new_genomes, liste_chromosome
+            SET s.genomes = new_genomes, s.version=$version
+            
+            // Mise à jour de s.chromosomes
+            WITH s, coalesce(s.chromosomes, []) + liste_chromosome AS all_chromosomes
+            UNWIND all_chromosomes AS c
+            WITH s, collect(DISTINCT c) AS new_chromosomes
+            SET s.chromosomes = new_chromosomes
+            """
+            tx.run(query, genomes=list(set_genomes), chromosomes = list(set_chromosomes), version=DB_VERSION)
+    logger.debug(f"Creating chromosome stats")
     create_chromosome_stats(chromosomes_stats)
     return
 
 @require_authorization
 def create_stats_from_nodes():
-    with get_driver() as driver:
-        with driver.session() as session:
-            # Step 1: Get genomes
-            query_genomes = """
-                MATCH (n:Node)
-                WHERE n.flow = 1
-                RETURN n.genomes AS all_genomes
-                LIMIT 1
-            """
-            result = session.run(query_genomes)
-            all_genomes = result.single()["all_genomes"] if result.peek() else []
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
+    with driver.session() as session:
+        # Step 1: Get genomes
+        query_genomes = """
+            MATCH (n:Node)
+            WHERE n.flow = 1
+            RETURN n.genomes AS all_genomes
+            LIMIT 1
+        """
+        result = session.run(query_genomes)
+        all_genomes = result.single()["all_genomes"] if result.peek() else []
 
-            # Step 2: Get chromosomes
-            query_chromosomes = """
-                MATCH (n:Node)
-                USING INDEX n:Node(chromosome)
-                WHERE n.chromosome IS NOT NULL
-                RETURN DISTINCT n.chromosome AS all_chromosomes
-            """
-            result = session.run(query_chromosomes)
-            all_chromosomes = [record["all_chromosomes"] for record in result if record["all_chromosomes"] is not None]
+        # Step 2: Get chromosomes
+        query_chromosomes = """
+            MATCH (n:Node)
+            USING INDEX n:Node(chromosome)
+            WHERE n.chromosome IS NOT NULL
+            RETURN DISTINCT n.chromosome AS all_chromosomes
+        """
+        result = session.run(query_chromosomes)
+        all_chromosomes = [record["all_chromosomes"] for record in result if record["all_chromosomes"] is not None]
 
-            # Step 3: Delete existing Stats node (if exists)
-            session.run("MATCH (s:Stats) DETACH DELETE s")
+        # Step 3: Delete existing Stats node (if exists)
+        session.run("MATCH (s:Stats) DETACH DELETE s")
 
-            # Step 4: Create new Stats node
-            session.run("""
-                CREATE (s:Stats {
-                    genomes: $genomes,
-                    chromosomes: $chromosomes,
-                    version: $version
-                })
-            """, genomes=all_genomes, chromosomes=all_chromosomes, version=DB_VERSION)
+        # Step 4: Create new Stats node
+        session.run("""
+            CREATE (s:Stats {
+                genomes: $genomes,
+                chromosomes: $chromosomes,
+                version: $version
+            })
+        """, genomes=all_genomes, chromosomes=all_chromosomes, version=DB_VERSION)
 
-            logger.info(f"✅ Stats node created with genomes : {all_genomes} - chromosomes : {all_chromosomes}")
+        logger.info(f"✅ Stats node created with genomes : {all_genomes} - chromosomes : {all_chromosomes}")
     create_chromosome_stats()
     return
 
@@ -275,14 +278,15 @@ def create_stats_from_nodes():
 #Check if there are index in state "POPULATING"
 def indexes_populating():
     query = "SHOW indexes YIELD name, state RETURN name, state"
-    
-    with get_driver() as driver:
-        with driver.session() as session:
-            result = session.run(query)
-            for record in result:
-                if record["state"] == "POPULATING":
-                    return True
-            return False
+    driver = get_driver()
+    if driver is None:
+        return None
+    with driver.session() as session:
+        result = session.run(query)
+        for record in result:
+            if record["state"] == "POPULATING":
+                return True
+        return False
 
 """
 Query Neo4j for index statuses.
@@ -294,26 +298,29 @@ def get_index_statuses(only_in_progress=True):
     query = "SHOW INDEXES;"
     in_progress_states = {"POPULATING", "FAILED"}  # depending on Neo4j version
     indexes = {}
-    with get_driver() as driver:
-        with driver.session() as session:
-            result = session.run(query)
+    driver = get_driver()
+    if driver is None:
+        return None
 
-            for record in result:
-                name = record.get("name")
-                state = record.get("state")
-                pct = record.get("populationPercent")
+    with driver.session() as session:
+        result = session.run(query)
 
-                if only_in_progress:
-                    if state != "ONLINE":
-                        indexes[name] = {
-                            "state": state,
-                            "population_percent": pct
-                        }
-                else:
+        for record in result:
+            name = record.get("name")
+            state = record.get("state")
+            pct = record.get("populationPercent")
+
+            if only_in_progress:
+                if state != "ONLINE":
                     indexes[name] = {
                         "state": state,
                         "population_percent": pct
                     }
+            else:
+                indexes[name] = {
+                    "state": state,
+                    "population_percent": pct
+                }
 
     return indexes
 
@@ -418,24 +425,26 @@ def wait_for_indexes(poll_interval = 20, max_no_progress = 6):
 #else it returns the percentage of index creation
 def check_state_index(index_name: str):
     index_name_formate = index_name.replace("-", "_").replace(".","_")
-    with get_driver() as driver:
-        with driver.session() as session:
-            query = """
-            SHOW INDEX YIELD name, state, populationPercent
-            WHERE name = $index_name_formate
-            RETURN populationPercent
-            """
+    driver = get_driver()
+    if driver is None:
+        return None
+    with driver.session() as session:
+        query = """
+        SHOW INDEX YIELD name, state, populationPercent
+        WHERE name = $index_name_formate
+        RETURN populationPercent
+        """
 
-            try:
-                result = session.run(query, index_name_formate=index_name_formate)
-                record = result.single()
-                if record:
-                    return record["populationPercent"]
-                else:
-                    return None
-            except Neo4jError as e:
-                logger.error(f"❌ Error while checking index state: {e}")
+        try:
+            result = session.run(query, index_name_formate=index_name_formate)
+            record = result.single()
+            if record:
+                return record["populationPercent"]
+            else:
                 return None
+        except Neo4jError as e:
+            logger.error(f"❌ Error while checking index state: {e}")
+            return None
 
 
 #Function to create index in database
@@ -445,60 +454,62 @@ def check_state_index(index_name: str):
 @require_authorization
 def create_indexes(base=True, extend=False, genomes_index=False):
     indexes_queries = []
-    with get_driver() as driver:
-        with driver.session() as session:
-            if base :
-                indexes_queries= [
-                    "CREATE INDEX NodeIndexName IF NOT EXISTS FOR (n:Node) ON (n.name)",
-                    "CREATE INDEX NodeIndexChromosome IF NOT EXISTS FOR (n:Node) ON (n.chromosome)"
-                    ]
-            if extend :
-                indexes_queries += [
-                    "CREATE INDEX NodeIndexFlow IF NOT EXISTS FOR (n:Node) ON (n.flow)",
-                    "CREATE INDEX NodeIndexSize IF NOT EXISTS FOR (n:Node) ON (n.size)",
-                    "CREATE INDEX NodeIndexGwas IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.flow, n.size)",
-                    "CREATE INDEX NodeIndexRefNode IF NOT EXISTS FOR (n:Node) ON (n.ref_node)",
-                    "CREATE INDEX AnnotationName IF NOT EXISTS FOR (a:Annotation) ON (a.name)",
-                    "CREATE INDEX AnnotationIndexChromosome IF NOT EXISTS FOR (a:Annotation) ON (a.chromosome)",
-                    "CREATE INDEX AnnotationIndexStart IF NOT EXISTS FOR (a:Annotation) ON (a.start)",
-                    "CREATE INDEX AnnotationIndexEnd IF NOT EXISTS FOR (a:Annotation) ON (a.end)",
-                    "CREATE INDEX AnnotationIndexGeneId IF NOT EXISTS FOR (a:Annotation) ON (a.gene_id)",
-                    "CREATE INDEX AnnotationIndexGeneName IF NOT EXISTS FOR (a:Annotation) ON (a.gene_name)",
-                    "CREATE INDEX AnnotationIndexGenomeRef IF NOT EXISTS FOR (a:Annotation) ON (a.genome_ref)",
-                    "CREATE INDEX AnnotationIndexAnnotationSearch IF NOT EXISTS FOR (a:Annotation) ON (a.genome_ref, a.chromosome, a.start, a.end)",
-                    "CREATE INDEX SequenceIndexName IF NOT EXISTS FOR (s:Sequence) ON (s.name)"
-                    ]
-            with session.begin_transaction() as tx:
-                for query in indexes_queries :
-                    tx.run(query)
-            
-            indexes_queries = []
-            
-            if genomes_index :
-                current_genome = 0
-                #Uncomment the following lines if index creation takes too much ressources 
-                #if extend :
-                #    while indexes_populating():
-                        #wait 1 minute between 2 poll of indexes states
-                #        time.sleep(60)
-                query_genomes = """
-                MATCH (s:Stats) 
-                RETURN s.genomes as all_genomes
-                """
-                all_genomes = []
-                result = session.run(query_genomes)
-                for record in result:
-                    all_genomes = record["all_genomes"]
-                nb_genomes = len(all_genomes)
-                logger.info(all_genomes)
-                for g in all_genomes:
-                    logger.info("creating indexes for genome " + g + " ("+str(current_genome+1) + "/"+str(nb_genomes) +")")
-                    current_genome += 1
-                    indexes_queries = []
-                    indexes_queries.append("CREATE INDEX NodeIndex"+str(g).replace("-", "_").replace(".","_")+"_position IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.`"+str(g)+"_position`)")
-                    with session.begin_transaction() as tx:
-                        for query in indexes_queries :
-                            tx.run(query)
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
+    with driver.session() as session:
+        if base :
+            indexes_queries= [
+                "CREATE INDEX NodeIndexName IF NOT EXISTS FOR (n:Node) ON (n.name)",
+                "CREATE INDEX NodeIndexChromosome IF NOT EXISTS FOR (n:Node) ON (n.chromosome)"
+                ]
+        if extend :
+            indexes_queries += [
+                "CREATE INDEX NodeIndexFlow IF NOT EXISTS FOR (n:Node) ON (n.flow)",
+                "CREATE INDEX NodeIndexSize IF NOT EXISTS FOR (n:Node) ON (n.size)",
+                "CREATE INDEX NodeIndexGwas IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.flow, n.size)",
+                "CREATE INDEX NodeIndexRefNode IF NOT EXISTS FOR (n:Node) ON (n.ref_node)",
+                "CREATE INDEX AnnotationName IF NOT EXISTS FOR (a:Annotation) ON (a.name)",
+                "CREATE INDEX AnnotationIndexChromosome IF NOT EXISTS FOR (a:Annotation) ON (a.chromosome)",
+                "CREATE INDEX AnnotationIndexStart IF NOT EXISTS FOR (a:Annotation) ON (a.start)",
+                "CREATE INDEX AnnotationIndexEnd IF NOT EXISTS FOR (a:Annotation) ON (a.end)",
+                "CREATE INDEX AnnotationIndexGeneId IF NOT EXISTS FOR (a:Annotation) ON (a.gene_id)",
+                "CREATE INDEX AnnotationIndexGeneName IF NOT EXISTS FOR (a:Annotation) ON (a.gene_name)",
+                "CREATE INDEX AnnotationIndexGenomeRef IF NOT EXISTS FOR (a:Annotation) ON (a.genome_ref)",
+                "CREATE INDEX AnnotationIndexAnnotationSearch IF NOT EXISTS FOR (a:Annotation) ON (a.genome_ref, a.chromosome, a.start, a.end)",
+                "CREATE INDEX SequenceIndexName IF NOT EXISTS FOR (s:Sequence) ON (s.name)"
+                ]
+        with session.begin_transaction() as tx:
+            for query in indexes_queries :
+                tx.run(query)
+
+        indexes_queries = []
+
+        if genomes_index :
+            current_genome = 0
+            #Uncomment the following lines if index creation takes too much ressources
+            #if extend :
+            #    while indexes_populating():
+                    #wait 1 minute between 2 poll of indexes states
+            #        time.sleep(60)
+            query_genomes = """
+            MATCH (s:Stats) 
+            RETURN s.genomes as all_genomes
+            """
+            all_genomes = []
+            result = session.run(query_genomes)
+            for record in result:
+                all_genomes = record["all_genomes"]
+            nb_genomes = len(all_genomes)
+            logger.info(all_genomes)
+            for g in all_genomes:
+                logger.info("creating indexes for genome " + g + " ("+str(current_genome+1) + "/"+str(nb_genomes) +")")
+                current_genome += 1
+                indexes_queries = []
+                indexes_queries.append("CREATE INDEX NodeIndex"+str(g).replace("-", "_").replace(".","_")+"_position IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.`"+str(g)+"_position`)")
+                with session.begin_transaction() as tx:
+                    for query in indexes_queries :
+                        tx.run(query)
             
 
 
@@ -511,11 +522,14 @@ def creer_index_chromosome(chromosomes_list = []):
     all_chromosomes = chromosomes_list
     all_genomes = []
     indexes_queries = []
-    with get_driver() as driver:
-        with driver.session() as session:
-            result = session.run(query_genomes)
-            for record in result:
-                all_genomes = record["all_genomes"]
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
+
+    with driver.session() as session:
+        result = session.run(query_genomes)
+        for record in result:
+            all_genomes = record["all_genomes"]
 
         for c in all_chromosomes:
             indexes_queries.append("CREATE INDEX Node_chr_" + str(c) +"IndexName IF NOT EXISTS FOR (n:Node_chr_" + str(c) +") ON (n.name)")
@@ -524,8 +538,7 @@ def creer_index_chromosome(chromosomes_list = []):
             for g in all_genomes :
                 indexes_queries.append("CREATE INDEX Node_chr_" + str(c) +"Index"+str(g)+"_position IF NOT EXISTS FOR (n:Node_chr_" + str(c) +") ON (n."+str(g)+"_position)")
                 indexes_queries.append("CREATE INDEX Node_chr_" + str(c) +"Index"+str(g)+"_node IF NOT EXISTS FOR (n:Node_chr_" + str(c) +") ON (n."+str(g)+"_node)")
-    
-        with get_driver() as driver:
+
             with driver.session() as session:
                 with session.begin_transaction() as tx:
                     for query in indexes_queries :
@@ -541,25 +554,28 @@ def creer_index_chromosome_genomes():
     """
     indexes_queries = []
     all_genomes = []
-    with get_driver() as driver:
-        with driver.session() as session:
-            result = session.run(query_genomes)
-            for record in result:
-                all_genomes = record["all_genomes"]
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
 
-            nb_genomes = len(all_genomes)
-            current_genome = 0
-            for g in all_genomes :
-                logger.info("creating indexes for genome " + g + " ("+str(current_genome) + "/"+str(nb_genomes) +")")
-                current_genome += 1
-                indexes_queries = []
-                indexes_queries.append("CREATE INDEX NodeIndex"+str(g).replace("-", "_").replace(".","_")+"_position IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.`"+str(g)+"_position`)")
-                indexes_queries.append("CREATE INDEX NodeIndex"+str(g).replace("-", "_").replace(".","_")+"_node IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.`"+str(g)+"_node`)")
-                with session.begin_transaction() as tx:
-                    for query in indexes_queries :
-                        tx.run(query)   
-                if current_genome % 5 == 0:
-                    time.sleep(60*10)
+    with driver.session() as session:
+        result = session.run(query_genomes)
+        for record in result:
+            all_genomes = record["all_genomes"]
+
+        nb_genomes = len(all_genomes)
+        current_genome = 0
+        for g in all_genomes :
+            logger.info("creating indexes for genome " + g + " ("+str(current_genome) + "/"+str(nb_genomes) +")")
+            current_genome += 1
+            indexes_queries = []
+            indexes_queries.append("CREATE INDEX NodeIndex"+str(g).replace("-", "_").replace(".","_")+"_position IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.`"+str(g)+"_position`)")
+            indexes_queries.append("CREATE INDEX NodeIndex"+str(g).replace("-", "_").replace(".","_")+"_node IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.`"+str(g)+"_node`)")
+            with session.begin_transaction() as tx:
+                for query in indexes_queries :
+                    tx.run(query)
+            if current_genome % 5 == 0:
+                time.sleep(60*10)
     logger.info("Indexes created")
 
 
@@ -567,35 +583,37 @@ def creer_index_chromosome_genomes():
 def create_labels_chromosomes(liste_chromosomes=[]):
     all_chromosomes = []
     labels_queries = []
-    with get_driver() as driver :
-        if len(liste_chromosomes) == 0:
-            query = """
-            MATCH (s:Stats) 
-            RETURN s.chromosomes as all_chromosomes
-            """
-            with driver.session() as session:
-                result = session.run(query)
-                for record in result:
-                    all_chromosomes = record["all_chromosomes"]
-    
-        else:
-            all_chromosomes = liste_chromosomes
-        for c in all_chromosomes :
-            label = "Node_chr_"+str(c)
-            labels_queries.append(
-                f"""
-                CALL apoc.periodic.iterate(
-              "MATCH (n:Node) WHERE n.chromosome = '{c}' RETURN n",
-              "CALL apoc.create.addLabels(n, ['{label}']) YIELD node RETURN node",
-              {{batchSize:1000, parallel:true}}
-            )
-            """
-            )
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
+    if len(liste_chromosomes) == 0:
+        query = """
+        MATCH (s:Stats) 
+        RETURN s.chromosomes as all_chromosomes
+        """
         with driver.session() as session:
-            with session.begin_transaction() as tx:
-                for query in labels_queries:
-                    #logger.debug(query)
-                    tx.run(query)
+            result = session.run(query)
+            for record in result:
+                all_chromosomes = record["all_chromosomes"]
+
+    else:
+        all_chromosomes = liste_chromosomes
+    for c in all_chromosomes :
+        label = "Node_chr_"+str(c)
+        labels_queries.append(
+            f"""
+            CALL apoc.periodic.iterate(
+          "MATCH (n:Node) WHERE n.chromosome = '{c}' RETURN n",
+          "CALL apoc.create.addLabels(n, ['{label}']) YIELD node RETURN node",
+          {{batchSize:1000, parallel:true}}
+        )
+        """
+        )
+    with driver.session() as session:
+        with session.begin_transaction() as tx:
+            for query in labels_queries:
+                #logger.debug(query)
+                tx.run(query)
 
 
 @require_authorization
@@ -890,6 +908,9 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
     nodes_set_next_chromosome = set()
     first_chromosome = None
     file = open(gfa_file_name, "r", encoding='utf-8')
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
     with file:
         
         #First file browsing to get length, nodes and haplotypes
@@ -1126,9 +1147,9 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
                         logger.info("Time of batch analysis : "+ str(time.time()-temps_0_lot) + "\nTotal time : " + str(time.time()-temps_depart))
                         #Create batch nodes in DB
                         logger.info("Batch " + str(current_batch) + " : Creating nodes in DB")
-                        with get_driver() as driver:
-                            with driver.session() as session:
-                                create_nodes_batch(session, nodes_dic, create=create)
+
+                        with driver.session() as session:
+                            create_nodes_batch(session, nodes_dic, create=create)
                         nodes_dic = None
                         ref_nodes_dic = None
                         
@@ -1209,9 +1230,9 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
             set_relations = set()
         
             logger.info("Batch : " + str(current_batch) + " relationships creation, number to create : " + str(len(liste_relations)))
-            with get_driver() as driver:
-                with driver.session() as session:
-                    creer_relations_batch(session, liste_relations)
+
+            with driver.session() as session:
+                creer_relations_batch(session, liste_relations)
             liste_relations = []
         logger.info("End of relationships creation\nTime : " + str(time.time()-temps_depart) + "\nNumberof relationships created : " + str(len(set_relations)))
         set_relations = set()
@@ -1676,6 +1697,9 @@ def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotat
     file_format = "gtf"
     current_gene_id = ""
     file_name = os.path.basename(annotations_file_name)
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
     with file:
         n = 0
         for line in file :
@@ -1805,9 +1829,9 @@ def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotat
             logger.info(f"\nAnnotation analyzing terminated in {time.time()-temps_depart} s.")
             logger.info(f"Creating {len(list(nodes_dic.items()))} nodes in database...")
 
-            with get_driver() as driver:
-                with driver.session() as session:
-                    create_nodes_batch(session, nodes_dic, node_name=node_name)
+
+            with driver.session() as session:
+                create_nodes_batch(session, nodes_dic, node_name=node_name)
 
         logger.info("Nodes created\nTime : " + str(time.time()-temps_depart))
         #Fin des lots, on créé toutes les relations                                               
@@ -1818,32 +1842,6 @@ def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotat
 
 @require_authorization
 def process_annotation_simple_batch(tx, annotations, genome_ref):
-    # query = f"""
-    #     UNWIND $annotations AS annot
-    #     WITH annot.chromosome AS chr, annot.start AS start, annot.end AS end, collect(annot) AS group_annot
-    #
-    #     MATCH (n1:Node)
-    #     WHERE n1.chromosome = chr
-    #       AND n1.`{genome_ref}_position` >= start
-    #       AND n1.`{genome_ref}_position` <= end
-    #
-    #     WITH group_annot, n1, chr, start
-    #     UNWIND group_annot AS ann1
-    #     MATCH (a1:Annotation {{name: ann1.name}})
-    #     MERGE (n1)-[:annotation_link]->(a1)
-    # """
-
-    # query = f"""
-    #     UNWIND $annotations AS annot
-
-    #     MATCH (n1:Node)
-    #     WHERE n1.chromosome = annot.chromosome
-    #       AND n1.`{genome_ref}_position` >= annot.start
-    #       AND n1.`{genome_ref}_position` <= annot.end
-
-    #     MATCH (a1:Annotation {{name: annot.name}})
-    #     MERGE (n1)-[:annotation_link]->(a1)
-    # """
 
     query = f"""
         CALL apoc.periodic.iterate(
@@ -1947,127 +1945,129 @@ def process_annotation_last_complex_batch(tx, genome_ref, annotation_search_limi
 @require_authorization
 def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
     temps_depart = time.time()
-    with get_driver() as driver:
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
+    last_id = -1
+    batch_size = 10000
+    total_annotations = 0
+    WARN = False
+    WARN_message = ""
+    with driver.session() as session:
+        #Processing simple annotations: those for which the start is between the start and end of a node
+        #this is the largest volume of annotations
+        logger.info("Processing annotations")
+        #Get the chromosomes present in the pangenome
+        query = """
+        MATCH (s:Stats) 
+        RETURN s.chromosomes as all_chromosomes
+        """
+        graph_chromosomes_set = set()
+        result = session.run(query)
+        for record in result:
+            graph_chromosomes_set = set(record["all_chromosomes"])
+
+        i = 0
+        last_name = None
         last_id = -1
-        batch_size = 10000
-        total_annotations = 0
-        WARN = False
-        WARN_message = ""
-        with driver.session() as session:
-            #Processing simple annotations: those for which the start is between the start and end of a node
-            #this is the largest volume of annotations
-            logger.info("Processing annotations")
-            #Get the chromosomes present in the pangenome
+        max_id = batch_size
+        min_id = -1
+        current_id = -1
+        annotations_nb = 0
+        all_genomes = set()
+        if genome_ref is None or genome_ref == "" :
             query = """
-            MATCH (s:Stats) 
-            RETURN s.chromosomes as all_chromosomes
+                MATCH (a:Annotation)
+                RETURN collect(DISTINCT(a.genome_ref)) AS liste_genomes
             """
-            graph_chromosomes_set = set()
+            result = session.run(query, min_id=current_id,max_id=current_id+batch_size)
+            for record in result:
+                liste_genomes = record["liste_genomes"]
+        else :
+            liste_genomes = [genome_ref]
+
+        logger.info("Haplotypes list : " + str(liste_genomes))
+
+        for g in liste_genomes :
+            logger.info(f"Linking annotation for genome {g}")
+            query = f"""
+                MATCH (a:Annotation) where a.genome_ref = "{g}" return collect(distinct(a.chromosome)) as annotations_chromosomes
+            """
             result = session.run(query)
             for record in result:
-                graph_chromosomes_set = set(record["all_chromosomes"])
+                annotations_chromosomes_set = set(record["annotations_chromosomes"])
+            query = f"""
+            MATCH (a:Annotation) where a.genome_ref = "{g}" return min(ID(a)) as min_id, max(ID(a)) as max_id, count(a) as annotations_count
+            """
+            #logger.debug(query)
+            result = session.run(query)
+            for record in result:
+                min_id = record["min_id"]
+                max_id = record["max_id"]
+                annotations_count = record["annotations_count"]
 
+            intersection_chromosomes_set = graph_chromosomes_set & annotations_chromosomes_set
+            if len(intersection_chromosomes_set) == 0:
+                WARN = True
+                continue
+            else:
+                WARN = False
+            if min_id is None or max_id is None or min_id == max_id :
+                continue
+            batch_number = ceil((max_id-min_id)/batch_size)
+            current_id = min_id
+            all_genomes.add(g)
             i = 0
-            last_name = None
-            last_id = -1
-            max_id = batch_size
-            min_id = -1
-            current_id = -1
-            annotations_nb = 0
-            all_genomes = set()
-            if genome_ref is None or genome_ref == "" : 
-                query = """
-                    MATCH (a:Annotation)
-                    RETURN collect(DISTINCT(a.genome_ref)) AS liste_genomes
-                """
-                result = session.run(query, min_id=current_id,max_id=current_id+batch_size)
-                for record in result:
-                    liste_genomes = record["liste_genomes"]
-            else :
-                liste_genomes = [genome_ref]
+            with tqdm(total=annotations_count, desc=f"Haplotype {g}") as pbar:
+                while current_id < max_id:
+                    i+=1
+                    #logger.debug("Batch nb " + str(i) + "/" + str(batch_number) + " Current id : " + str(current_id) + " max id : " + str(max_id) + " - haplotype : " + str(g))
+                    annotations_nb = 0
+                    if chromosome is None :
+                        annotations = session.run(
+                            """
+                            MATCH (a:Annotation)
+                            WHERE ID(a) >= $min_id AND ID(a) < $max_id AND a.genome_ref = $genome
+                            RETURN a.name AS name, a.chromosome AS chromosome, a.start AS start, a.end AS end
+                            """,
+                            min_id=current_id,
+                            max_id=min(max_id,current_id+batch_size),
+                            genome=g
+                            ).data()
+                    else:
+                        annotations = session.run(
+                            """
+                            MATCH (a:Annotation)
+                            WHERE ID(a) >= $min_id AND ID(a) < $max_id and a.chromosome = $chromosome AND a.genome_ref = $genome
+                            RETURN a.name AS name, a.chromosome AS chromosome, a.start AS start, a.end AS end
+                            """,
+                            min_id=current_id,
+                            max_id=min(max_id,current_id+batch_size),
+                            chromosome=chromosome,
+                            genome=g
+                            ).data()
+                    annotations_nb += len(annotations)
+                    total_annotations += len(annotations)
+                    if annotations and len(annotations) > 0:
+                        with session.begin_transaction() as tx:
+                            #logger.info("creating annotations batch " + str(i) + "/"+str(batch_number))
+                            process_annotation_simple_batch(tx,annotations, g)
+                            #logger.info("creating complexe annotations")
+                            #Handling complex annotations: those for which the start and end of a node are before and after the annotation
+                            #the volume is much lower (less than 1%)
+                            process_annotation_complex_batch(tx, annotations, g, annotation_search_limit=10000)
+                            tx.commit()
 
-            logger.info("Haplotypes list : " + str(liste_genomes))
+                    #logger.debug("Annotations nb : " + str(annotations_nb) + " - Annotations already treated : " + str(total_annotations))
+                    pbar.update(annotations_nb)
+                    current_id += batch_size
 
-            for g in liste_genomes :
-                logger.info(f"Linking annotation for genome {g}")
-                query = f"""
-                    MATCH (a:Annotation) where a.genome_ref = "{g}" return collect(distinct(a.chromosome)) as annotations_chromosomes
-                """
-                result = session.run(query)
-                for record in result:
-                    annotations_chromosomes_set = set(record["annotations_chromosomes"])
-                query = f"""
-                MATCH (a:Annotation) where a.genome_ref = "{g}" return min(ID(a)) as min_id, max(ID(a)) as max_id, count(a) as annotations_count
-                """
-                #logger.debug(query)
-                result = session.run(query)
-                for record in result:
-                    min_id = record["min_id"]
-                    max_id = record["max_id"]
-                    annotations_count = record["annotations_count"]
 
-                intersection_chromosomes_set = graph_chromosomes_set & annotations_chromosomes_set
-                if len(intersection_chromosomes_set) == 0:
-                    WARN = True
-                    continue
-                else:
-                    WARN = False
-                if min_id is None or max_id is None or min_id == max_id :
-                    continue
-                batch_number = ceil((max_id-min_id)/batch_size)
-                current_id = min_id
-                all_genomes.add(g)
-                i = 0
-                with tqdm(total=annotations_count, desc=f"Haplotype {g}") as pbar:
-                    while current_id < max_id:
-                        i+=1
-                        #logger.debug("Batch nb " + str(i) + "/" + str(batch_number) + " Current id : " + str(current_id) + " max id : " + str(max_id) + " - haplotype : " + str(g))
-                        annotations_nb = 0
-                        if chromosome is None :
-                            annotations = session.run(
-                                """
-                                MATCH (a:Annotation)
-                                WHERE ID(a) >= $min_id AND ID(a) < $max_id AND a.genome_ref = $genome
-                                RETURN a.name AS name, a.chromosome AS chromosome, a.start AS start, a.end AS end
-                                """,
-                                min_id=current_id,
-                                max_id=min(max_id,current_id+batch_size),
-                                genome=g
-                                ).data()
-                        else:
-                            annotations = session.run(
-                                """
-                                MATCH (a:Annotation)
-                                WHERE ID(a) >= $min_id AND ID(a) < $max_id and a.chromosome = $chromosome AND a.genome_ref = $genome
-                                RETURN a.name AS name, a.chromosome AS chromosome, a.start AS start, a.end AS end
-                                """,
-                                min_id=current_id,
-                                max_id=min(max_id,current_id+batch_size),
-                                chromosome=chromosome,
-                                genome=g
-                                ).data()
-                        annotations_nb += len(annotations)
-                        total_annotations += len(annotations)
-                        if annotations and len(annotations) > 0:
-                            with session.begin_transaction() as tx:
-                                #logger.info("creating annotations batch " + str(i) + "/"+str(batch_number))
-                                process_annotation_simple_batch(tx,annotations, g)
-                                #logger.info("creating complexe annotations")
-                                #Handling complex annotations: those for which the start and end of a node are before and after the annotation
-                                #the volume is much lower (less than 1%)
-                                process_annotation_complex_batch(tx, annotations, g, annotation_search_limit=10000)
-                                tx.commit()
-
-                        #logger.debug("Annotations nb : " + str(annotations_nb) + " - Annotations already treated : " + str(total_annotations))
-                        pbar.update(annotations_nb)
-                        current_id += batch_size
-            
-            
-            for g in all_genomes:
-                with session.begin_transaction() as tx:
-                    logger.info(f"processing complex annotations for genome {g}")
-                    process_annotation_last_complex_batch(tx, g, annotation_search_limit=10000)
-                    tx.commit()
+        for g in all_genomes:
+            with session.begin_transaction() as tx:
+                logger.info(f"processing complex annotations for genome {g}")
+                process_annotation_last_complex_batch(tx, g, annotation_search_limit=10000)
+                tx.commit()
     if WARN:
         WARN_message = "Chromosome names mismatch between annotation file and graph."
     logger.info(f"End of relationships creation, {total_annotations} annotations analysed. {WARN_message} Total time : " + str(time.time()-temps_depart))
@@ -2148,96 +2148,98 @@ def delete_annotations(batch_size=100000):
 
 @require_authorization
 def delete_nodes(nodes_label, batch_size=100000):
-    if get_driver() is None:
-        logger.debug("Neo4j driver is not initialized.")
+    driver = get_scoped_driver()
+    if driver is None:
         return None
 
     start_time = time.time()
-    with get_driver() as driver:
-        with driver.session() as session:
-            # 1) Get total number of nodes to delete
+
+    with driver.session() as session:
+        # 1) Get total number of nodes to delete
+        result = session.run(f"""
+            MATCH (n:{nodes_label})
+            RETURN count(n) AS total
+        """)
+        total = result.single()["total"]
+        if total == 0:
+            logger.debug(f"No nodes with label '{nodes_label}' found.")
+            return
+
+        logger.debug(f"Starting deletion of {total} nodes with label '{nodes_label}'...")
+
+        # 2) Initialize tqdm progress bar
+        pbar = tqdm(total=total, unit="nodes", desc="Deleting", leave=False)
+
+        # 3) Batch deletion loop
+        while True:
             result = session.run(f"""
                 MATCH (n:{nodes_label})
-                RETURN count(n) AS total
+                WITH n LIMIT {batch_size}
+                DETACH DELETE n
+                RETURN count(n) AS deleted
             """)
-            total = result.single()["total"]
-            if total == 0:
-                logger.debug(f"No nodes with label '{nodes_label}' found.")
-                return
+            deleted = result.single()["deleted"]
 
-            logger.debug(f"Starting deletion of {total} nodes with label '{nodes_label}'...")
+            if deleted == 0:
+                break
 
-            # 2) Initialize tqdm progress bar
-            pbar = tqdm(total=total, unit="nodes", desc="Deleting", leave=False)
+            # Update progress bar
+            pbar.update(deleted)
 
-            # 3) Batch deletion loop
-            while True:
-                result = session.run(f"""
-                    MATCH (n:{nodes_label})
-                    WITH n LIMIT {batch_size}
-                    DETACH DELETE n
-                    RETURN count(n) AS deleted
-                """)
-                deleted = result.single()["deleted"]
+        pbar.close()
 
-                if deleted == 0:
-                    break
-
-                # Update progress bar
-                pbar.update(deleted)
-
-            pbar.close()
-
-            duration = time.time() - start_time
-            logger.debug(f"Deletion completed in {duration:.2f} seconds.")
+        duration = time.time() - start_time
+        logger.debug(f"Deletion completed in {duration:.2f} seconds.")
 
  
 @require_authorization
 def delete_relations(relation_label, batch_size=100000):
-    if get_driver() is None:
-        logger.debug("Neo4j driver is not initialized.")
+    driver = get_scoped_driver()
+    if driver is None:
         return None
     start_time = time.time()
-    with get_driver() as driver:
-        with driver.session() as session:
-            # 1) Get the total number of relationships to delete
+
+    with driver.session() as session:
+        # 1) Get the total number of relationships to delete
+        result = session.run(f"""
+            MATCH ()-[r:{relation_label}]->()
+            RETURN count(r) AS total
+        """)
+        total = result.single()["total"]
+
+        if total == 0:
+            logger.debug(f"No relationships of type {relation_label} found.")
+            return
+        logger.debug(f"Starting deletion of {total} relationships '{relation_label}'...")
+        # 2) Initialize tqdm progress bar
+        pbar = tqdm(total=total, unit="rel", desc="Deleting", leave=False)
+        # 3) Batch deletion loop
+        while True:
             result = session.run(f"""
-                MATCH ()-[r:{relation_label}]->()
-                RETURN count(r) AS total
+                MATCH () -[r:{relation_label}]->()
+                WITH r LIMIT {batch_size}
+                DELETE r
+                RETURN count(r) AS deleted
             """)
-            total = result.single()["total"]
+            deleted = result.single()["deleted"]
 
-            if total == 0:
-                logger.debug(f"No relationships of type {relation_label} found.")
-                return
-            logger.debug(f"Starting deletion of {total} relationships '{relation_label}'...")
-            # 2) Initialize tqdm progress bar
-            pbar = tqdm(total=total, unit="rel", desc="Deleting", leave=False)
-            # 3) Batch deletion loop
-            while True:
-                result = session.run(f"""
-                    MATCH () -[r:{relation_label}]->()
-                    WITH r LIMIT {batch_size}
-                    DELETE r
-                    RETURN count(r) AS deleted
-                """)
-                deleted = result.single()["deleted"]
-
-                if deleted == 0:
-                    break
-                # Update the progress bar
-                pbar.update(deleted)
-            pbar.close()
-            duration = time.time() - start_time
-            logger.debug(f"Deletion completed in {duration:.2f} seconds.")
+            if deleted == 0:
+                break
+            # Update the progress bar
+            pbar.update(deleted)
+        pbar.close()
+        duration = time.time() - start_time
+        logger.debug(f"Deletion completed in {duration:.2f} seconds.")
 
 
 @require_authorization            
 def construct_sequences_and_indexes(gfa_file_name, kmer_size=31):
     dic_kmer_relation, nodes_dic = load_sequences(gfa_file_name, kmer_size=31)
-    with get_driver() as driver:
-        with driver.session() as session:
-            creer_sequences_et_indexes(session, dic_kmer_relation, kmer_size, nodes_dic)
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
+    with driver.session() as session:
+        creer_sequences_et_indexes(session, dic_kmer_relation, kmer_size, nodes_dic)
             
 
 @require_authorization            

@@ -46,8 +46,6 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
 app.server.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
 app.server.secret_key = "KEY_PANABYSS_96598421_CDEYUJH"
 
-shared_storage = None
-
 
 def clean_exit(signum, frame):
     logger.info("\nStopping docker")
@@ -181,10 +179,20 @@ import callbacks.phylo_management_callbacks
 
 @app.callback(
     Output('shared_storage', 'data'),
-    Input('url', 'pathname'), prevent_initial_call=False
+    Input('url', 'pathname'),
+    State('shared_storage', 'data'),
+    prevent_initial_call=False,
 )
-def init_data(pathname):
-    load_static()
+def init_data(pathname,shared_storage):
+    if (shared_storage is None or "genomes" not in shared_storage or len(shared_storage["genomes"]) == 0
+        or "chromosomes" not in shared_storage or len(shared_storage["chromosomes"]) == 0):
+        update_storage = {
+            "genomes": get_genomes(),
+            "chromosomes": get_chromosomes(),
+            "features": get_annotations_features()
+        }
+        logger.debug(f"Data : {update_storage}")
+        shared_storage.update(update_storage)
     return shared_storage
 
 #callback to display toast
@@ -245,7 +253,7 @@ def display_toast(notification):
         style,
         header_content,
         notification.get("message", ""),
-        False,  # active l'auto close
+        False,
     )
 
 #callback to close toast
@@ -331,18 +339,6 @@ def display_page(pathname):
     else:
         return html.H1("Page non trouvée")
 
-def load_static():
-    global shared_storage
-
-    if shared_storage is None:
-        shared_storage = {
-            "genomes": get_genomes(),
-            "chromosomes": get_chromosomes(),
-            "features": get_annotations_features()
-        }
-
-    return shared_storage
-
 
 def run():
     parser = argparse.ArgumentParser(description="Launch server.")
@@ -350,9 +346,8 @@ def run():
     args = parser.parse_args()
     init_gwas_db()
     init_phylo_db()
-    load_static()
     logger.info(
-        f"all genomes: {shared_storage.get('genomes', '')} - chromosomes: {shared_storage.get('chromosomes', '')} - features: {shared_storage.get('features', '')}")
+        f"all genomes: {get_genomes()} - chromosomes: {get_chromosomes()} - features: {get_annotations_features()}")
     purge_running_gwas_jobs()
     port = args.port or int(8050)
     print("SERVER START")

@@ -832,7 +832,7 @@ def get_annotations_in_position_range(genome_ref, chromosome="1", start_position
 
 # This function get all features on annotation nodes
 def get_annotations_features():
-    driver = get_driver()
+    driver = get_scoped_driver()
     if driver is None:
         return []
     query = f"""
@@ -848,7 +848,7 @@ def get_annotations_features():
 
 # This function will get all chromosomes present in the pangenome graph
 def get_chromosomes():
-    driver = get_driver()
+    driver = get_scoped_driver()
     if driver is None:
         return []
 
@@ -868,7 +868,7 @@ def get_chromosomes():
 # This function will get all chromosomes present in the pangenome graph
 def get_chromosomes_stats():
     chromosome_stats = None
-    driver = get_driver()
+    driver = get_scoped_driver()
     if driver is None:
         return []
 
@@ -912,7 +912,7 @@ def get_nodes_number(chromosome=None):
 
 # This function will get all genomes present in the pangenome graph
 def get_genomes():
-    driver = get_driver()
+    driver = get_scoped_driver()
     if driver is None:
         return []
     query = """
