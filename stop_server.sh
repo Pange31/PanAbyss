@@ -30,3 +30,22 @@ if [ -f gunicorn.pid ]; then
 else
     echo "No file gunicorn.pid found."
 fi
+
+if [ -f gunicorn.port ]; then
+    PORT=$(cat gunicorn.port)
+
+    echo "Stopping service on port $PORT..."
+
+    PID=$(lsof -ti tcp:$PORT)
+
+    if [ -n "$PID" ]; then
+        kill -TERM $PID
+        echo "Killed process $PID on port $PORT"
+    else
+        echo "No process found on port $PORT"
+    fi
+
+    rm -f gunicorn.port
+else
+    echo "No port file found."
+fi

@@ -75,9 +75,11 @@ if [ ! -f "data/conf/neo4j.conf" ]; then
 	fi
 fi
 
+echo $DASH_PORT > gunicorn.port
+
 # --- Launch application ---
 ENV_GUNICORN=$(conda info --base)/envs/$ENV_NAME/bin/gunicorn
 echo "Launching PanAbyss on port $DASH_PORT with command $ENV_GUNICORN..."
 nohup $ENV_GUNICORN wsgi:application -k gevent -w 1 -b 0.0.0.0:$DASH_PORT \
-    --timeout 180000 --config gunicorn_config.py --pid gunicorn.pid &
+    --timeout 180000 --config gunicorn_config.py --pid gunicorn.pid --access-logfile None&
 
