@@ -63,6 +63,8 @@ logger.info(f"Server mode : {SERVER_MODE} - Admin mode : {ADMIN_MODE}")
 
 
 start_container()
+init_gwas_db()
+init_phylo_db()
 
 if SERVER_MODE and ADMIN_MODE:
     USERS = get_users()
@@ -345,8 +347,7 @@ def run():
     parser = argparse.ArgumentParser(description="Launch server.")
     parser.add_argument("--port", type=int, help="HTTP port to use (default : 8050)")
     args = parser.parse_args()
-    init_gwas_db()
-    init_phylo_db()
+
     logger.info(
         f"all genomes: {get_genomes()} - chromosomes: {get_chromosomes()} - features: {get_annotations_features()}")
     purge_running_gwas_jobs()
