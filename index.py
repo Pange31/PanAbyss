@@ -191,7 +191,8 @@ def init_data(pathname,shared_storage):
             "chromosomes": get_chromosomes(),
             "features": get_annotations_features()
         }
-        logger.debug(f"Data : {update_storage}")
+        if update_storage["genomes"] is not None and len(update_storage["genomes"]) > 0 :
+            logger.debug(f"Data : {update_storage}")
         shared_storage.update(update_storage)
     return shared_storage
 
