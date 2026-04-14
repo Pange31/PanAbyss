@@ -26,7 +26,6 @@ from app import *
 from neo4j_requests import *
 import logging
 
-last_tree = "./export/phylo/last_tree.nwk"
 logger = logging.getLogger("panabyss_logger")
 
 EXPORT_DIR = "./export/phylo/"
@@ -437,14 +436,15 @@ def save_tree(n_clicks, phylo_data):
         return "No data to save", None
 
     newick_content = phylo_data["newick_region"]
+    file_name = "local_tree_"+datetime.now().strftime("%Y_%m_%d_%H_%M_%S")+".nwk"
     if not SERVER_MODE:
-        save_path = os.path.join(os.getcwd(), EXPORT_DIR, "tree.nwk")
+        save_path = os.path.join(os.getcwd(), EXPORT_DIR, file_name)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         with open(save_path, "w", encoding="utf-8") as f:
             f.write(newick_content)
         return f"File saved : {save_path}", None
     else:
-        return "File downloaded.", dcc.send_string(newick_content, "tree.nwk")
+        return "File downloaded.", dcc.send_string(newick_content, file_name)
 
 
 @app.callback(
