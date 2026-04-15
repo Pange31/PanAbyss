@@ -171,6 +171,7 @@ def layout():
                     options=[],
                     value=None,
                     placeholder="Reference haplotype : ",
+                    clearable=False,
                     style={
                     "width": "250px",     
                     "minWidth": "150px",

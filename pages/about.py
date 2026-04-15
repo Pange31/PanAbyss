@@ -13,7 +13,20 @@ from dash import Dash, html,callback, dcc
 from app import DB_VERSION, BLOCK_ADMIN_FUNCTIONNALITIES
 
 
+import re
 
+
+def get_current_version(changelog_path="CHANGELOG.md"):
+    with open(changelog_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    match = re.search(r"## \[(\d+\.\d+\.\d+)\]", content)
+    if match:
+        return match.group(1)
+
+    return "unknown"
+
+panabyss_version = get_current_version()
 
 def layout():
     return html.Div([
@@ -24,7 +37,8 @@ def layout():
             html.Ul([
                 html.Li("Information about this tool :"),
                     html.Ul([
-                        html.Li(f"Database version : {DB_VERSION}"),   
+                        html.Li(f"PanAbyss version : {panabyss_version}"),
+                        html.Li(f"Database version : {DB_VERSION}"),
                         html.Li("PanAbyss is developed and maintained at INRAE in the MIA-T laboratory, Genotoul-Bioinfo team, Toulouse, France." ),
                         html.Li([
                             "Project page: ",

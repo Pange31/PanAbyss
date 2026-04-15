@@ -243,14 +243,38 @@ def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data)
         return [], None
 
     options = [{"label": g, "value": g} for g in selected_genomes]
-    if "ref_genome" in parameters_data:
-        value = parameters_data["ref_genome"]
-    elif current_value in selected_genomes:
-        value = current_value
-    else:
-        value = None
 
-    return options, value
+    if parameters_data and "ref_genome" in parameters_data:
+        ref = parameters_data["ref_genome"]
+        if ref in selected_genomes:
+            return options, ref
+
+    if current_value is not None and current_value in selected_genomes:
+        return options, current_value
+
+    return options, selected_genomes[0]
+#
+# @app.callback(
+#     Output("gwas_ref_genome_dropdown", "options", allow_duplicate=True),
+#     Output("gwas_ref_genome_dropdown", "value", allow_duplicate=True),
+#     Input("genome-list", "value"),
+#     State("gwas_ref_genome_dropdown", "value"),
+#     State('parameters-gwas-page-store', 'data'),
+#     prevent_initial_call=True,
+# )
+# def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data):
+#     if not selected_genomes:
+#         return [], None
+#
+#     options = [{"label": g, "value": g} for g in selected_genomes]
+#     if "ref_genome" in parameters_data:
+#         value = parameters_data["ref_genome"]
+#     elif current_value in selected_genomes:
+#         value = current_value
+#     else:
+#         value = None
+#
+#     return options, value
 
 
 #Callback triggered by clicking on the launch button
