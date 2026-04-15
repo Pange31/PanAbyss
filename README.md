@@ -146,6 +146,8 @@ The parameter file is named `./conf.json`. It contains the following parameters:
 - `"max_gwas_store"`: set the maximum of stored results for shared region discovery. Set to 0 (or not set) for no limit.
 - `"max_gwas_running_inactivity_hours"`: set the maximum refresh time for running job before deleting them.
 - `"max_gwas_regions"`: set the maximum regions to visualize in shared regions discovery. Set to 0 (or not set) for no limit.
+- `"gwas_annotations_windows_size"`: set the size of windows for annotations search in shared regions discovery.
+- `"gwas_annotations_max_attempts"`: set the number of attempts to search annotations before or after in shared regions discovery. The total size of the region is gwas_annotations_windows_size x gwas_annotations_max_attempts.
 
 
 ## Contacts
