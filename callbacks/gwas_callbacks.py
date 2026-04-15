@@ -28,7 +28,7 @@ EXPORT_DIR = "./export/gwas/"
 
 NB_POINTS_WEBGL = 1000
 
-MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS = get_gwas_conf()
+MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS = get_gwas_conf()
 
 def compute_gwas_file_name(selected_genomes_list, min_node_size, max_node_size, selected_hap_percent, tolerance_percent,
                            max_gap, deletion, unselected_hap_percent):
@@ -67,19 +67,6 @@ def update_dropdown(data):
         {"label": str(chrom), "value": str(chrom)} for chrom in chromosomes
     ]
     return options
-
-#Populate genome droplist
-# @app.callback(
-#     Output('gwas_ref_genome_dropdown', 'options'),
-#     Input('shared_storage', 'data')
-# )
-# def update_dropdown(data):
-#     if not data or "genomes" not in data:
-#         return []
-#
-#     genomes = data["genomes"]
-#     options =  [{"label": str(g), "value": str(g)} for g in genomes]
-#     return options
 
 
 #Sort chromosome by name (ex : chr1, chr2, chr3, etc.)
@@ -253,28 +240,7 @@ def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data)
         return options, current_value
 
     return options, selected_genomes[0]
-#
-# @app.callback(
-#     Output("gwas_ref_genome_dropdown", "options", allow_duplicate=True),
-#     Output("gwas_ref_genome_dropdown", "value", allow_duplicate=True),
-#     Input("genome-list", "value"),
-#     State("gwas_ref_genome_dropdown", "value"),
-#     State('parameters-gwas-page-store', 'data'),
-#     prevent_initial_call=True,
-# )
-# def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data):
-#     if not selected_genomes:
-#         return [], None
-#
-#     options = [{"label": g, "value": g} for g in selected_genomes]
-#     if "ref_genome" in parameters_data:
-#         value = parameters_data["ref_genome"]
-#     elif current_value in selected_genomes:
-#         value = current_value
-#     else:
-#         value = None
-#
-#     return options, value
+
 
 
 #Callback triggered by clicking on the launch button

@@ -65,7 +65,9 @@ MAX_NODES_NUMBER = get_max_nodes_to_visualize()
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 logger.debug(f"Max nodes number : {MAX_NODES_NUMBER}")
 
-MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS = get_gwas_conf()
+MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS = get_gwas_conf()
+
+
 logger.debug(f"GWAS parameters : max_store = {MAX_GWAS_STORE}, "
              f"max_running_inactivity_hours = {MAX_RUNNING_INACTIVITY_HOURS}, max_gwas_regions = {MAX_GWAS_REGIONS}")
 
@@ -725,18 +727,18 @@ def get_nodes_by_feature(genome, chromosome, gene_id=None, feature=None, value=N
 
 #This function get the first node linked to an annotation
 #The windows search is limitated by the windows length and the max_attempts
-def get_annotation_before_or_after_position(genome_ref, chromosome="1", position=0, before=True, max_attempts = 100, driver=None):
+def get_annotation_before_or_after_position(genome_ref, chromosome="1", position=0, before=True, driver=None):
     if driver is None:
         driver = get_driver()
         if driver is None:
             return None
     genome_position = genome_ref + "_position"
-    window_size = 10000
+    window_size = GWAS_ANNOTATIONS_WINDOWS_SIZE
     attempt = 0
     lower_bound = position
     upper_bound = position
     with driver.session() as session:
-        while attempt < max_attempts and lower_bound > 0:
+        while attempt < GWAS_ANNOTATIONS_MAX_ATTEMPTS and lower_bound > 0:
             attempt += 1
             if before:
                 upper_bound = lower_bound

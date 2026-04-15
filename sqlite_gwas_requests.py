@@ -12,7 +12,7 @@ logger = logging.getLogger("panabyss_logger")
 DB_PATH = "./sqlite"
 DB_FILENAME = DB_PATH +"/gwas_jobs.db"
 
-MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS = get_gwas_conf()
+MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS = get_gwas_conf()
 
 def now_utc():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
