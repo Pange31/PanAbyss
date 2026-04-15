@@ -11,10 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Store result of shared region discovery and phylogenetics in a sqlite database
 - Add a limitation for shared regions discovery in conf file
 - Progression bar in shared region discovery
+- Add the version of PanAbyss in the about page
 
 ### Changed
 - Performance improve in shared region discovery
 - Change in method for retrieving annotations in shared region discovery
+- Parameter the size of region where annotations are searched in the shared regions discovery page
 
 
 ### Fixed
