@@ -59,7 +59,7 @@ stylesheet = [
 
 def layout():
     return html.Div([
-        html.H2("Phylogenetics tree"),
+        html.H2("Phylogenetic tree"),
         
         #Help section
         html.Details([

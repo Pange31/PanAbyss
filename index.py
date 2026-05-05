@@ -14,7 +14,6 @@ import dash_auth
 from app import *
 from pages import phylo_management
 
-from sidebar import sidebar
 import signal
 import sys
 import argparse
@@ -77,7 +76,7 @@ else:
 tabs = [
     dcc.Tab(label='Home', value='/', className='custom-tab', selected_className='custom-tab--selected'),
     dcc.Tab(label='Shared regions discovery', value='/gwas', className='custom-tab', selected_className='custom-tab--selected'),
-    dcc.Tab(label='Phylogenetic', value='/phylogenetic', className='custom-tab', selected_className='custom-tab--selected'),
+    dcc.Tab(label='Phylogenetic tree', value='/phylogenetic', className='custom-tab', selected_className='custom-tab--selected'),
     dcc.Tab(label='Sequences', value='/sequences', className='custom-tab', selected_className='custom-tab--selected'),
     dcc.Tab(label='About', value='/about', className='custom-tab', selected_className='custom-tab--selected'),
 ]
