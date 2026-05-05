@@ -1264,7 +1264,7 @@ def layout(data=None, initial_size_limit=10):
                         ),
                         html.Label("Min (%) of shared haplotypes : ", title="Min (%) of shared haplotypes = M. Number of selected haplotypes = N. To detect a shared node it must contains almost (M/100) x N of the selected haplotypes. If M = 0 then the minimum number of selected haplotypes will be 1."),
                         dcc.Input(id='min_shared_genomes-input', type='number',
-                                  value=0, style={'width': '100px', 'marginRight': '10px'}),
+                                  value=100, style={'width': '100px', 'marginRight': '10px'}),
                         html.Label("Tolerance (%) : ", title="Tolerance = T. Number of haplotypes on a node = n. To detect a shared node it must contains less than (T/100) x n of the non selected haplotypes. If T = 0 then detected nodes should contain only selected haplotypes."),
                         dcc.Input(id='tolerance-input', type='number', value=0,
                                   style={'width': '100px', 'marginRight': '20px'}),
