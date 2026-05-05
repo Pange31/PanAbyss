@@ -40,6 +40,10 @@ EXPORT_DIR = './export/graphs'
 #MAX_GAP is used to dash edges between nodes separated by more than this value
 MAX_GAP = 50000
 
+#MAX size of displayed nodes
+S_MAX = 200
+#MIN size of displayed nodes
+S_MIN = 30
 
 def records_to_dataframe(nodes_data):
     rows = []
@@ -58,8 +62,10 @@ def compute_stylesheet(color_number, nodes_names=True):
                 'backgroundColor':'data(color)',
                 'text-opacity':1,
                 'opacity':1,
+                'shape': 'round-rectangle',
                 'width':'data(displayed_node_size)',
-                'height':'data(displayed_node_size)',
+                'height': 18,
+                #'height':'data(displayed_node_size)',
                 'z-compound-depth': 'top'
 
                 }
@@ -79,7 +85,7 @@ def compute_stylesheet(color_number, nodes_names=True):
                     'control-point-weights': [0.5],
                     'target-arrow-color': 'data(color)',
                     'target-arrow-shape': 'triangle',
-                    'arrow-scale': 0.5,
+                    'arrow-scale': 1,
                     'control-point-distances': [1],
                     'opacity':0.9,
                     'z-compound-depth': 'bottom'
@@ -110,8 +116,10 @@ def compute_stylesheet(color_number, nodes_names=True):
                     'label': 'data(name)' if nodes_names else '',
                     'text-opacity': 1,
                     'opacity':1,
+                    'shape': 'round-rectangle',
                     'width':'data(displayed_node_size)',
-                    'height':'data(displayed_node_size)',
+                    'height': 18,
+                    #'height':'data(displayed_node_size)',
                     'z-compound-depth': 'top'
                 }
             },
@@ -129,7 +137,7 @@ def compute_stylesheet(color_number, nodes_names=True):
                     'line-color': '#A3C4BC',
                     'target-arrow-color': '#A3C4BC',
                     'target-arrow-shape': 'triangle',
-                    'arrow-scale': 0.5,
+                    'arrow-scale': 1,
                     'curve-style': 'straight',
                     'opacity':0.9,
                     'z-compound-depth': 'bottom'
@@ -321,6 +329,11 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                            compression=False):
     logger.debug(f"Compute elements with ref genome {ref_genome}")
 
+    legend_nodes_size_dict = {
+        "size_min": "1",
+        "size_max": ""
+    }
+
     if data != None and len(data) > 0:
         if ref_genome is not None and ref_genome != "":
             position_field = ref_genome+"_position"
@@ -346,9 +359,13 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
 
         size_max = df['size'].max()
         size_min = df['size'].min()
-        s_max = 200
-        s_min = 30
-        df["displayed_node_size"] = s_min + (df["size"]-size_min)*(s_max-s_min)/(size_max-size_min)
+
+        df["displayed_node_size"] = S_MIN + (df["size"]-size_min)*(S_MAX-S_MIN)/(size_max-size_min)
+
+        legend_nodes_size_dict = {
+                "size_min": str(size_min),
+                "size_max": str(size_max)
+        }
 
 
         df["mean_pos"] = df.apply(mean_position, axis=1)
@@ -598,9 +615,9 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                         i += 1
         logger.debug("nb nodes : " + str(len(nodes)) +
               " - nb edges : " + str(len(edges)))
-        return nodes + edges, len(nodes)
+        return nodes + edges, len(nodes), legend_nodes_size_dict
     else:
-        return [], 0
+        return [], 0, legend_nodes_size_dict
 
 
 legend = html.Div(
@@ -619,13 +636,87 @@ legend = html.Div(
         html.Div("Legend", style={"fontWeight": "bold", "marginBottom": "8px"}),
 
         # === NODE SIZE ===
-        svg.Svg(width="300", height="40", children=[
-            svg.Circle(cx="35", cy="20", r="6", fill="blue"),
-            svg.Circle(cx="35", cy="20", r="10", fill="blue", opacity="0.5"),
-            svg.Circle(cx="35", cy="20", r="14", fill="blue", opacity="0.4"),
+        #Old version of node size with circles
+        # svg.Svg(width="300", height="40", children=[
+        #     svg.Circle(cx="35", cy="20", r="6", fill="blue"),
+        #     svg.Circle(cx="35", cy="20", r="10", fill="blue", opacity="0.5"),
+        #     svg.Circle(cx="35", cy="20", r="14", fill="blue", opacity="0.4"),
+        #
+        #     svg.Text("Node size ∝ sequence length", x="70", y="25")
+        # ]),
 
-            svg.Text("Node size ∝ sequence length", x="70", y="25")
+        #New version of node size legend
+        svg.Svg(width="320", height="70", children=[
+
+            # ===== MIN =====
+            svg.Rect(
+                x="10",
+                y="20",
+                width=str(S_MIN),
+                height="18",
+                fill="red",
+                stroke="black",
+                strokeWidth="1",
+                rx="4",
+                ry="4"
+            ),
+            svg.Text(
+                id="legend-size-min",
+                children=str(S_MIN),
+                x=str(10 + S_MIN / 2),
+                y="29",
+                fontSize="11",
+                fill="black",
+                fontWeight="bold",
+                textAnchor="middle",
+                dominantBaseline="middle"
+            ),
+
+            # ===== ARROW =====
+            svg.Text(
+                "→",
+                x=str(20 + S_MIN + 10),
+                y="29",
+                fontSize="18",
+                fill="black",
+                textAnchor="middle",
+                dominantBaseline="middle"
+            ),
+
+            # ===== MAX =====
+            svg.Rect(
+                x=str(50 + S_MIN),
+                y="20",
+                width=str(S_MAX),
+                height="18",
+                fill="red",
+                stroke="black",
+                strokeWidth="1",
+                rx="4",
+                ry="4"
+            ),
+            svg.Text(
+                id="legend-size-max",
+                children=str(S_MAX),
+                x=str(50 + S_MIN + S_MAX / 2),
+                y="29",
+                fontWeight="bold",
+                fontSize="11",
+                fill="black",
+                textAnchor="middle",
+                dominantBaseline="middle"
+            ),
+
+            # ===== LABEL =====
+            svg.Text(
+                "Node size: min → max (sequence length)",
+                x="10",
+                y="60",
+                fontSize="12",
+                fill="black"
+            )
         ]),
+
 
         # === NODE COLOR (BLUE → RED) ===
 
@@ -671,7 +762,7 @@ legend = html.Div(
         # === REPEATED NODE ===
         svg.Svg(width="300", height="30", children=[
             svg.Rect(x="25", y="5", width="20", height="20", fill="red"),
-            svg.Text("Repeated node", x="80", y="20")
+            svg.Text("Repeated node", x="80", y="20", fontSize="12")
         ]),
 
         # === EDGE WIDTH ===
@@ -683,7 +774,8 @@ legend = html.Div(
             ),
             svg.Text(
                 "Edge width ∝ number of individuals",
-                x="80", y="20"
+                x="80", y="20",
+                fontSize="12"
             )
         ]),
 
@@ -697,7 +789,7 @@ legend = html.Div(
             ),
             svg.Text(
                 "Dashed edge: long genomic distance",
-                x="80", y="20"
+                x="80", y="20", fontSize="12"
             )
         ]),
     ]
@@ -710,7 +802,7 @@ def layout(data=None, initial_size_limit=10):
     all_chromosomes = get_chromosomes()
     features = get_annotations_features()
     if data != None:
-        elements, nodes_count = compute_graph_elements(
+        elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(
             data, all_genomes, initial_size_limit, all_genomes, all_chromosomes, [], [])
     else:
         elements = []
@@ -1360,6 +1452,29 @@ def get_displayed_div(start, end, feature_name, feature_value):
     return displayed_div
 
 
+#Callback to set size of nodes in legend
+@app.callback(
+    Output("legend-size-min", "children"),
+    Output("legend-size-max", "children"),
+    Input("home-page-legend-store", "data")
+)
+def update_legend_size(legend_data):
+    if not legend_data:
+        return "0", "0", "0"
+
+    # sécurité si structure inattendue
+    try:
+        min_val = legend_data.get("size_min", "1")
+        max_val = legend_data.get("size_max", "")
+    except AttributeError:
+        return "0", ""
+
+    return (
+        str(min_val),
+        str(max_val)
+    )
+
+
 # Main callback to update graph when changing size, or selecting genomes, etc.
 @app.callback(
     Output("graph", "elements"),
@@ -1380,6 +1495,7 @@ def get_displayed_div(start, end, feature_name, feature_value):
     Output('displayed-region-container', 'children'),
     Output("phylogenetic-page-store", "data", allow_duplicate=True),
     Output('sequences-page-store', 'data', allow_duplicate=True),
+    Output('home-page-legend-store', 'data'),
     State('genome_selector', 'value'),
     State('shared-mode', 'value'),
     State('specific-genome_selector', 'value'),
@@ -1603,7 +1719,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 home_data_storage["end"] = end_value
                 logger.debug(f"start value : {start_value} - end value : {end_value}")
             data_storage_nodes = new_data
-            elements, nodes_count = compute_graph_elements(new_data, genome, selected_genomes, size_slider_val, all_genomes,
+            elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(new_data, genome, selected_genomes, size_slider_val, all_genomes,
                                               all_chromosomes, specifics_genomes_list,
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
@@ -1659,7 +1775,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             feature_name = home_data_storage.get("feature_name", "")
             feature_value = home_data_storage.get("feature_value", "")
             logger.debug(f"min node size : {size_slider_val}")
-            elements, nodes_count = compute_graph_elements(data_storage_nodes, genome, selected_genomes, size_slider_val, all_genomes,
+            elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(data_storage_nodes, genome, selected_genomes, size_slider_val, all_genomes,
                                               all_chromosomes, specifics_genomes_list,
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
@@ -1707,11 +1823,11 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         displayed_div = get_displayed_div(start_value, end_value, feature_name, feature_value)
         return (elements,f"{nodes_count} displayed nodes", data_storage_nodes, message, annotations, stylesheet,
                 layout, home_data_storage, [], [], zoom_shared_storage_out,
-                None, None, feature_name, "", displayed_div, phylo_data, sequences_data)
+                None, None, feature_name, "", displayed_div, phylo_data, sequences_data, legend_nodes_size_dict)
     else:
         return ([], "", no_update, f"❌ No data loaded, first load a gfa into DB management page.", "", no_update,
                 no_update, no_update, [], [], no_update,
-                None, None, feature_name, "", "", no_update, no_update)
+                None, None, feature_name, "", "", no_update, no_update, no_update)
 
 
 # color picker

@@ -92,6 +92,7 @@ app.layout = html.Div([
     dcc.Store(id='shared_storage_nodes', data=[], storage_type='memory'),
     dcc.Store(id='shared_storage', data={'genomes':[], 'chromosomes':[]}, storage_type='session'),
     dcc.Store(id="home-page-store", storage_type='session'),
+    dcc.Store(id="home-page-legend-store", data={}, storage_type="memory"),
     dcc.Store(id="db-management-page-store", data={}, storage_type="memory"),
     #A bug in dash requires to set memory for gwas-page-store because this storage is used by a background treatment
     #Else it will raise a "Maximum depth" error in the gwas process
