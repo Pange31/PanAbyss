@@ -239,8 +239,8 @@ def get_anchor(genome, chromosome, position, before=True, use_anchor=True):
         window_size = 1000
         max_attemps = 500
         attempt = 0
-        lower_bound = position
-        upper_bound = position
+        lower_bound = int(position)
+        upper_bound = int(position)
         with driver.session() as session:
             while attempt < max_attemps and lower_bound > 0:
                 attempt += 1
