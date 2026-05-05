@@ -849,10 +849,29 @@ def layout(data=None, initial_size_limit=10):
                                 #div search options
                             html.H5("Search region", style={'textAlign': 'left', 'marginBottom': '15px'}),
                             html.Div([
-                                html.Label("Start : ", title="Start on the selected haplotype / chromosome."),
-                                dcc.Input(id='start-input', type='number', style={'width': '100px', 'marginRight': '10px'}),
-                                html.Label("End : ", title="End on the selected haplotype / chromosome."),
-                                dcc.Input(id='end-input', type='number', style={'width': '100px', 'marginRight': '20px'})
+                                # html.Label("Start : ", title="Start on the selected haplotype / chromosome."),
+                                # dcc.Input(id='start-input', type='number', style={'width': '100px', 'marginRight': '10px'}),
+                                # html.Label("End : ", title="End on the selected haplotype / chromosome."),
+                                # dcc.Input(id='end-input', type='number', style={'width': '100px', 'marginRight': '20px'})
+
+                                html.Div([
+                                    html.Div([
+                                        html.Label("Start : ", title="Start on the selected haplotype / chromosome."),
+                                        dcc.Input(id='start-input', type='text', inputMode='numeric', pattern='[0-9]*', style={'width': '140px','minWidth': '120px'})
+                                    ], style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'}),
+
+                                    html.Div([
+                                        html.Label("End : ", title="End on the selected haplotype / chromosome."),
+                                        dcc.Input(id='end-input', type='text', inputMode='numeric', pattern='[0-9]*', style={'width': '140px','minWidth': '120px'})
+                                    ], style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'})
+
+                                ], style={
+                                    'display': 'flex',
+                                    'flexWrap': 'wrap',
+                                    'gap': '10px'
+                                })
+
+
                             ], style={'marginBottom': '10px'}),
                             html.Div(
                                 style={
@@ -864,7 +883,7 @@ def layout(data=None, initial_size_limit=10):
                                 children=[
 
                                     html.Div(
-                                        style={'width': '300px'},
+                                        #style={'width': '300px'},
                                         children=[
                                             dcc.Dropdown(
                                                 id='features-dropdown',
@@ -877,7 +896,13 @@ def layout(data=None, initial_size_limit=10):
                                                         ],
                                                 value='gene_name' if 'gene' in features else None,
                                                 clearable=False,
-                                                placeholder="Choose a feature to search"
+                                                placeholder="Choose a feature to search",
+                                                style={
+                                                    'display': 'inline-block',
+                                                    'marginRight': '10px',
+                                                    'width': 'max-content',
+                                                    'minWidth': '120px'
+                                                }
                                             )
                                         ]
                                     ),
@@ -891,7 +916,9 @@ def layout(data=None, initial_size_limit=10):
                                             'height': '38px',
                                             'lineHeight': '38px',
                                             'padding': '0 10px',
-                                            'boxSizing': 'border-box'
+                                            'boxSizing': 'border-box',
+                                            'minWidth': '160px',
+                                            'width': 'auto'
                                         }
                                     )
                                 ]
@@ -1000,7 +1027,12 @@ def layout(data=None, initial_size_limit=10):
                             ],
                             value='fcose',
                             clearable=False,
-                            style={'width': '120px', 'display': 'inline-block', 'marginRight':'10px'}
+                            #style={'width': '120px', 'display': 'inline-block', 'marginRight':'10px'}
+                            style={
+                                'display': 'inline-block',
+                                'marginRight': '10px',
+                                'minWidth': 'max-content'
+                            }
                         ),
                         html.Div(
                             style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'},  # petit gap ici
