@@ -543,7 +543,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                         logger.debug(
                             f"These individuals will be removed from search : {valid_individuals_exceptions}")
                     else:
-                        # Step 5 : the region is too wide and it is not linked to a small proportion of individudls
+                        # Step 6 : the region is too wide and it is not linked to a small proportion of individudls
                         # => try to find a "zoom level" for which the number of nodes is acceptable
                         # To do that it will use the flow attribute
                         logger.debug("Too much nodes into the region, try to reduce data by filtering on flow.")

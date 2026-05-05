@@ -48,13 +48,13 @@ def records_to_dataframe(nodes_data):
     return pd.DataFrame(rows)
 
 
-def compute_stylesheet(color_number):
+def compute_stylesheet(color_number, nodes_names=True):
     if color_number > 1:
         stylesheet = [
             {
             'selector': 'node',
             'style': {
-                'label': 'data(label)',
+                'label': 'data(name)' if nodes_names else '',
                 'backgroundColor':'data(color)',
                 'text-opacity':1,
                 'opacity':1,
@@ -107,7 +107,7 @@ def compute_stylesheet(color_number):
                 'selector': 'node',
                 'style': {
                     'backgroundColor':'data(color)',
-                    'label': 'data(label)',
+                    'label': 'data(name)' if nodes_names else '',
                     'text-opacity': 1,
                     'opacity':1,
                     'width':'data(displayed_node_size)',
@@ -399,7 +399,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         #df.loc[df.index % 2 == 0, "y"] *= -1
 
         #This line is due to a pb with cytoscape : if no y with negative and positive values then
-        #grpah disappear when zooming
+        #graph disappear when zooming
         #the first node y value is set negative to avoid this problem
         df.at[df.index[0], "y"] = -Y_MAX
         #logger.debug(df[["x", "y"]].describe())
@@ -457,7 +457,6 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         for genome in selected_genomes:
             #logger.debug(f"Compute elements - genome {genome}")
 
-            # Préfiltrage plus rapide
             mask = df["genomes"].apply(lambda g: genome in g)
             nodes_g = df.loc[mask, :]
 
@@ -469,10 +468,9 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
             if nodes_g.empty:
                 continue
 
-            # Tri sans copy
             nodes_g = nodes_g.sort_values(by=col, ascending=True, ignore_index=True)
 
-            # Calcul des sources et cibles via décalage
+            #compute source and targets
             sources = nodes_g["name"].iloc[:-1].values
             targets = nodes_g["name"].iloc[1:].values
             positions = nodes_g[col].values
@@ -1029,9 +1027,9 @@ def layout(data=None, initial_size_limit=10):
                     html.Div([
                         dcc.Checklist(
                             options=[{
-                                'label': 'Hide labels',
+                                'label': 'Hide annotations',
                                 'value': 'hide',
-                                'title': 'Uncheck if labels takes too much space on the graph.'
+                                'title': 'Uncheck if annotations takes too much space on the graph.'
                             }],
                             id='show-labels',
                             style={'marginRight': '30px'}
@@ -1058,10 +1056,21 @@ def layout(data=None, initial_size_limit=10):
                         dcc.Checklist(
                             options=[{
                                 'label': 'Graph compression',
-                                'value': 'graph_compression',  # <-- obligatoire pour Checklist
+                                'value': 'graph_compression',
                                 'title': 'Check to compact the graph nodes.'
                             }],
                             id='graph-compression',
+                            style={'marginRight': '10px'},
+                            value=[]
+                        ),
+
+                        dcc.Checklist(
+                            options=[{
+                                'label': 'Nodes names',
+                                'value': 'nodes_names',
+                                'title': 'Check to display nodes names.'
+                            }],
+                            id='nodes-names',
                             style={'marginRight': '10px'},
                             value=[]
                         ),
@@ -1342,6 +1351,7 @@ def get_displayed_div(start, end, feature_name, feature_value):
     State('sequences-page-store', 'data'),
     State('colored-edge-size-slider', 'value'),
     State('graph-compression', 'value'),
+    State('nodes-names', 'value'),
     prevent_initial_call=True
 )
 def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes, show_labels, 
@@ -1350,7 +1360,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                  feature_name, feature_value, genome, chromosome, data_storage, data_storage_nodes,
                  min_shared_genome, tolerance, shared_regions_link_color, zoom_shared_storage, 
                  show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size,
-                 graph_compression_value):
+                 graph_compression_value, nodes_names_value):
     if genome is not None and chromosome is not None:
         ctx = dash.callback_context
         return_metadata = {"return_code":"", "flow":None, "nodes_number":0, "removed_genomes":None}
@@ -1421,6 +1431,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         if specifics_genomes is not None:
             home_data_storage["specifics_genomes"] = specifics_genomes
         compression = 'graph_compression' in graph_compression_value
+        nodes_names = 'nodes_names' in nodes_names_value
         # zoom on selected nodes
         zoom_shared_storage_out = zoom_shared_storage or {}
         if triggered_id == "btn-zoom":
@@ -1598,7 +1609,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             for c in color_genomes:
                 if c != "#000000":
                     defined_color += 1
-        stylesheet = compute_stylesheet(defined_color)
+        stylesheet = compute_stylesheet(defined_color, nodes_names)
         count = len(elements)
         annotations = ""
         set_annot = set()
