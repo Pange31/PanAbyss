@@ -228,20 +228,22 @@ def get_genome_position(genome_ref, genome, chromosome, position, before=True, m
 
     return None, core_genome
 
-
+#This function try to find a core genome node befor or after a position on a reference genome
+#If no core if found, then it will return the nearer position on the reference genome
 def get_anchor(genome, chromosome, position, before=True, use_anchor=True):
     core_genome = False
     driver = get_driver()
     if driver is None:
         return None
-    genome_position = genome + "_position"
-    if use_anchor:
-        window_size = 1000
-        max_attemps = 500
-        attempt = 0
-        lower_bound = int(position)
-        upper_bound = int(position)
-        with driver.session() as session:
+    with driver.session() as session:
+        genome_position = genome + "_position"
+        if use_anchor:
+            window_size = 1000
+            max_attemps = 500
+            attempt = 0
+            lower_bound = int(position)
+            upper_bound = int(position)
+
             while attempt < max_attemps and lower_bound > 0:
                 attempt += 1
                 if before:
@@ -275,70 +277,49 @@ def get_anchor(genome, chromosome, position, before=True, use_anchor=True):
                 if record:
                     core_genome = True
                     return dict(record["n"]), core_genome
+        if use_anchor:
             # Anchor not found => the current node will be used
             logger.debug("No core genome anchor found, get the current nodes.")
-            if before:
-                query = f"""
-                MATCH (n:Node)
-                WHERE n.chromosome = "{chromosome}"
-                  AND n.`{genome_position}` <= {position}
-                RETURN n order by n.`{genome_position}` DESC limit 1
-                """
-            else:
-                query = f"""
-                MATCH (n:Node)
-                WHERE n.chromosome = "{chromosome}"
-                  AND n.`{genome_position}` >= {position}
-                RETURN n order by n.`{genome_position}` ASC limit 1
-                """
-            result = session.run(
-                query
-            )
-            record = result.single()
-            if record is None:
-                if before:
-                    query = f"""
-                        MATCH (n:Node)
-                        WHERE n.chromosome = "{chromosome}"
-                          AND n.`{genome_position}` >= {position}
-                        RETURN n order by n.`{genome_position}` ASC limit 1
-                    """
-                else:
-                    query = f"""
-                        MATCH (n:Node)
-                        WHERE n.chromosome = "{chromosome}"
-                          AND n.`{genome_position}` <= {position}
-                        RETURN n order by n.`{genome_position}` DESC limit 1
-                    """
-                result = session.run(
-                    query
-                )
-                record = result.single()
-            if record:
-                return dict(record["n"]), core_genome
-    else:
+        #Get the nearer nodes on the reference genome
         if before:
-            query = f"""
-            MATCH (n:Node)
-            WHERE n.chromosome = "{chromosome}"
-              AND n.`{genome_position}` >= {position}
-            RETURN n order by n.`{genome_position}` ASC limit 1
-            """
-        else:
             query = f"""
             MATCH (n:Node)
             WHERE n.chromosome = "{chromosome}"
               AND n.`{genome_position}` <= {position}
             RETURN n order by n.`{genome_position}` DESC limit 1
             """
-
-        with driver.session() as session:
+        else:
+            query = f"""
+            MATCH (n:Node)
+            WHERE n.chromosome = "{chromosome}"
+              AND n.`{genome_position}` >= {position}
+            RETURN n order by n.`{genome_position}` ASC limit 1
+            """
+        result = session.run(
+            query
+        )
+        record = result.single()
+        if record is None:
+            if before:
+                query = f"""
+                    MATCH (n:Node)
+                    WHERE n.chromosome = "{chromosome}"
+                      AND n.`{genome_position}` >= {position}
+                    RETURN n order by n.`{genome_position}` ASC limit 1
+                """
+            else:
+                query = f"""
+                    MATCH (n:Node)
+                    WHERE n.chromosome = "{chromosome}"
+                      AND n.`{genome_position}` <= {position}
+                    RETURN n order by n.`{genome_position}` DESC limit 1
+                """
             result = session.run(
                 query
             )
             record = result.single()
-            if record:
-                return dict(record["n"]), core_genome
+        if record:
+            return dict(record["n"]), core_genome
 
     return None, core_genome
 
