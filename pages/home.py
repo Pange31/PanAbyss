@@ -52,7 +52,7 @@ def records_to_dataframe(nodes_data):
     return pd.DataFrame(rows)
 
 
-def compute_stylesheet(color_number, nodes_names=True):
+def compute_stylesheet(color_number, nodes_names=False):
     if color_number > 1:
         stylesheet = [
             {

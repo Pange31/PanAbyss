@@ -144,7 +144,7 @@ def layout():
                         ],
                         value='nj',
                         clearable=False,
-                        style={'width': '300px', 'marginRight':'20px'}
+                        style={'width': '300px', 'minWidth': '300px', 'marginRight':'20px'}
                     ),
 
                 ], style={"display": "flex", "flexDirection": "row", "alignItems": "center"}),
@@ -202,6 +202,14 @@ def layout():
         html.Div([
             html.Button("Plot tree of selected region", id="btn-plot-region",  n_clicks=0, title="Before using this button, data must be displayed on home page. If data are displayed, then this will computes the phylogenetic tree of displayed haplotypes (see help for details).",style={'marginRight': '15px'}),
             html.Button("Save tree", title="Tree will be saved into newick format.", id="btn-save-tree"),
+            dcc.Checklist(
+                options=[
+                    {"label": "Weight by node size", "value": "weight_by_size"}
+                ],
+                value=[],
+                id="checkbox-weight-node-size",
+                style={'marginTop': '10px'}
+            ),
             dcc.Download(id="download-tree"),
             dcc.Loading(
                 id="loading-phylogenetic-msg",

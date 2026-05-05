@@ -386,15 +386,19 @@ def color_children(edgeData):
     Input('btn-plot-region', 'n_clicks'),
     State('shared_storage_nodes', 'data'),
     State("phylogenetic-page-store", "data"),
+    State("checkbox-weight-node-size", "value"),
     prevent_initial_call=True
 )
-def plot_region(n_clicks, stored_data, phylo_data):
+def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value):
     if not n_clicks:
         raise exceptions.PreventUpdate
 
     ctx = dash.callback_context
     if ctx.triggered_id == "btn-plot-region" and n_clicks == 0:
         raise PreventUpdate
+    weighted = False
+    if "weight_by_size" in weighted_checkbox_value:
+        weighted = True
     phylo_local_data = {"status": "done"}
     if not stored_data:
         phylo_local_data = {"status": "done"}
@@ -407,7 +411,7 @@ def plot_region(n_clicks, stored_data, phylo_data):
 
     try:
         # Step 1 : compute tree of the region
-        newick_str = compute_phylo_tree_from_nodes(stored_data)
+        newick_str = compute_phylo_tree_from_nodes(stored_data, weighted=weighted)
         if phylo_data is None:
             phylo_data = {"newick_region":newick_str}
         else:
@@ -480,11 +484,13 @@ def save_global_tree(n_clicks, phylo_data):
     Input("phylo-job-status", "data"),
     Input("phylo-local-tree-job-status", "data"),
     State('phylogenetic-page-store', 'data'),
+    State('method-dropdown', 'value'),
+    State("phylogenetic_chromosomes_dropdown", 'value'),
     #prevent_initial_call='initial_duplicate'
     prevent_initial_call=False
 
 )
-def update_graph_on_page_load(pathname, status_data, local_tree_status, phylo_data ):
+def update_graph_on_page_load(pathname, status_data, local_tree_status, phylo_data, method, chromosome ):
     if pathname != "/phylogenetic":
         raise PreventUpdate
     button_search = False
@@ -498,8 +504,13 @@ def update_graph_on_page_load(pathname, status_data, local_tree_status, phylo_da
         spinner_container = {"display": "block", "marginTop": "20px"}
     elements_region = []
     elements_global = []
+    #Get the tree for the first page loading
     if phylo_data is None:
         phylo_data = {}
+        if status_data is None or "status" not in status_data or status_data["status"] != "running":
+            global_newick = get_existing_global_tree(method=method,  chromosome=chromosome)
+            if global_newick:
+                phylo_data["newick_global"] = global_newick
     message = phylo_data.get("message", "")
     if "newick_region" in phylo_data and phylo_data["newick_region"] is not None:
         elements_region = generate_elements(phylo_data["newick_region"])

@@ -281,20 +281,18 @@ def get_anchor(genome, chromosome, position, before=True, use_anchor=True):
                 query = f"""
                 MATCH (n:Node)
                 WHERE n.chromosome = "{chromosome}"
-                  AND n.`{genome_position}` <= $position
+                  AND n.`{genome_position}` <= {position}
                 RETURN n order by n.`{genome_position}` DESC limit 1
                 """
             else:
                 query = f"""
                 MATCH (n:Node)
                 WHERE n.chromosome = "{chromosome}"
-                  AND n.`{genome_position}` >= $position
+                  AND n.`{genome_position}` >= {position}
                 RETURN n order by n.`{genome_position}` ASC limit 1
                 """
             result = session.run(
-                query,
-                chromosome=chromosome,
-                position=position
+                query
             )
             record = result.single()
             if record is None:
@@ -302,20 +300,18 @@ def get_anchor(genome, chromosome, position, before=True, use_anchor=True):
                     query = f"""
                         MATCH (n:Node)
                         WHERE n.chromosome = "{chromosome}"
-                          AND n.`{genome_position}` >= $position
+                          AND n.`{genome_position}` >= {position}
                         RETURN n order by n.`{genome_position}` ASC limit 1
                     """
                 else:
                     query = f"""
                         MATCH (n:Node)
                         WHERE n.chromosome = "{chromosome}"
-                          AND n.`{genome_position}` <= $position
+                          AND n.`{genome_position}` <= {position}
                         RETURN n order by n.`{genome_position}` DESC limit 1
                     """
                 result = session.run(
-                    query,
-                    chromosome=chromosome,
-                    position=position
+                    query
                 )
                 record = result.single()
             if record:
@@ -325,22 +321,20 @@ def get_anchor(genome, chromosome, position, before=True, use_anchor=True):
             query = f"""
             MATCH (n:Node)
             WHERE n.chromosome = "{chromosome}"
-              AND n.`{genome_position}` >= $position
+              AND n.`{genome_position}` >= {position}
             RETURN n order by n.`{genome_position}` ASC limit 1
             """
         else:
             query = f"""
             MATCH (n:Node)
             WHERE n.chromosome = "{chromosome}"
-              AND n.`{genome_position}` <= $position
+              AND n.`{genome_position}` <= {position}
             RETURN n order by n.`{genome_position}` DESC limit 1
             """
 
         with driver.session() as session:
             result = session.run(
-                query,
-                chromosome=chromosome,
-                position=position
+                query
             )
             record = result.single()
             if record:
@@ -1983,6 +1977,21 @@ def compute_phylo_params_hash(params):
 
     normalized = json.dumps(params, sort_keys=True)
     return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+
+def get_existing_global_tree(method="raxml", strand=True, chromosome=None,
+                                         project_name="panabyss_phylo_tree", max_nodes=1000000, min_sample_size=10000,
+                                         min_nodes_number=1000, force_reload=False):
+    params = {"method": method, "strand":strand, "chromosome": chromosome}
+    params_hash = compute_phylo_params_hash(params)
+
+    phylo_job = find_existing_phylo_job(params_hash)
+
+    if phylo_job and phylo_job["status"] == "SUCCESS":
+        return phylo_job["global_tree"]
+    else:
+        return None
 
 
 def run_phylo_job(job_id, params, params_hash, method="raxml", strand=True, chromosome=None,
