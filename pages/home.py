@@ -628,15 +628,45 @@ legend = html.Div(
         ]),
 
         # === NODE COLOR (BLUE → RED) ===
-        svg.Svg(width="300", height="30", children=[
-            svg.Circle(cx="20", cy="15", r="8", fill="blue"),
-            svg.Circle(cx="40", cy="15", r="8", fill="#7f007f"),
-            svg.Circle(cx="60", cy="15", r="8", fill="red"),
+
+        #Old version with circle
+        # svg.Svg(width="300", height="30", children=[
+        #     svg.Circle(cx="20", cy="15", r="8", fill="blue"),
+        #     svg.Circle(cx="40", cy="15", r="8", fill="#7f007f"),
+        #     svg.Circle(cx="60", cy="15", r="8", fill="red"),
+        #     svg.Text(
+        #         "Color: few individuals → all individuals",
+        #         x="80", y="20"
+        #     )
+        # ]),
+
+        #new version with bar
+        svg.Svg(width="300", height="60", children=[
+
+            svg.Rect(x="10", y="10", width="45", height="20", fill="blue"),
+            svg.Rect(x="55", y="10", width="45", height="20", fill="#2f2f9f"),
+            svg.Rect(x="100", y="10", width="45", height="20", fill="#7f007f"),
+            svg.Rect(x="145", y="10", width="45", height="20", fill="#bf003f"),
+            svg.Rect(x="190", y="10", width="45", height="20", fill="red"),
+
+            svg.Rect(
+                x="10", y="10",
+                width="225",
+                height="20",
+                fill="none",
+                stroke="black",
+                strokeWidth="0.5"
+            ),
+
             svg.Text(
                 "Color: few individuals → all individuals",
-                x="80", y="20"
+                x="10",
+                y="45",
+                fontSize="12",
+                dominantBaseline="middle"
             )
         ]),
+
 
         # === REPEATED NODE ===
         svg.Svg(width="300", height="30", children=[
