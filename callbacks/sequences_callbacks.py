@@ -6,11 +6,12 @@ Created on Sun Jul 13 12:36:54 2025
 @author: fgraziani
 """
 import dash
-from dash import html, Input, Output, callback, State, dcc, callback_context, ctx
+from dash import html, Input, Output, callback, State, dcc, callback_context, ctx, no_update
 from dash.exceptions import PreventUpdate
 from Bio.Seq import Seq
 from app import *
 from neo4j_requests import *
+import io
 
 
 def generate_sequence_table(sequences_dic):
@@ -66,7 +67,7 @@ def load_sequences_on_page_load(sequences_dic):
 
 @app.callback(
     Output('sequences-page-store', 'data', allow_duplicate=True),
-    Output("sequences-message", "children"),
+    Output("sequences-message", "children", allow_duplicate=True),
     Input('get-sequences-btn', 'n_clicks'),
     State('shared_storage_nodes', 'data'),
     prevent_initial_call=True
@@ -117,29 +118,35 @@ def display_sequences(n_clicks, nodes_data):
             sequences_dic[g] = str(sequence)
         return sequences_dic, ""
 
-@app.callback(
-    Output('sequences-page-store', 'data', allow_duplicate=True),
-    Input('url', 'pathname'),
-    State('sequences-page-store', 'data'),
-    prevent_initial_call=True
 
+@app.callback(
+    Output("download-fasta", "data"),
+    Output("sequences-message", "children", allow_duplicate=True),
+    Input("get-fasta-btn", "n_clicks"),
+    State("sequences-page-store", "data"),
+    prevent_initial_call=True
 )
-def update_sequences_on_page_load(pathname, sequences_data):
-    elements_region = []
-    elements_global = []
-    return sequences_data
-    # if sequences_data is None:
-    #     sequences_data = {}
-    # else:
-    #     if len(sequences_data) > 0:
-    #
-    # if "newick_region" in pĥylo_data and pĥylo_data["newick_region"] is not None:
-    #     elements_region = generate_elements(pĥylo_data["newick_region"])
-    # if "newick_global" in pĥylo_data:
-    #     elements_global = generate_elements(pĥylo_data["newick_global"])
-    # # Display last tree button if a tree has already been computed
-    # if os.path.exists(last_tree):
-    #     last_tree_btn = {"display": "block"}
-    # else:
-    #     last_tree_btn = {"display": "none"}
-    # return elements_global, elements_region, last_tree_btn
+def download_fasta(n_clicks, sequences_store):
+    if not sequences_store or len(sequences_store) == 0:
+        return no_update, html.Div(html.P([
+        "❌ No data to compute sequences. Select a region to visualise on the ",
+        dcc.Link("home page", href="/", style={'color': 'blue', 'textDecoration': 'underline'}),
+        " or on the ",
+        dcc.Link("Shared regions discovery page", href="/gwas", style={'color': 'blue', 'textDecoration': 'underline'}), " and compute the sequences."
+        ], style=error_style))
+
+    fasta_lines = []
+
+    for name, seq in sequences_store.items():
+        if not seq:
+            continue
+
+        fasta_lines.append(f">{name}")
+        fasta_lines.append(seq)
+
+    fasta_content = "\n".join(fasta_lines)
+
+    return dcc.send_string(
+        fasta_content,
+        filename="sequences.fasta"
+    ), html.Div(html.P(["✅ Fasta successfully downloaded."], style=success_style))

@@ -100,7 +100,7 @@ app.layout = html.Div([
     dcc.Store(id="phylogenetic-page-store",storage_type="memory"),
     dcc.Store(id="phylo-job-status",storage_type="memory"),
     dcc.Store(id="phylo-local-tree-job-status",storage_type="memory"),
-    dcc.Store(id="sequences-page-store", data={'sequences':[]},storage_type="memory"),
+    dcc.Store(id="sequences-page-store", data={},storage_type="memory"),
     dcc.Store(id="db-management-create-db-trigger", storage_type="memory"),
     dcc.Store(id="db-management-load-annotations-trigger", storage_type="memory"),
     dcc.Store(id="db-management-job-trigger",storage_type="memory"),
