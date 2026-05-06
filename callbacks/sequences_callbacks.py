@@ -72,108 +72,70 @@ def load_sequences_on_page_load(sequences_dic):
 @app.callback(
     Output('sequences-page-store', 'data', allow_duplicate=True),
     Output("sequences-message", "children", allow_duplicate=True),
+    Output('shared_storage_nodes', 'data',allow_duplicate=True),
     Input('get-sequences-btn', 'n_clicks'),
     State('shared_storage_nodes', 'data'),
+    State('home-page-store', 'data'),
     prevent_initial_call=True
 )
-def display_sequences(n_clicks, nodes_data):
+def display_sequences(n_clicks, nodes_data, home_data_storage):
     ctx = dash.callback_context
     if ctx.triggered_id == "get-sequences-btn" and n_clicks == 0:
         raise PreventUpdate
-
+    nodes = no_update
     if not nodes_data:
         return {}, html.Div(html.P([
-            "❌ No data to compute sequences. Select a region to visualise on the ",
-            dcc.Link("home page", href="/", style={'color': 'blue', 'textDecoration': 'underline'}),
-            " or on the ",
-            dcc.Link("Shared regions discovery page", href="/gwas", style={'color': 'blue', 'textDecoration': 'underline'})
-        ]))
+        "❌ No data to compute sequences. Select a region to visualise on the ",
+        dcc.Link("home page", href="/", style={'color': 'blue', 'textDecoration': 'underline'}),
+        " or on the ",
+        dcc.Link("Shared regions discovery page", href="/gwas", style={'color': 'blue', 'textDecoration': 'underline'})
+        ], style=error_style)), nodes
+    else:
+        # Step 1: Check if all nodes are in the region (since min node size can be set greater than 1)
+        if home_data_storage["current_size"] > 1:
+            # Get all the nodes from the region
+            genome = home_data_storage.get("selected_genome", None)
+            chromosome = home_data_storage.get("selected_chromosome", None)
+            start = home_data_storage.get("start", None)
+            end = home_data_storage.get("end", None)
+            logger.debug(f"Sequences construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
+            nodes, return_metadata = get_nodes_by_region(
+                genome, chromosome=chromosome, start=start, end=end, use_anchor=True)
+            logger.debug(f"Number of nodes in the region: {len(nodes)}")
+            nodes_data = nodes
 
-    genomes_positions = {}
-    chromosome = None
-    for n in nodes_data:
-        node = nodes_data[n]
-        if not chromosome and "chromosome" in node:
-            chromosome = node["chromosome"]
-        for g in node["genomes"]:
-            pos = node.get(f"{g}_position")
+        sequences = []
+        genomes_nodes_dic = {}
+        set_names = set()
+        for n in nodes_data:
+            node = nodes_data[n]
+            set_names.add(node["ref_node"])
+            for g in node["genomes"]:
+                if g not in genomes_nodes_dic:
+                    genomes_nodes_dic[g] = []
+                strand = "P"
+                if "strandM" in node and g in node["strandM"]:
+                    strand = "M"
+                genomes_nodes_dic[g].append({"start":node[g+"_position"], "node_name":node["ref_node"], "strand":strand})
 
-            if pos is None:
-                continue
-
-            if g not in genomes_positions:
-                genomes_positions[g] = {"min": pos, "max": pos+node["size"]}
-            else:
-                genomes_positions[g]["min"] = min(genomes_positions[g]["min"], pos)
-                genomes_positions[g]["max"] = max(genomes_positions[g]["max"], pos+node["size"])
-
-
-    sequences_dic = {}
-
-    for g, bounds in genomes_positions.items():
-        start = bounds["min"]
-        end = bounds["max"]
-
-        seq = get_sequence_from_position(g, chromosome, start, end)
-        sequences_dic[g] = str(seq)
-
-    return sequences_dic, ""
-
-
-
-
-# @app.callback(
-#     Output('sequences-page-store', 'data', allow_duplicate=True),
-#     Output("sequences-message", "children", allow_duplicate=True),
-#     Input('get-sequences-btn', 'n_clicks'),
-#     State('shared_storage_nodes', 'data'),
-#     prevent_initial_call=True
-# )
-# def display_sequences(n_clicks, nodes_data):
-#     ctx = dash.callback_context
-#     if ctx.triggered_id == "get-sequences-btn" and n_clicks == 0:
-#         raise PreventUpdate
-#
-#     if not nodes_data:
-#         return {}, html.Div(html.P([
-#         "❌ No data to compute sequences. Select a region to visualise on the ",
-#         dcc.Link("home page", href="/", style={'color': 'blue', 'textDecoration': 'underline'}),
-#         " or on the ",
-#         dcc.Link("Shared regions discovery page", href="/gwas", style={'color': 'blue', 'textDecoration': 'underline'})
-#         ], style=error_style))
-#     else:
-#         sequences = []
-#         genomes_nodes_dic = {}
-#         set_names = set()
-#         for n in nodes_data:
-#             node = nodes_data[n]
-#             set_names.add(node["ref_node"])
-#             for g in node["genomes"]:
-#                 if g not in genomes_nodes_dic:
-#                     genomes_nodes_dic[g] = []
-#                 strand = "P"
-#                 if "strandM" in node and g in node["strandM"]:
-#                     strand = "M"
-#                 genomes_nodes_dic[g].append({"start":node[g+"_position"], "node_name":node["ref_node"], "strand":strand})
-#
-#         sorted_names_by_genome = {
-#             genome: {
-#                 "names": [item["node_name"] for item in sorted(nodes, key=lambda x: x["start"])],
-#                 "strands": [item["strand"] for item in sorted(nodes, key=lambda x: x["start"])]
-#             }
-#             for genome, nodes in genomes_nodes_dic.items()
-#         }
-#         sequences_list = get_sequence_from_names(list(set_names))
-#         sequences_dic = {}
-#         for g in sorted_names_by_genome:
-#             sequence = ""
-#             for i in range(len(sorted_names_by_genome[g]["names"])):
-#                 if sorted_names_by_genome[g]["strands"][i] == "M":
-#                     sequence += Seq(sequences_list[sorted_names_by_genome[g]["names"][i]]).reverse_complement()
-#                 else:
-#                     sequence += sequences_list[sorted_names_by_genome[g]["names"][i]]
-#             sequences_dic[g] = str(sequence)
-#         return sequences_dic, ""
+        sorted_names_by_genome = {
+            genome: {
+                "names": [item["node_name"] for item in sorted(nodes, key=lambda x: x["start"])],
+                "strands": [item["strand"] for item in sorted(nodes, key=lambda x: x["start"])]
+            }
+            for genome, nodes in genomes_nodes_dic.items()
+        }
+        sequences_list = get_sequence_from_names(list(set_names))
+        sequences_dic = {}
+        for g in sorted_names_by_genome:
+            sequence = ""
+            for i in range(len(sorted_names_by_genome[g]["names"])):
+                if sorted_names_by_genome[g]["strands"][i] == "M":
+                    sequence += Seq(sequences_list[sorted_names_by_genome[g]["names"][i]]).reverse_complement()
+                else:
+                    sequence += sequences_list[sorted_names_by_genome[g]["names"][i]]
+            sequences_dic[g] = str(sequence)
+        return sequences_dic, "", nodes
 
 
 @app.callback(

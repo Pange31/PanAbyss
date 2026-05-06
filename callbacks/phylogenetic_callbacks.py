@@ -422,7 +422,7 @@ def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home
             chromosome = home_data_storage.get("selected_chromosome", None)
             start = home_data_storage.get("start", None)
             end = home_data_storage.get("end", None)
-            logger.debug(f"Getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
+            logger.debug(f"Phylo tree construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
             nodes, return_metadata = get_nodes_by_region(
                 genome, chromosome=chromosome, start=start, end=end, use_anchor=True)
             logger.debug(f"Number of nodes in the region: {len(nodes)}")
