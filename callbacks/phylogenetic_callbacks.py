@@ -29,6 +29,8 @@ import logging
 logger = logging.getLogger("panabyss_logger")
 
 EXPORT_DIR = "./export/phylo/"
+MAX_NODES_FROM_DB = get_max_nodes_from_db()
+
 
 def generate_elements(newick_str, xlen=30, ylen=30, grabbable=False):
     tree = Phylo.read(io.StringIO(newick_str), "newick")
@@ -389,9 +391,10 @@ def color_children(edgeData):
     State("phylogenetic-page-store", "data"),
     State("checkbox-weight-node-size", "value"),
     State('home-page-store', 'data'),
+    State('global_parameters', 'data'),
     prevent_initial_call=True
 )
-def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home_data_storage):
+def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home_data_storage, global_parameters):
     if not n_clicks:
         raise exceptions.PreventUpdate
 
@@ -417,6 +420,9 @@ def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home
         # Step 1: Check if all nodes are in the region (since min node size can be set greater than 1)
         if home_data_storage["current_size"] > 1:
             # Get all the nodes from the region
+            max_nodes_from_db = MAX_NODES_FROM_DB
+            if global_parameters and "max_nodes_from_db" in global_parameters:
+                max_nodes_from_db = global_parameters["max_nodes_from_db"]
 
             genome = home_data_storage.get("selected_genome", None)
             chromosome = home_data_storage.get("selected_chromosome", None)
@@ -424,7 +430,7 @@ def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home
             end = home_data_storage.get("end", None)
             logger.debug(f"Phylo tree construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
             nodes, return_metadata = get_nodes_by_region(
-                genome, chromosome=chromosome, start=start, end=end, use_anchor=True)
+                genome, chromosome=chromosome, start=start, end=end, use_anchor=True, max_nodes_number=max_nodes_from_db)
             logger.debug(f"Number of nodes in the region: {len(nodes)}")
             stored_data = nodes
 

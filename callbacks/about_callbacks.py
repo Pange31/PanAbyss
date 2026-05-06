@@ -11,13 +11,18 @@ import requests
 import zipfile
 import io
 import shutil
-from dash import html, Input, Output, callback, State, dcc
+from dash import html, Input, Output, callback, State, dcc, no_update
+from dash.exceptions import PreventUpdate
 from Bio.Seq import Seq
 from app import *
 from neo4j_requests import *
 from auth_utils import require_authorization
 import logging
 
+from config import get_max_nodes_from_db, get_max_nodes_to_visualize
+
+MAX_NODES_TO_VISUALIZE = get_max_nodes_to_visualize()
+MAX_NODES_FROM_DB = get_max_nodes_from_db()
 
 logger = logging.getLogger("panabyss_logger")
 
@@ -106,3 +111,67 @@ def update_panabyss(n_clicks):
     else:
         logger.error(f"Error : {response.status_code}")
         return html.Div(f"❌ Error : {response.status_code}")
+
+
+@app.callback(
+    Output('global_parameters', 'data'),
+    Input('btn-update-global-parameters', 'n_clicks'),
+    State('limit-nodes-from-db-input', 'value'),
+    State('limit-nodes-to-visualize', 'value'),
+    State('circular-nodes-check', 'value'),
+    prevent_initial_call=True
+)
+
+def update_parameters(n_clicks, limit_from_db, limit_to_visualize, circle):
+    if n_clicks > 0:
+        global_parameters = {}
+        if limit_from_db and limit_from_db >= 100:
+            global_parameters["max_nodes_from_db"] = limit_from_db
+            logger.debug(f"Update the nodes limit from db to {limit_from_db}")
+        if limit_to_visualize and limit_to_visualize >= 100:
+            global_parameters["max_nodes_to_visualize"] = limit_to_visualize
+            logger.debug(f"Update the nodes limit to visualize to {limit_to_visualize}")
+        if 'circle' in circle:
+            global_parameters["circle"] = True
+            logger.debug(f"Update the nodes shape to circle")
+        return global_parameters
+    return no_update
+
+@app.callback(
+    Output('global_parameters', 'data', allow_duplicate=True),
+    Output('limit-nodes-from-db-input', 'value', allow_duplicate=True),
+    Output('limit-nodes-to-visualize', 'value', allow_duplicate=True),
+    Output('circular-nodes-check', 'value', allow_duplicate=True),
+    Input('btn-reset-global-parameters', 'n_clicks'),
+    prevent_initial_call=True
+)
+def reset_parameters(n_clicks):
+    if n_clicks > 0:
+        global_parameters = {}
+
+        return global_parameters, MAX_NODES_FROM_DB, MAX_NODES_TO_VISUALIZE, []
+    return no_update, no_update, no_update, no_update
+
+@app.callback(
+    Output('limit-nodes-from-db-input', 'value'),
+    Output('limit-nodes-to-visualize', 'value'),
+    Output('circular-nodes-check', 'value'),
+    Input('url', 'pathname'),
+    State('global_parameters', 'data'),
+    prevent_initial_call=False
+)
+def update_parameters_on_page_load(pathname, global_parameters ):
+    if pathname != "/about":
+        raise PreventUpdate
+    limit_nodes_to_visualize = MAX_NODES_TO_VISUALIZE
+    limit_nodes_from_db = MAX_NODES_FROM_DB
+    circle_node = []
+    if global_parameters:
+        print(global_parameters)
+        if "max_nodes_from_db" in global_parameters:
+            limit_nodes_from_db = global_parameters["max_nodes_from_db"]
+        if  "max_nodes_to_visualize" in global_parameters:
+            limit_nodes_to_visualize = global_parameters["max_nodes_to_visualize"]
+        if 'circle' in global_parameters and global_parameters['circle'] == True:
+            circle_node = ['circle']
+    return limit_nodes_from_db, limit_nodes_to_visualize, circle_node

@@ -14,6 +14,8 @@ from neo4j_requests import *
 import io
 
 
+MAX_NODES_FROM_DB = get_max_nodes_from_db()
+
 def generate_sequence_table(sequences_dic):
     return html.Table([
     html.Thead(html.Tr([
@@ -76,9 +78,10 @@ def load_sequences_on_page_load(sequences_dic):
     Input('get-sequences-btn', 'n_clicks'),
     State('shared_storage_nodes', 'data'),
     State('home-page-store', 'data'),
+    State('global_parameters', 'data'),
     prevent_initial_call=True
 )
-def display_sequences(n_clicks, nodes_data, home_data_storage):
+def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters):
     ctx = dash.callback_context
     if ctx.triggered_id == "get-sequences-btn" and n_clicks == 0:
         raise PreventUpdate
@@ -94,6 +97,9 @@ def display_sequences(n_clicks, nodes_data, home_data_storage):
         # Step 1: Check if all nodes are in the region (since min node size can be set greater than 1)
         if home_data_storage["current_size"] > 1:
             # Get all the nodes from the region
+            max_nodes_from_db = MAX_NODES_FROM_DB
+            if global_parameters and "max_nodes_from_db" in global_parameters:
+                max_nodes_from_db = global_parameters["max_nodes_from_db"]
             genome = home_data_storage.get("selected_genome", None)
             chromosome = home_data_storage.get("selected_chromosome", None)
             start = home_data_storage.get("start", None)

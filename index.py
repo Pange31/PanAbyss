@@ -88,6 +88,7 @@ if not BLOCK_ADMIN_FUNCTIONNALITIES:
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id="init_done", data=False),
+    dcc.Store(id='global_parameters', data={}, storage_type='local'),
     dcc.Store(id='shared_storage_nodes', data=[], storage_type='memory'),
     dcc.Store(id='shared_storage', data={'genomes':[], 'chromosomes':[]}, storage_type='session'),
     dcc.Store(id="home-page-store", storage_type='session'),

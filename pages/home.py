@@ -37,6 +37,10 @@ DEFAULT_SHARED_REGION_COLOR = "#008000"
 DEFAULT_EXONS_COLOR = "#008000"
 EXPORT_DIR = './export/graphs'
 
+MAX_NODES_TO_VISUALIZE = get_max_nodes_to_visualize()
+MAX_NODES_FROM_DB = get_max_nodes_from_db()
+logger.debug(f"Conf max nodes to visualize: {MAX_NODES_TO_VISUALIZE} max nodes from db: {MAX_NODES_FROM_DB}")
+
 #MAX_GAP is used to dash edges between nodes separated by more than this value
 MAX_GAP = 50000
 
@@ -52,7 +56,9 @@ def records_to_dataframe(nodes_data):
     return pd.DataFrame(rows)
 
 
-def compute_stylesheet(color_number, nodes_names=False):
+def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=False):
+    node_shape = 'circle' if node_shape_as_circle else 'round-rectangle'
+    node_height = 'data(displayed_node_size)' if node_shape_as_circle else 18
     if color_number > 1:
         stylesheet = [
             {
@@ -62,9 +68,9 @@ def compute_stylesheet(color_number, nodes_names=False):
                 'backgroundColor':'data(color)',
                 'text-opacity':1,
                 'opacity':1,
-                'shape': 'round-rectangle',
+                'shape': node_shape,
                 'width':'data(displayed_node_size)',
-                'height': 18,
+                'height': node_height,
                 #'height':'data(displayed_node_size)',
                 'z-compound-depth': 'top'
 
@@ -116,9 +122,9 @@ def compute_stylesheet(color_number, nodes_names=False):
                     'label': 'data(name)' if nodes_names else '',
                     'text-opacity': 1,
                     'opacity':1,
-                    'shape': 'round-rectangle',
+                    'shape': node_shape,
                     'width':'data(displayed_node_size)',
-                    'height': 18,
+                    'height': node_height,
                     #'height':'data(displayed_node_size)',
                     'z-compound-depth': 'top'
                 }
@@ -237,7 +243,7 @@ This function compress a graph by removing
 linear internal nodes, while allowing orientation inversions
 across genomes.
 """
-def graph_compression(df):
+def graph_compression(df, flow_min = 0):
 
     genome_position_cols = [c for c in df.columns if c.endswith("_position")]
 
@@ -289,6 +295,10 @@ def graph_compression(df):
         #checks the flow of previous node, it must be equal to current node
         #this is due to different start coordinates on the different haplotypes
         curr_flow = df.loc[df['name'] == node, 'flow'].iloc[0]
+
+        if curr_flow < flow_min:
+            continue
+
         for pred in preds:
             pred_flow = df.loc[df['name'] == pred, 'flow'].iloc[0]
             if pred_flow != curr_flow:
@@ -326,7 +336,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                            specifics_genomes=None, color_genomes=[], x_max=1000, y_max=1000, labels=True,
                            min_shared_genome=100, tolerance=0, color_shared_regions=DEFAULT_SHARED_REGION_COLOR,
                            exons=False, exons_color=DEFAULT_EXONS_COLOR, colored_edges_size=5,
-                           compression=False):
+                           compression=False, min_flow_compression_value=0, max_nodes_to_visualize=MAX_NODES_TO_VISUALIZE):
     logger.debug(f"Compute elements with ref genome {ref_genome}")
 
     legend_nodes_size_dict = {
@@ -345,7 +355,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         #Nodes with a single predecessor and a single successor, and for which the predecessor
         #has only one outgoing node, are removed
         if compression:
-            df = graph_compression(df)
+            df = graph_compression(df, min_flow_compression_value)
 
 
         df = df[df["genomes"].apply(lambda g: any(
@@ -466,6 +476,8 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
             }
 
             nodes.append(data_nodes)
+            if len(nodes) > max_nodes_to_visualize:
+                return {}, len(nodes), legend_nodes_size_dict
 
 
         edges = []
@@ -1114,7 +1126,7 @@ def layout(data=None, initial_size_limit=10):
 
                     dcc.Slider(
                         id='size_slider',
-                        min=0,
+                        min=1,
                         max=size_max,
                         step=1,
                         marks={i: str(i) for i in range(0, size_max + 1, int(size_max/10))},
@@ -1127,55 +1139,106 @@ def layout(data=None, initial_size_limit=10):
 
                 ]),
                 html.Div(id='nb-noeuds', style={'margin': '10px'}),
+
                 html.Div([
-                    # === First line: Min node size + Layout + Dropdown ===
+
                     html.Div([
                         html.Div(
                             id='size-output',
                             children='Min node size : 10',
-                            style={'marginRight': '20px'}
+                            style={'whiteSpace': 'nowrap'}
                         ),
-                        html.H4(
-                            "Layout",
-                            title="The layout computes the graph. If the graph is not readable, it is possible to modify the algorithm. Dagre layout will display more linear graphs and fcose will display more compact graphs.",
-                            style={'marginRight': '10px'}
-                        ),
-                        dcc.Dropdown(
-                            id='layout-dropdown',
-                            options=[
-                                {'label': 'fcose', 'value': 'fcose'},
-                                {'label': 'dagre', 'value': 'dagre'},
-                                {'label': 'preset', 'value': 'preset'}
-                            ],
-                            value='fcose',
-                            clearable=False,
-                            #style={'width': '120px', 'display': 'inline-block', 'marginRight':'10px'}
-                            style={
-                                'display': 'inline-block',
-                                'marginRight': '10px',
-                                'minWidth': 'max-content'
-                            }
-                        ),
-                        html.Div(
-                            style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'},  # petit gap ici
-                            children=[
-                                html.Label("Colored edges size"),
-                                html.Div(
-                                    style={'width': '280px'},
-                                    children=[
-                                        dcc.Slider(
-                                            id='colored-edge-size-slider',
-                                            min=1,
-                                            max=20,
-                                            step=1,
-                                            value=5,
-                                            marks={i: str(i) for i in range(0, 25, 5)}
+
+                        html.Div([
+                            html.H4(
+                                "Layout",
+                                title="The layout computes the graph...",
+                                style={'margin': '0'}
+                            ),
+                            dcc.Dropdown(
+                                id='layout-dropdown',
+                                options=[
+                                    {'label': 'fcose', 'value': 'fcose'},
+                                    {'label': 'dagre', 'value': 'dagre'},
+                                    {'label': 'preset', 'value': 'preset'}
+                                ],
+                                value='fcose',
+                                clearable=False,
+                                style={'minWidth': '120px'}
+                            ),
+                        ], style={
+                            'display': 'flex',
+                            'alignItems': 'center',
+                            'gap': '8px',
+                            'whiteSpace': 'nowrap'
+                        }),
+                        html.Div([
+                            dcc.Checklist(
+                                options=[{
+                                    'label': html.Span([
+                                        "Compress graph for nodes with flow ≥ ",
+                                        dcc.Input(
+                                            id='min-flow',
+                                            type='number',
+                                            min=0,
+                                            max=1,
+                                            step=0.01,
+                                            value=0,
+                                            style={
+                                                'width': '70px',
+                                                'marginLeft': '5px'
+                                            }
                                         )
-                                    ]
-                                )
-                            ]
-                        ),
-                    ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '10px', 'gap': '8px'}),
+                                    ]),
+                                    'value': 'graph_compression'
+                                }],
+                                id='graph-compression',
+                                value=[],
+                                style={'whiteSpace': 'nowrap'}
+                            )
+                        ]),
+
+
+
+                    ], style={
+                        'display': 'flex',
+                        'alignItems': 'center',
+                        'flexWrap': 'wrap',
+                        'gap': '12px',
+                        'marginBottom': '10px'
+                    }),
+
+
+                    #Size sliders
+                    html.Div([
+                        # Colored edge size slider
+                        html.Div([
+                            html.Label("Colored edges size", style={'marginBottom': '0'}),
+                            dcc.Slider(
+                                id='colored-edge-size-slider',
+                                min=1,
+                                max=20,
+                                step=1,
+                                value=5,
+                                marks={i: str(i) for i in range(0, 25, 5)}
+                            )
+                        ], style={
+                            'display': 'flex',
+                            'alignItems': 'center',
+                            'gap': '15px',
+                            'width': '300px',
+                            'paddingRight': '20px',
+                            'marginBottom': '10px'
+                        }),
+
+                        # Node scale size slider
+                    ],
+                    style={
+                        'display': 'flex',
+                        'flexWrap': 'wrap',
+                        'gap': '20px',
+                        'alignItems': 'center'
+                    }),
 
                     # === Second line: checkboxes and color picker ===
                     html.Div([
@@ -1187,6 +1250,16 @@ def layout(data=None, initial_size_limit=10):
                             }],
                             id='show-labels',
                             style={'marginRight': '30px'}
+                        ),
+                        dcc.Checklist(
+                            options=[{
+                                'label': 'Nodes names',
+                                'value': 'nodes_names',
+                                'title': 'Check to display nodes names.'
+                            }],
+                            id='nodes-names',
+                            style={'marginRight': '30px'},
+                            value=[]
                         ),
 
                         dcc.Checklist(
@@ -1204,30 +1277,22 @@ def layout(data=None, initial_size_limit=10):
                             id='exon-color-picker',
                             type='color',
                             value=DEFAULT_EXONS_COLOR,
-                            style={'width': '25px', 'height': '25px', 'marginRight': '10px'}
+                            style={'width': '25px', 'minWidth':'25px', 'height': '25px', 'marginRight': '10px'}
                         ),
 
-                        dcc.Checklist(
-                            options=[{
-                                'label': 'Graph compression',
-                                'value': 'graph_compression',
-                                'title': 'Check to compact the graph nodes.'
-                            }],
-                            id='graph-compression',
-                            style={'marginRight': '10px'},
-                            value=[]
-                        ),
+                        # dcc.Checklist(
+                        #     options=[{
+                        #         'label': 'Graph compression',
+                        #         'value': 'graph_compression',
+                        #         'title': 'Check to compact the graph nodes.'
+                        #     }],
+                        #     id='graph-compression',
+                        #     style={'marginRight': '10px'},
+                        #     value=[]
+                        # ),
 
-                        dcc.Checklist(
-                            options=[{
-                                'label': 'Nodes names',
-                                'value': 'nodes_names',
-                                'title': 'Check to display nodes names.'
-                            }],
-                            id='nodes-names',
-                            style={'marginRight': '10px'},
-                            value=[]
-                        ),
+
+
 
                     ], style={'display': 'flex', 'alignItems': 'center', 'gap': '8px'}),
                 ], style={'display': 'flex', 'flexDirection': 'column', 'marginBottom':'10px'}),
@@ -1529,7 +1594,9 @@ def update_legend_size(legend_data):
     State('sequences-page-store', 'data'),
     State('colored-edge-size-slider', 'value'),
     State('graph-compression', 'value'),
+    State('min-flow', 'value'),
     State('nodes-names', 'value'),
+    State('global_parameters', 'data'),
     prevent_initial_call=True
 )
 def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes, show_labels, 
@@ -1538,7 +1605,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                  feature_name, feature_value, genome, chromosome, data_storage, data_storage_nodes,
                  min_shared_genome, tolerance, shared_regions_link_color, zoom_shared_storage, 
                  show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size,
-                 graph_compression_value, nodes_names_value):
+                 graph_compression_value, min_flow_compression, nodes_names_value, global_parameters):
     if genome is not None and chromosome is not None:
         ctx = dash.callback_context
         return_metadata = {"return_code":"", "flow":None, "nodes_number":0, "removed_genomes":None}
@@ -1548,6 +1615,15 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         new_request = False
         triggered_id = ctx.triggered_id
         logger.debug(f"{triggered_id} update")
+        max_nodes_to_visualize = MAX_NODES_TO_VISUALIZE
+        if global_parameters and "max_nodes_to_visualize" in global_parameters:
+            max_nodes_to_visualize = global_parameters["max_nodes_to_visualize"]
+        max_nodes_from_db = MAX_NODES_FROM_DB
+        if global_parameters and "max_nodes_from_db" in global_parameters:
+            max_nodes_from_db = global_parameters["max_nodes_from_db"]
+        node_shape_as_circle = False
+        if global_parameters and "circle" in global_parameters and global_parameters["circle"] == True:
+            node_shape_as_circle = True
         if home_data_storage is None:
             home_data_storage = {}
         if size_slider is None :
@@ -1556,6 +1632,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             else:
                 size_slider_val = DEFAULT_SIZE_VALUE
         else:
+            home_data_storage['slider_value'] = size_slider
             size_slider_val = size_slider
         #Checks if min node size has been decreased : if so it is required to get data from database
         if size_slider_val is not None and "current_size" in home_data_storage and home_data_storage["current_size"] > size_slider_val:
@@ -1609,6 +1686,17 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         if specifics_genomes is not None:
             home_data_storage["specifics_genomes"] = specifics_genomes
         compression = 'graph_compression' in graph_compression_value
+        min_flow_compression_value = 0
+        if compression:
+            try:
+                min_flow_compression_value = float(min_flow_compression)
+            except (TypeError, ValueError):
+                min_flow_compression_value = 0
+            if not (0 <= min_flow_compression_value <= 1):
+                min_flow_compression_value = 0
+        else:
+            min_flow_compression_value = 0
+
         nodes_names = 'nodes_names' in nodes_names_value
         # zoom on selected nodes
         zoom_shared_storage_out = zoom_shared_storage or {}
@@ -1694,16 +1782,19 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 if triggered_id == "btn-zoom":
                     use_anchor = False
                 new_data, return_metadata = get_nodes_by_region(
-                        genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor, min_node_size=size_slider_val)
+                        genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor, min_node_size=size_slider_val,
+                        max_nodes_number=max_nodes_from_db)
                 #data_storage_nodes = new_data
                 logger.debug("len new_data : " + str(len(new_data)))
             else:
                 if (feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "") and chromosome is not None:
                         new_data,return_metadata = get_nodes_by_feature(
-                            genome, chromosome=chromosome, feature= feature_name, value=feature_value, min_node_size=size_slider_val)
+                            genome, chromosome=chromosome, feature= feature_name, value=feature_value, min_node_size=size_slider_val,
+                            max_nodes_number=max_nodes_from_db)
                 else:
                     new_data, return_metadata = get_nodes_by_region(
-                        genome, chromosome=chromosome, start=0, end=end, min_node_size=size_slider_val)
+                        genome, chromosome=chromosome, start=0, end=end, min_node_size=size_slider_val,
+                        max_nodes_number=max_nodes_from_db)
 
             # Get the start / end value when graph is updated
             genome_position = genome + "_position"
@@ -1724,17 +1815,20 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
-                                              compression = compression)
+                                              compression = compression, min_flow_compression_value = min_flow_compression_value,
+                                              max_nodes_to_visualize=max_nodes_to_visualize)
             home_data_storage["current_size"] = size_slider_val
             if triggered_id == "search-button":
                 zoom_shared_storage_out = {}
                 message = html.Div("❌ Error.", style=warning_style)
-            if len(elements) == 0:
+            if len(elements) == 0 and nodes_count == 0:
                 start_value = None
                 end_value = None
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
 
+            if len(elements) == 0 and new_data and nodes_count > 0:
+                return_metadata["return_code"] = "WIDE"
 
             if new_data is not None and return_metadata["return_code"] == "OK":
                 message = html.Div(f"✅ Region has been successfully found, number of node {return_metadata['nodes_number']}.", style=success_style)
@@ -1780,14 +1874,16 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
-                                              compression = compression)
-
+                                              compression = compression, min_flow_compression_value = min_flow_compression_value,
+                                              max_nodes_to_visualize=max_nodes_to_visualize)
+            if len(elements) == 0 and nodes_count > 0:
+                message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
         defined_color = 0
         if color_genomes is not None:
             for c in color_genomes:
                 if c != "#000000":
                     defined_color += 1
-        stylesheet = compute_stylesheet(defined_color, nodes_names)
+        stylesheet = compute_stylesheet(defined_color, nodes_names, node_shape_as_circle)
         count = len(elements)
         annotations = ""
         set_annot = set()
@@ -1843,21 +1939,21 @@ def toggle_inputs(shared_mode):
         return {'display': 'flex', 'flexWrap': 'wrap'}, {'display': 'none'}
 
 
-@app.callback(
-    Output('home-page-store', 'data', allow_duplicate=True),
-    Output("size-output", 'children'),
-    Input('size_slider', 'value'),
-    State('home-page-store', 'data'),
-    prevent_initial_call=True
-)
-def save_slider_value(size_slider_val, data):
-    if data is None:
-        data = {}
-    if size_slider_val is None:
-        data['slider_value'] = DEFAULT_SIZE_VALUE
-    else:
-        data['slider_value'] = size_slider_val
-    return data, f"Min node size  : {data['slider_value']}"
+# @app.callback(
+#     Output('home-page-store', 'data', allow_duplicate=True),
+#     Output("size-output", 'children'),
+#     Input('size_slider', 'value'),
+#     State('home-page-store', 'data'),
+#     prevent_initial_call=True
+# )
+# def save_slider_value(size_slider_val, data):
+#     if data is None:
+#         data = {}
+#     if size_slider_val is None:
+#         data['slider_value'] = DEFAULT_SIZE_VALUE
+#     else:
+#         data['slider_value'] = size_slider_val
+#     return data, f"Min node size  : {data['slider_value']}"
 
 # Restore value after navigation
 @app.callback(

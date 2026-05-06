@@ -65,6 +65,57 @@ def layout():
                 children=html.Div(id='update-panabyss-output'),
             )
             ], style={"marginBottom": "100px"}),
+        html.Br(),
+        html.Hr(),
+        html.H3("Local configuration"),
+
+        html.Div([
+            html.Label("Limit nodes number from database", title="Limiting nodes number to get from database to avoid pb on small configuration.", style={'marginBottom': '0'}),
+            dcc.Input(
+                id='limit-nodes-from-db-input',
+                type='number',
+                min=100,
+                step=1,
+                style={'width': '80px', 'minWidth': '80px'}
+            )
+        ], style={
+            'display': 'flex',
+            'alignItems': 'center',
+            'gap': '6px',
+            'whiteSpace': 'nowrap',
+            'marginBottom': '10px'
+        }),
+
+        html.Div([
+            html.Label("Limit nodes number to visualize", title=f"Limiting nodes number to visualize.", style={'marginBottom': '0'}),
+            dcc.Input(
+                id='limit-nodes-to-visualize',
+                type='number',
+                min=100,
+                step=1,
+                style={'width': '80px'}
+            )
+        ], style={
+            'display': 'flex',
+            'alignItems': 'center',
+            'gap': '6px',
+            'whiteSpace': 'nowrap'
+        }),
+        dcc.Checklist(
+            options=[{
+                'label': 'Plot circular nodes instead of round rectangles',
+                'value': 'circle',
+                'title': 'Check to display exons.'
+            }],
+            id='circular-nodes-check',
+            style={'marginRight': '10px'},
+            value=[]
+        ),
+        html.Button("Update parameters", id='btn-update-global-parameters', n_clicks=0,
+                    style={'margin': '15px 0', 'marginRight': '15px'}),
+
+        html.Button("Reset parameters to default", id='btn-reset-global-parameters', n_clicks=0,
+                    style={'margin': '15px 0', 'marginRight': '15px'}),
         html.Hr(),
         html.Div([
             html.Img(src='/assets/images/logo_genotoul_bioinfo.jpg',
@@ -74,13 +125,15 @@ def layout():
             html.Img(src='/assets/images/logo_INRAE.png',
                      style={'height': '75px', 'marginRight': '100px'})
         ],
+
         style={
             'display': 'flex',
             'alignItems': 'center',
             'justifyContent': 'start',  # ou 'center', selon le besoin
             'marginBottom': '20px'
         })
-        
+
+
         
         ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft':'4%'}),
         

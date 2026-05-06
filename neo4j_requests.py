@@ -43,27 +43,15 @@ EXECUTOR = ThreadPoolExecutor(max_workers=4)
 
 logger = logging.getLogger("panabyss_logger")
 
-# CONF_FILE = os.path.abspath("./conf.json")
-#
-# DEFAULT_MAX_NODES_NUMBER = 30000
-#
-# def get_max_nodes_number():
-#     if not os.path.exists(CONF_FILE):
-#         return DEFAULT_MAX_NODES_NUMBER
-#     else:
-#         with open(CONF_FILE) as f:
-#             conf = json.load(f)
-#             return int(conf.get("max_nodes_to_visualize", DEFAULT_MAX_NODES_NUMBER))
-
 # This value is used to limit the nodes number when seeking for regions :
 # If the region is wider than this value then it is ignored
 MAX_BP_SEEKING = 800000
 
 # Maximal number of nodes to get the whole region
-MAX_NODES_NUMBER = get_max_nodes_to_visualize()
+MAX_NODES_NUMBER = get_max_nodes_from_db()
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
-logger.debug(f"Max nodes number : {MAX_NODES_NUMBER}")
+logger.debug(f"Max nodes number from DB: {MAX_NODES_NUMBER}")
 
 MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS = get_gwas_conf()
 
@@ -647,7 +635,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                         logger.warning(
                             f"Region too wide : nodes number : {len(nodes_data)} - max nodes number : {LIMIT}")
                 else:
-                    logger.warning("Region too wide")
+                    logger.warning("Region too wide: total node {total_nodes} - limit : {LIMIT}")
                     return_metadata["return_code"] = "WIDE"
                     nodes_data = {}
         if len(nodes_data) > 0:
@@ -662,7 +650,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
 #   - OK
 #   - WIDE
 #   - NO_DATA
-def get_nodes_by_feature(genome, chromosome, gene_id=None, feature=None, value=None, min_node_size=None):
+def get_nodes_by_feature(genome, chromosome, gene_id=None, feature=None, value=None, min_node_size=None, max_nodes_number=None):
     return_code = "OK"
     driver = get_driver()
     if driver is None:
@@ -691,7 +679,7 @@ def get_nodes_by_feature(genome, chromosome, gene_id=None, feature=None, value=N
                 stop = noeuds_annotes[-1][genome_position] + noeuds_annotes[-1]["size"]
                 logger.debug(f"start : {start} - stop : {stop} - nodes number : {len(noeuds_annotes)}")
                 nodes_data, return_metadata = get_nodes_by_region(genome, chromosome, start, stop,
-                                                                  min_node_size=min_node_size)
+                                                                  min_node_size=min_node_size, max_nodes_number=max_nodes_number)
             else:
                 logger.debug(f"No nodes found {len(noeuds_annotes)}.")
                 return_metadata = {"return_code": "NO_DATA", "flow": None, "nodes_number": 0}

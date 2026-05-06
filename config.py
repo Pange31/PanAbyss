@@ -23,7 +23,10 @@ logger = logging.getLogger("panabyss_logger")
 DEFAULT_DB_LOAD_GFA_BATCH_SIZE = 2000000
 
 #default maximum nodes number that can be visualized in the IHM
-DEFAULT_MAX_NODES_TO_VISUALIZE = 50000
+DEFAULT_MAX_NODES_TO_VISUALIZE = 10000
+
+#default maximum nodes number that can be get from DB
+DEFAULT_MAX_NODES_FROM_DB = 50000
 
 #Default buffer size to load csv data in neo4j
 # it limits the line's size (by default 4 * 1024 * 1024) :
@@ -138,6 +141,7 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
     GUNICORN_LOG_LEVEL = str(conf.get("gunicorn_log_level","")).upper()
     DB_LOAD_GFA_BATCH_SIZE = int(conf.get("db_gfa_loading_batch_size",DEFAULT_DB_LOAD_GFA_BATCH_SIZE))
     MAX_NODES_TO_VISUALIZE = int(conf.get("max_nodes_to_visualize", DEFAULT_MAX_NODES_TO_VISUALIZE))
+    MAX_NODES_FROM_DB = int(conf.get("max_nodes_from_db", DEFAULT_MAX_NODES_FROM_DB))
     READ_BUFFER_SIZE = int(conf.get("read_buffer_size", DEFAULT_MAX_READ_BUFFER_SIZE))
     MAX_GWAS_STORE = int(conf.get("max_gwas_store", DEFAULT_MAX_GWAS_STORE))
     if MAX_GWAS_STORE <= 0:
@@ -164,7 +168,7 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
             "AUTH":AUTH, "DB_URL":DB_URL, "SERVER_MODE":SERVER_MODE, "USERS":USERS, "ADMIN_MODE":ADMIN_MODE,
             "SERVER_LOG_MODE":SERVER_LOG_MODE,"LOG_RETENTION_DAYS":LOG_RETENTION_DAYS, "LOG_LEVEL":LOG_LEVEL,
             "GUNICORN_LOG_LEVEL":GUNICORN_LOG_LEVEL, "DB_LOAD_GFA_BATCH_SIZE":DB_LOAD_GFA_BATCH_SIZE,
-            "MAX_NODES_TO_VISUALIZE":MAX_NODES_TO_VISUALIZE, "READ_BUFFER_SIZE":READ_BUFFER_SIZE,
+            "MAX_NODES_TO_VISUALIZE":MAX_NODES_TO_VISUALIZE, "MAX_NODES_FROM_DB":MAX_NODES_FROM_DB, "READ_BUFFER_SIZE":READ_BUFFER_SIZE,
             "MAX_GWAS_STORE":MAX_GWAS_STORE, "MAX_GWAS_RUNNING_INACTIVITY_HOURS":MAX_GWAS_RUNNING_INACTIVITY_HOURS,
             "MAX_GWAS_REGIONS":MAX_GWAS_REGIONS, "GWAS_ANNOTATIONS_WINDOWS_SIZE":GWAS_ANNOTATIONS_WINDOWS_SIZE,
             "GWAS_ANNOTATIONS_MAX_ATTEMPTS":GWAS_ANNOTATIONS_MAX_ATTEMPTS}
@@ -230,6 +234,10 @@ def get_db_load_gfa_batch_size():
 def get_max_nodes_to_visualize():
     conf=get_conf()
     return conf["MAX_NODES_TO_VISUALIZE"]
+
+def get_max_nodes_from_db():
+    conf=get_conf()
+    return conf["MAX_NODES_FROM_DB"]
 
 
 def get_gwas_conf():
