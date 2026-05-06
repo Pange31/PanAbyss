@@ -426,10 +426,10 @@ def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home
             nodes, return_metadata = get_nodes_by_region(
                 genome, chromosome=chromosome, start=start, end=end, use_anchor=True)
             logger.debug(f"Number of nodes in the region: {len(nodes)}")
-        else:
-            nodes = stored_data
+            stored_data = nodes
+
         # Step 2: compute tree of the region
-        newick_str = compute_phylo_tree_from_nodes(nodes, weighted=weighted)
+        newick_str = compute_phylo_tree_from_nodes(stored_data, weighted=weighted)
         if phylo_data is None:
             phylo_data = {"newick_region":newick_str}
         else:
