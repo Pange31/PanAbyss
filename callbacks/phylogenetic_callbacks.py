@@ -383,19 +383,23 @@ def color_children(edgeData):
     Output("phylogenetic-message", "children", allow_duplicate=True),
     Output("phylogenetic-page-store", "data", allow_duplicate=True),
     Output("phylo-local-tree-job-status", "data"),
+    Output('shared_storage_nodes', 'data',allow_duplicate=True),
     Input('btn-plot-region', 'n_clicks'),
     State('shared_storage_nodes', 'data'),
     State("phylogenetic-page-store", "data"),
     State("checkbox-weight-node-size", "value"),
+    State('home-page-store', 'data'),
     prevent_initial_call=True
 )
-def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value):
+def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home_data_storage):
     if not n_clicks:
         raise exceptions.PreventUpdate
 
     ctx = dash.callback_context
     if ctx.triggered_id == "btn-plot-region" and n_clicks == 0:
         raise PreventUpdate
+    nodes = no_update
+
     weighted = False
     if "weight_by_size" in weighted_checkbox_value:
         weighted = True
@@ -407,24 +411,38 @@ def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value):
         dcc.Link("home page", href="/", style={'color': 'blue', 'textDecoration': 'underline'}),
         " or on the ",
         dcc.Link("gwas page", href="/gwas", style={'color': 'blue', 'textDecoration': 'underline'})
-        ], style=error_style)), phylo_data, phylo_local_data
+        ], style=error_style)), phylo_data, phylo_local_data, nodes
 
     try:
-        # Step 1 : compute tree of the region
-        newick_str = compute_phylo_tree_from_nodes(stored_data, weighted=weighted)
+        # Step 1: Check if all nodes are in the region (since min node size can be set greater than 1)
+        if home_data_storage["current_size"] > 1:
+            # Get all the nodes from the region
+
+            genome = home_data_storage.get("selected_genome", None)
+            chromosome = home_data_storage.get("selected_chromosome", None)
+            start = home_data_storage.get("start", None)
+            end = home_data_storage.get("end", None)
+            logger.debug(f"Getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
+            nodes, return_metadata = get_nodes_by_region(
+                genome, chromosome=chromosome, start=start, end=end, use_anchor=True)
+            logger.debug(f"Number of nodes in the region: {len(nodes)}")
+        else:
+            nodes = stored_data
+        # Step 2: compute tree of the region
+        newick_str = compute_phylo_tree_from_nodes(nodes, weighted=weighted)
         if phylo_data is None:
             phylo_data = {"newick_region":newick_str}
         else:
             phylo_data["newick_region"] = newick_str
 
-        # Step2 : draw tree
+        # Step 3: draw tree
         phylo_local_data = {"status": "done"}
-        return "", phylo_data, phylo_local_data
+        return "", phylo_data, phylo_local_data, nodes
 
     except Exception as e:
         logger.error(f"Error while computing tree : {e}")
         phylo_local_data = {"status": "done"}
-        return html.Div(f"❌ Error while computing tree : {e}", style=error_style), phylo_data, phylo_local_data
+        return html.Div(f"❌ Error while computing tree : {e}", style=error_style), phylo_data, phylo_local_data, nodes
 
 
 
@@ -436,6 +454,8 @@ def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value):
     prevent_initial_call=True
 )
 def save_tree(n_clicks, phylo_data):
+    if not n_clicks:
+        raise PreventUpdate
     if not phylo_data or "newick_region" not in phylo_data or not phylo_data["newick_region"]:
         return "No data to save", None
 
@@ -459,6 +479,8 @@ def save_tree(n_clicks, phylo_data):
     prevent_initial_call=True
 )
 def save_global_tree(n_clicks, phylo_data):
+    if not n_clicks:
+        raise PreventUpdate
     if not phylo_data or "newick_global" not in phylo_data or not phylo_data["newick_global"]:
         return "No data to save", None
 
@@ -480,6 +502,7 @@ def save_global_tree(n_clicks, phylo_data):
     Output("btn-plot-global-tree", "disabled"),
     Output("btn-force-compute-tree", "disabled"),
     Output("btn-cancel-plot-global-tree", "disabled"),
+    #Output('phylogenetic-page-store', 'data'),
     Input('url', 'pathname'),
     Input("phylo-job-status", "data"),
     Input("phylo-local-tree-job-status", "data"),
