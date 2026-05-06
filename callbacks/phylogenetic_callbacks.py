@@ -536,10 +536,11 @@ def update_graph_on_page_load(pathname, status_data, local_tree_status, phylo_da
     #Get the tree for the first page loading
     if phylo_data is None:
         phylo_data = {}
-        if status_data is None or "status" not in status_data or status_data["status"] != "running":
-            global_newick = get_existing_global_tree(method=method,  chromosome=chromosome)
-            if global_newick:
-                phylo_data["newick_global"] = global_newick
+    #Update to load automatically the last computed global graph
+    if "newick_global" not in phylo_data and status_data is None or "status" not in status_data or status_data["status"] != "running":
+        global_newick = get_existing_global_tree(method=method,  chromosome=chromosome)
+        if global_newick:
+            phylo_data["newick_global"] = global_newick
     message = phylo_data.get("message", "")
     if "newick_region" in phylo_data and phylo_data["newick_region"] is not None:
         elements_region = generate_elements(phylo_data["newick_region"])
