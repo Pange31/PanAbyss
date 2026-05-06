@@ -1687,158 +1687,193 @@ def get_chromosome_annotation(annotation):
     return chromosome
     
 
+@require_authorization
+def parse_gtf_attributes(attr_string):
+    attr_dict = {}
+    for match in re.finditer(r'(\S+)\s+"([^"]+)"', attr_string):
+        key, val = match.groups()
+        attr_dict[key.lower()] = val
+    return attr_dict
+
+@require_authorization
+def parse_gff_attributes(attr_string):
+    attr_dict = {}
+    for field in attr_string.strip().split(";"):
+        if "=" in field:
+            key, val = field.split("=", 1)
+            attr_dict[key.lower()] = val
+    return attr_dict
+
 
 #This function will create the Annotation nodes in the neo4j database from a gtf file, but without creating the relationships.
 @require_authorization
-def load_annotations_neo4j(annotations_file_name, genome_ref, node_name="Annotation", single_chromosome = None):
-    temps_depart = time.time()
-    file = open(annotations_file_name, "r", encoding='utf-8')
-    nodes_dic = {}
-    file_format = "gtf"
-    current_gene_id = ""
+def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotation",single_chromosome=None):
+    start_time = time.time()
     file_name = os.path.basename(annotations_file_name)
+
+    if annotations_file_name.endswith(".gtf"):
+        file_format = "gtf"
+    elif annotations_file_name.endswith((".gff", ".gff3")):
+        file_format = "gff"
+    else:
+        raise ValueError("Unknown format")
+
+    nodes_dic = {}
+
+    gene_info = {}
+    transcript_to_gene = {}
+    transcript_info = {}
+
+    pending_nodes = []
+
     driver = get_scoped_driver()
     if driver is None:
         return None
-    with file:
-        n = 0
-        for line in file :
-            n +=1
-        file.seek(0,0)
-        with tqdm(total=n) as bar :
-            #Creating annotations nodes
-            ligne = file.readline()
-            while ligne :
-                if ligne[0] != '#':
-                    ligne_dec = ligne.split("\t")
-                    chromosome = get_chromosome_annotation(ligne_dec[0])
-                    if single_chromosome == None or single_chromosome == chromosome : 
-                        name = hashlib.sha256(ligne.encode("utf-8")).hexdigest()
-                        nodes_dic[name] = {}
-                        
-                        feature = ligne_dec[2].lower()
-                        nodes_dic[name]["name"] = name
-                        nodes_dic[name]["chromosome"] = chromosome
-                        nodes_dic[name]["genome_ref"] = genome_ref
-                        nodes_dic[name]["source"] = ligne_dec[1]
-                        nodes_dic[name]["feature"] = feature
-                        nodes_dic[name]["filename"] = file_name
-                        
-                        start = int(ligne_dec[3])
-                        end = int(ligne_dec[4])
-                        nodes_dic[name]["start"] = start
-                        nodes_dic[name]["end"] = end
-                        strand = ligne_dec[6]
-                        frame = ligne_dec[7]
-                        if len(ligne_dec) == 9:
-                            attributes = re.split(r"[;=]", ligne_dec[8])
-                            file_format = "gff"
-                        else:
-                            attributes = ligne_dec[8:]
-                        if file_format == "gtf":
-                            for i in range(len(attributes)):
-                                match attributes[i].lower() :
-                                    case "gene_id":
-                                        nodes_dic[name]["gene_id"] = attributes[i+1][:-1].replace('"',"")
-                                    case "gene_version":
-                                        nodes_dic[name]["gene_version"] = attributes[i+1][:-1].replace('"',"")
-                                    case "transcript_id":
-                                        nodes_dic[name]["transcript_id"] = attributes[i+1][:-1].replace('"',"")
-                                    case "transcript_version":
-                                        nodes_dic[name]["transcript_version"] = attributes[i+1][:-1].replace('"',"")
-                                    case "exon_number":
-                                        nodes_dic[name]["exon_number"] = attributes[i+1][:-1].replace('"',"")
-                                    case "gene_name":
-                                        nodes_dic[name]["gene_name"] = attributes[i+1][:-1].replace('"',"")
-                                    case "full_gene_name":
-                                        nodes_dic[name]["full_gene_name"] = attributes[i + 1][:-1].replace('"', "")
-                                    case "gene_source":
-                                        nodes_dic[name]["gene_source"] = attributes[i+1][:-1].replace('"',"")    
-                                    case "gene_biotype":
-                                        nodes_dic[name]["gene_biotype"] = attributes[i+1][:-1].replace('"',"")     
-                                    case "transcript_name":
-                                        nodes_dic[name]["transcript_name"] = attributes[i+1][:-1].replace('"',"")  
-                                    case "transcript_source":
-                                        nodes_dic[name]["transcript_source"] = attributes[i+1][:-1].replace('"',"")  
-                                    case "transcript_biotype":
-                                        nodes_dic[name]["transcript_biotype"] = attributes[i+1][:-1].replace('"',"") 
-                                    case "protein_id":
-                                        nodes_dic[name]["protein_id"] = attributes[i+1][:-1].replace('"',"") 
-                                    case "protein_version":
-                                        nodes_dic[name]["protein_version"] = attributes[i+1][:-1].replace('"',"") 
-                                    case "tag":
-                                        nodes_dic[name]["tag"] = attributes[i+1][:-1].replace('"',"") 
-                        else:
-                            if feature == "gene" :
-                                current_gene_id = ""
-                                current_gene_name = ""
-                                current_full_gene_name = ""
-                                current_transcript_id = ""
-                                current_transcript_name = ""
-                            if feature == "exon":
-                                exon_id = ""
-                                exon_number = ""
-                                
-                            for i in range(len(attributes)):
-                                current_attribute = attributes[i].lower()
-                                if feature == "gene" and current_attribute =="id":
-                                    current_gene_id = attributes[i+1]
-                                elif feature == "gene" and current_attribute =="gene_id":
-                                    current_gene_id = attributes[i+1]
-                                elif feature == "gene" and current_attribute =="name":
-                                    current_gene_name = attributes[i+1]
-                                elif feature == "gene" and current_attribute =="full_name":
-                                    current_full_gene_name = attributes[i+1]
-                                elif feature == "mrna" and current_attribute == "id":
-                                    current_transcript_id = attributes[i+1]
-                                elif feature == "mrna" and current_attribute == "transcript_id":
-                                    current_transcript_id = attributes[i+1]
-                                elif feature == "mrna" and current_attribute == "name":
-                                    current_transcript_name = attributes[i+1]
-                                elif feature == "exon" and current_attribute == "id":
-                                    exon_id = attributes[i+1]
-                                    exon_number = exon_id.split(".")[-1]
-                                    nodes_dic[name]["exon_id"] = exon_id
-                                    nodes_dic[name]["exon_number"] = exon_number 
-                                else :
-                                    if feature == None or feature == "":
-                                        feature = "unknown_feature"
-                                    if current_attribute == "id":
-                                        nodes_dic[name][feature+"_id"] = attributes[i+1]
-                                    elif current_attribute == "name":
-                                        nodes_dic[name][feature+"_name"] = attributes[i+1]
-                                        
-                            if current_gene_id != "" :
-                                if current_gene_name is None or current_gene_name == "":
-                                    current_gene_name = current_gene_id
-                                nodes_dic[name]["gene_id"] = current_gene_id
-                                nodes_dic[name]["gene_name"] = current_gene_name
-                                nodes_dic[name]["full_gene_name"] = current_full_gene_name
-                                if current_transcript_id != "":
-                                    nodes_dic[name]["transcript_id"] = current_transcript_id
-                                    nodes_dic[name]["transcript_name"] = current_transcript_name
-                            
-                                    
-                            
-                
+
+    with open(annotations_file_name, "r", encoding="utf-8") as file:
+
+        total = sum(1 for _ in file)
+        file.seek(0)
+
+        with tqdm(total=total) as bar:
+
+            for line in file:
                 bar.update(1)
-                ligne = file.readline()
 
-                    
-           
-            logger.info(f"\nAnnotation analyzing terminated in {time.time()-temps_depart} s.")
-            logger.info(f"Creating {len(list(nodes_dic.items()))} nodes in database...")
+                if not line.strip() or line.startswith("#"):
+                    continue
+
+                cols = line.strip().split("\t")
+                if len(cols) < 9:
+                    continue
+
+                chromosome = get_chromosome_annotation(cols[0])
+                if single_chromosome and chromosome != single_chromosome:
+                    continue
+
+                feature = cols[2].lower()
+
+                if file_format == "gtf":
+                    attr = parse_gtf_attributes(cols[8])
+                else:
+                    attr = parse_gff_attributes(cols[8])
+
+                name = hashlib.sha256(line.encode("utf-8")).hexdigest()
+
+                node = {
+                    "name": name,
+                    "chromosome": chromosome,
+                    "genome_ref": genome_ref,
+                    "source": cols[1],
+                    "feature": feature,
+                    "filename": file_name,
+                    "start": int(cols[3]),
+                    "end": int(cols[4]),
+                    "strand": cols[6],
+                    "frame": cols[7],
+                }
+
+                gene_id = None
+                transcript_id = None
+
+                # GTF
+                if file_format == "gtf":
+
+                    for key, val in attr.items():
+                        node[key] = val
+
+                    gene_id = attr.get("gene_id")
+                    transcript_id = attr.get("transcript_id")
+
+                    if gene_id:
+                        node["gene_id"] = gene_id
+
+                        if "gene_name" not in node:
+                            node["gene_name"] = gene_id
+
+                    if transcript_id:
+                        node["transcript_id"] = transcript_id
+
+                # GFF
+                else:
+                    node.update(attr)
+
+                    feature_id = attr.get("id") or attr.get("gene_id") or attr.get("transcript_id")
+                    parent = attr.get("parent")
+
+                    # gene
+                    if feature == "gene":
+                        gene_id = feature_id
+
+                        if gene_id:
+                            gene_info[gene_id] = {
+                                "gene_name": attr.get("name") or attr.get("gene_name") or gene_id,
+                                "full_gene_name": attr.get("description") or attr.get("full_name") or attr.get("full_gene_name")
+                            }
+
+                    # transcript
+                    elif feature in ["mrna", "transcript"]:
+                        transcript_id = feature_id
+                        gene_id = parent
+
+                        if transcript_id and gene_id:
+                            transcript_to_gene[transcript_id] = gene_id
+
+                        if transcript_id:
+                            transcript_info[transcript_id] = {
+                                "transcript_name": attr.get("name") or transcript_id
+                            }
+
+                    # other features
+                    else:
+                        transcript_id = parent
+                        if transcript_id:
+                            gene_id = transcript_to_gene.get(transcript_id)
+
+                    if gene_id and gene_id in gene_info:
+                        node["gene_id"] = gene_id
+                        node.update(gene_info[gene_id])
+
+                    elif gene_id or transcript_id:
+                        pending_nodes.append((node, gene_id, transcript_id))
+                        continue
+
+                    if transcript_id:
+                        node["transcript_id"] = transcript_id
+                        if transcript_id in transcript_info:
+                            node.update(transcript_info[transcript_id])
+
+                nodes_dic[name] = node
 
 
-            with driver.session() as session:
-                create_nodes_batch(session, nodes_dic, node_name=node_name)
+    #Check the case of non ordered (i.e. exon before the gene definition)
+    for node, gene_id, transcript_id in pending_nodes:
 
-        logger.info("Nodes created\nTime : " + str(time.time()-temps_depart))
-        #Fin des lots, on créé toutes les relations                                               
-    file.close()
-    
+        if not gene_id and transcript_id:
+            gene_id = transcript_to_gene.get(transcript_id)
 
-    logger.info("Annotation load terminated.\nTotal time : "+ str(time.time()-temps_depart))
+        if gene_id and gene_id in gene_info:
+            node["gene_id"] = gene_id
+            node.update(gene_info[gene_id])
+
+        if transcript_id:
+            node["transcript_id"] = transcript_id
+            if transcript_id in transcript_info:
+                node.update(transcript_info[transcript_id])
+
+        nodes_dic[node["name"]] = node
+
+    #Insert in database
+    logger.info(f"\nAnnotation analyzing terminated in {time.time()-start_time} s.")
+    logger.info(f"Creating {len(nodes_dic)} nodes in database...")
+
+    with driver.session() as session:
+        create_nodes_batch(session, nodes_dic, node_name=node_name)
+
+    logger.info("Annotation load terminated.\nTotal time : " + str(time.time() - start_time))
+    return nodes_dic
+
+
 
 @require_authorization
 def process_annotation_simple_batch(tx, annotations, genome_ref):
