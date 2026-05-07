@@ -757,7 +757,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                         logger.warning(
                             f"Region too wide : nodes number : {len(nodes_data)} - max nodes number : {LIMIT}")
                 else:
-                    logger.warning("Region too wide: total node {total_nodes} - limit : {LIMIT}")
+                    logger.warning(f"Region too wide: total node {total_nodes} - limit : {LIMIT}")
                     return_metadata["return_code"] = "WIDE"
                     nodes_data = {}
         # if len(nodes_data) > 0:

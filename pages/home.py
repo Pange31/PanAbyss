@@ -1465,7 +1465,7 @@ def toggle_legend(n_clicks, current_style):
     Input('graph', 'tapNodeData'),
     Input('graph', 'tapEdgeData')
 )
-def display_element_data(node_data, edge_data, dbl_tap):
+def display_element_data(node_data, edge_data):
     triggered_id = ctx.triggered_id
 
     # -------------------------
@@ -1949,6 +1949,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         # zoom on selected nodes
         zoom_shared_storage_out = zoom_shared_storage or {}
         if triggered_id == "btn-zoom":
+            selected_nodes_name = set()
             if selected_nodes_data is not None and len(selected_nodes_data) > 0:
                 selected_nodes_name = set([node['name'] for node in selected_nodes_data])
             if len(zoom_shared_storage_out) ==0:
@@ -1956,10 +1957,20 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 zoom_shared_storage_out["end"] = home_data_storage["end"]
             position_field = genome + "_position"
             selected_positions =set()
+            alt_genome= ""
             for n in data_storage_nodes:
                 node = data_storage_nodes[n]
+                alt_genome = node["genomes"][0]
                 if node["name"] in selected_nodes_name and position_field in node :
                     selected_positions.add(node[position_field])
+            if len(selected_positions) == 0 and alt_genome != "":
+                #Try to switch to another reference genome
+                genome = alt_genome
+                position_field = genome + "_position"
+                for n in data_storage_nodes:
+                    node = data_storage_nodes[n]
+                    if node["name"] in selected_nodes_name and position_field in node :
+                        selected_positions.add(node[position_field])
             if len(selected_positions) > 0:
                 start_value = min(selected_positions)
                 home_data_storage["start"] = start_value
@@ -2020,7 +2031,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             or new_request:
             new_data = {}
             #Delete local phylo graph if exists
-            logger.debug("Getting data from database")
+            logger.debug(f"Getting data from database from {start_value} to {end_value} on chr {chromosome} for genome{genome}")
             if phylo_data is not None and "newick_region" in phylo_data:
                 phylo_data["newick_region"] = None
             if sequences_data is not None :
@@ -2094,11 +2105,11 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                     style=warning_style)
             elif new_data is not None and return_metadata["return_code"] == "PARTIAL":
                 message = html.Div(
-                    f"⚠️ No core genome anchor found near searched region, the result is partial and some nodes may be absent for some individuals. Total nodes number : {return_metadata['nodes_number']}.",
-                    style=warning_style)
+                    f"✅ Region has been successfully found (without core anchor), number of node {return_metadata['nodes_number']}.",
+                    style=success_style)
             elif return_metadata["return_code"] == "OK":
                 message = html.Div(
-                    "✅ Region has been successfully found.",
+                    f"✅ Region has been successfully found, number of node {return_metadata['nodes_number']}.",
                     style=success_style)
             elif return_metadata["return_code"] == "WIDE":
                 message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
