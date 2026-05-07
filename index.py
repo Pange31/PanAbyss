@@ -105,6 +105,7 @@ app.layout = html.Div([
     dcc.Store(id="db-management-create-db-trigger", storage_type="memory"),
     dcc.Store(id="db-management-load-annotations-trigger", storage_type="memory"),
     dcc.Store(id="db-management-job-trigger",storage_type="memory"),
+    dcc.Store(id='query-params-store',storage_type="memory"),
 
     html.Div(
         children=[
@@ -170,6 +171,7 @@ app.validation_layout = html.Div([
     dcc.Store(id='sequences-page-store'),
     dcc.Store(id='db-management-job-trigger'),
     dcc.Store(id="db-management-page-store", data={}, storage_type="memory"),
+    dcc.Store(id='query-params-store')
 ])
 import callbacks.phylogenetic_callbacks
 import callbacks.gwas_callbacks

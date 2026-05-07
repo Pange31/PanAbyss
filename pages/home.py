@@ -2146,8 +2146,52 @@ def toggle_inputs(shared_mode):
         return {'display': 'flex', 'flexWrap': 'wrap'}, {'display': 'none'}
 
 
+@app.callback(
+    Output('query-params-store', 'data'),
+    Output('url', 'search'),
+    Input('url', 'search'),
+    prevent_initial_call=True
+)
+def process_query_params(search):
+    if not search:
+        raise PreventUpdate
+    logger.debug(f"Query params {search}")
+    params = parse_qs(urlparse(search).query)
+    url_hap = params.get('haplotype', [None])[0]
+    url_chromosome = (
+        params.get('chr', [None])[0]
+        or params.get('chromosome', [None])[0]
+    )
+    url_feature_name = params.get('featureName', [None])[0]
+    url_feature_value = params.get('featureValue', [None])[0]
+    url_start = params.get('start', [None])[0]
+    url_end = params.get('end', [None])[0]
 
-# Restore value after navigation
+    valid_query = (
+        url_hap is not None
+        and url_chromosome is not None
+        and (
+            (url_start is not None and url_end is not None)
+            or
+            (url_feature_name is not None and url_feature_value is not None)
+        )
+    )
+    if not valid_query:
+        raise PreventUpdate
+    query_data = {
+        "url_hap": url_hap,
+        "url_chromosome": url_chromosome,
+        "url_feature_name": url_feature_name,
+        "url_feature_value": url_feature_value,
+        "url_start": url_start,
+        "url_end": url_end,
+        "force_refresh": time.time()
+    }
+    logger.debug(query_data)
+    # clear URL after processing
+    return query_data, ""
+
+
 @app.callback(
     Output('size_slider', 'value'),
     Output('chromosomes-dropdown', 'value'),
@@ -2160,78 +2204,79 @@ def toggle_inputs(shared_mode):
     Output('specific-genome_selector', 'value'),
     Output('update_graph_command_storage', 'data'),
     Input('url', 'pathname'),
-    Input('url', 'search'),
     Input('home-page-store', 'data'),
+    Input('query-params-store', 'data'),
     State('shared_storage', 'data'),
     State('genomes-dropdown', 'options'),
     State('chromosomes-dropdown', 'options'),
     State('specific-genome_selector', 'value')
 )
-def update_parameters_on_page_load(pathname, search, data, shared_data, options_genomes, options_chromosomes, specifics_genomes):
+def update_parameters_on_page_load(pathname,data,query_params,shared_data,options_genomes,options_chromosomes,specifics_genomes):
+
+    if pathname != "/":
+        raise PreventUpdate
     slider_value = DEFAULT_SIZE_VALUE
+
     selected_genome = None
     selected_chromosome = None
+
     start_input = None
     end_input = None
+
     features = shared_data.get("features", None)
+
     if features is not None and "gene" in features:
         feature_name = "gene"
     else:
         feature_name = None
+
     feature_value = ""
     shared_regions_link_color = DEFAULT_SHARED_REGION_COLOR
     update_graph_command_storage = dash.no_update
-    
     if specifics_genomes is not None:
         selected_shared_genomes = specifics_genomes
     else:
         selected_shared_genomes = []
+
     if data is None:
         data = {}
+
+    #Saved values
     if "slider_value" in data and data["slider_value"] is not None:
         slider_value = data["slider_value"]
     if "shared_regions_link_color" in data:
         shared_regions_link_color = data["shared_regions_link_color"]
     if "specifics_genomes" in data:
         selected_shared_genomes = data["specifics_genomes"]
-    #Get query param if setted
-    #Query params exemple : ?haplotype=Korso_0&chromosome=1&featureName=gene_name&featureValue=BolK_1g00590
-    #?haplotype=Korso_0&chromosome=1&start=100000&end=1090000
+
+    #Query params
     no_query_params = True
-    if search:
-        logger.debug(f"Query params {search}")
-        params = parse_qs(urlparse(search).query)
-        url_hap = params.get('haplotype', [None])[0]
-        url_chromosome = (
-            params.get('chr', [None])[0]
-            or params.get('chromosome', [None])[0]
-        )
-        url_feature_name = params.get('featureName', [None])[0]
-        url_feature_value = params.get('featureValue', [None])[0]
-        url_start = params.get('start', [None])[0]
-        url_end = params.get('end', [None])[0]
-        if (url_hap is not None and url_chromosome is not None
-                and ((url_start is not None and url_end is not None)
-                     or (url_feature_name is not None and url_feature_value is not None))):
-            no_query_params = False
-            selected_genome = url_hap
-            selected_chromosome = url_chromosome
-            if url_feature_name is not None and url_feature_value:
-                feature_name = url_feature_name
-                feature_value = url_feature_value
-            else:
-                start_input = int(url_start)
-                end_input = int(url_end)
-            update_graph_command_storage = {"force_refresh": time.time(), "url_hap":url_hap, "url_chromosome":url_chromosome, "url_feature_name":url_feature_name,
-                                            "url_feature_value":url_feature_value, "url_start":url_start, "url_end":url_end}
-            logger.debug(update_graph_command_storage)
-    if no_query_params :
-        #logger.debug("No query params")
+
+    if query_params is not None:
+        no_query_params = False
+        selected_genome = query_params.get("url_hap")
+        selected_chromosome = query_params.get("url_chromosome")
+        url_feature_name = query_params.get("url_feature_name")
+        url_feature_value = query_params.get("url_feature_value")
+        url_start = query_params.get("url_start")
+        url_end = query_params.get("url_end")
+        if url_feature_name is not None and url_feature_value:
+            feature_name = url_feature_name
+            feature_value = url_feature_value
+
+        else:
+            start_input = int(url_start)
+            end_input = int(url_end)
+
+        update_graph_command_storage = query_params
+
+    if no_query_params:
         if "selected_genome" in data:
             selected_genome = data["selected_genome"]
         else:
             if options_genomes:
                 selected_genome = options_genomes[0]["value"]
+
         if "selected_chromosome" in data:
             selected_chromosome = data["selected_chromosome"]
         else:
@@ -2244,7 +2289,11 @@ def update_parameters_on_page_load(pathname, search, data, shared_data, options_
         else:
             feature_name = None
         feature_value = ""
-    return slider_value, selected_chromosome, selected_genome, start_input, end_input, feature_name, feature_value, shared_regions_link_color, selected_shared_genomes, update_graph_command_storage
+
+    return (slider_value, selected_chromosome, selected_genome, start_input,
+        end_input, feature_name, feature_value, shared_regions_link_color,
+        selected_shared_genomes, update_graph_command_storage)
+
 
 
 # Algorithm cytoscape choice
