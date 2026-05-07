@@ -348,6 +348,88 @@ def construct_base_query(ranges, chromosome, min_node_size=None, flow=None, vali
     return base_query_genome
 
 
+#This function take the result of neo4 request and get the different annotations
+#It returns the nodes_data
+def get_nodes_data_from_record(result):
+    nodes_data = {}
+    for record in result:
+
+        node_name = record["m"]["name"]
+
+        #Transcripts
+        transcripts = []
+        seen_transcripts = set()
+        for transcript in record["transcripts"]:
+            transcript_id = transcript["transcript_id"]
+            if transcript_id is None:
+                continue
+
+            if transcript_id in seen_transcripts:
+                continue
+
+            seen_transcripts.add(transcript_id)
+
+            transcripts.append({
+                "transcript_id": transcript_id,
+                "start": transcript["start"],
+                "end": transcript["end"]
+            })
+
+        #Exons
+        exons_map = {}
+
+        for exon in record["exons"]:
+            exon_id = exon["exon_id"]
+
+            if exon_id is None:
+                continue
+
+            transcript_id = exon["transcript_id"]
+
+            if exon_id not in exons_map:
+                exons_map[exon_id] = {
+                    "exon_id": exon_id,
+                    "start": exon["start"],
+                    "end": exon["end"],
+                    "transcript_ids": set()
+                }
+
+            if transcript_id is not None:
+                exons_map[exon_id]["transcript_ids"].add(transcript_id)
+
+        # conversion
+        exons = []
+        for exon_id, exon_data in exons_map.items():
+            exon_data["transcript_ids"] = list(exon_data["transcript_ids"])
+            exons.append(exon_data)
+
+        # nodes_data
+
+        nodes_data[node_name] = (
+                dict(record["m"])
+                | {
+                    "sequence": record["sequence"]
+                }
+                | {
+                    "genes_names": list(set(
+                        a for a in record["annotations"]
+                        if a is not None
+                    ))
+                }
+                | {
+                    "features": list(set(
+                        f for f in record["features"]
+                        if f is not None
+                    ))
+                }
+                | {
+                    "transcripts": transcripts,
+                    "exons": exons
+                }
+        )
+
+    return nodes_data
+
 # This function take a region (chromosome, start and stop) of a given haplotype (search_genome)
 # and it returns all the nodes in this region and the other related regions :
 # for each haplotype the start and stop are given by the first anchor node before the start position and the first after the end position
@@ -382,6 +464,50 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
         LIMIT = max_nodes_number
     data = {}
     shared_genomes = []
+
+
+    # query_annotations = f"""
+    #                 WITH DISTINCT m
+    #                 OPTIONAL MATCH (m)-[]->(a:Annotation)
+    #                 OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
+    #                 RETURN m, substring(s.sequence, 0, {max_sequence}) as sequence, collect(a.gene_name) AS annotations, collect(a.feature) AS features
+    #                 LIMIT {LIMIT + 1}
+    #                 """
+
+    query_annotations = f"""
+                        WITH DISTINCT m
+                        OPTIONAL MATCH (m)-[]->(a:Annotation)
+                        OPTIONAL MATCH (m)-[]->(t:Annotation)
+                        WHERE t.feature IN ["mrna", "transcript"]
+                        OPTIONAL MATCH (m)-[]->(e:Annotation)
+                        WHERE e.feature = "exon"
+                        OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
+                        
+                        WITH m, s,
+                             collect(DISTINCT a.gene_name) AS annotations,
+                             collect(DISTINCT a.feature) AS features,
+                             collect(DISTINCT {{
+                                 transcript_id: t.transcript_id,
+                                 start: t.start,
+                                 end: t.end
+                             }}) AS transcripts,
+                             collect(DISTINCT {{
+                                 transcript_id: e.transcript_id,
+                                 exon_id: e.exon_id,
+                                 start: e.start,
+                                 end: e.end
+                             }}) AS exons
+                        
+                        RETURN
+                            m,
+                            substring(s.sequence, 0, {max_sequence}) AS sequence,
+                            annotations,
+                            features,
+                            transcripts,
+                            exons
+                        LIMIT {LIMIT + 1}
+                        """
+
     with driver.session() as session:
 
         # Step 1 : find the anchors of the region
@@ -564,22 +690,22 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                         query_genome = query_genome = construct_base_query(ranges, chromosome,
                                                                            min_node_size=min_node_size, flow=None)
 
-                    query_genome = query_genome + f"""
-                        WITH DISTINCT m
-                        OPTIONAL MATCH (m)-[]->(a:Annotation)
-                        OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
-                        RETURN m, substring(s.sequence, 0, {max_sequence}) as sequence, collect(a.gene_name) AS annotations, collect(a.feature) AS features
-                        LIMIT {LIMIT + 1}
-                        """
+                    query_genome = query_genome + query_annotations
                     # logger.debug(f"query genome : {query_genome}")
                     # logger.info(query_genome)
                     result = session.run(query_genome, start=start, end=end)
-                    for record in result:
-                        nodes_data[record["m"]["name"]] = dict(record["m"]) | {"sequence": record["sequence"]} | {
-                            "annotations": set(
-                                record["annotations"][a] for a in range(len(record["annotations"])))} | {
-                                                              "features": set(record["features"][a] for a in
-                                                                              range(len(record["features"])))}
+
+                    nodes_data = get_nodes_data_from_record(result)
+
+
+                    # for record in result:
+                    #     nodes_data[record["m"]["name"]] = dict(record["m"]) | {"sequence": record["sequence"]} | {
+                    #         "annotations": set(
+                    #             record["annotations"][a] for a in range(len(record["annotations"])))} | {
+                    #                                           "features": set(record["features"][a] for a in
+                    #                                                           range(len(record["features"])))}
+
+
                     return_metadata["nodes_number"] = len(nodes_data)
                     if len(nodes_data) > LIMIT:
                         nodes_data = {}
@@ -615,19 +741,15 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                     """
                     if min_node_size is not None and min_node_size > 1:
                         query_genome += f" AND m.size >= {min_node_size} "
-                    query_genome += f"""
-                    OPTIONAL MATCH (m)-[]->(a:Annotation)
-                    OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
-                    RETURN m, substring(s.sequence, 0, {max_sequence}) as sequence, collect(a.gene_name) AS annotations, collect(a.feature) AS features
-                    LIMIT {LIMIT + 1}
-                    """
+                    query_genome += query_annotations
                     result = session.run(query_genome)
-                    for record in result:
-                        nodes_data[record["m"]["name"]] = dict(record["m"]) | {"sequence": record["sequence"]} | {
-                            "annotations": set(
-                                record["annotations"][a] for a in range(len(record["annotations"])))} | {
-                                                              "features": set(record["features"][a] for a in
-                                                                              range(len(record["features"])))}
+                    nodes_data = get_nodes_data_from_record(result)
+                    # for record in result:
+                    #     nodes_data[record["m"]["name"]] = dict(record["m"]) | {"sequence": record["sequence"]} | {
+                    #         "annotations": set(
+                    #             record["annotations"][a] for a in range(len(record["annotations"])))} | {
+                    #                                           "features": set(record["features"][a] for a in
+                    #                                                           range(len(record["features"])))}
                     return_metadata["nodes_number"] = len(nodes_data)
                     if len(nodes_data) > LIMIT:
                         nodes_data = {}
@@ -638,10 +760,10 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                     logger.warning("Region too wide: total node {total_nodes} - limit : {LIMIT}")
                     return_metadata["return_code"] = "WIDE"
                     nodes_data = {}
-        if len(nodes_data) > 0:
-            for elt in nodes_data:
-                nodes_data[elt]["annotations"] = list(nodes_data[elt]["annotations"])
-                nodes_data[elt]["features"] = list(nodes_data[elt]["features"])
+        # if len(nodes_data) > 0:
+        #     for elt in nodes_data:
+        #         nodes_data[elt]["annotations"] = list(nodes_data[elt]["annotations"])
+        #         nodes_data[elt]["features"] = list(nodes_data[elt]["features"])
     logger.debug("Total time : " + str(time.time() - temps_depart))
     return nodes_data, return_metadata
 

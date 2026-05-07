@@ -226,11 +226,18 @@ def merge_node_data(df, nodes_to_remove, predecessors):
         features = list(set((f1 if isinstance(f1, list) else []) + (f2 if isinstance(f2, list) else [])))
         df.at[idx, 'features'] = features
 
+        # add exons
+        e1 = df.loc[df['name'] == n, 'exons'].iloc[0]
+        e2 = df.loc[df['name'] == pred_node, 'exons'].iloc[0]
+
+        exons = list(set((e1 if isinstance(e1, list) else []) + (e2 if isinstance(e2, list) else [])))
+        df.at[idx, 'exons'] = exons
+
         # Concatenate annotations
-        a1 = df.loc[df['name'] == n, 'annotations'].iloc[0]
-        a2 = df.loc[df['name'] == pred_node, 'annotations'].iloc[0]
-        annotations = list(set((a1 if isinstance(a1, list) else []) + (a2 if isinstance(a2, list) else [])))
-        df.at[idx, 'annotations'] = annotations
+        a1 = df.loc[df['name'] == n, 'genes_names'].iloc[0]
+        a2 = df.loc[df['name'] == pred_node, 'genes_names'].iloc[0]
+        genes_names = list(set((a1 if isinstance(a1, list) else []) + (a2 if isinstance(a2, list) else [])))
+        df.at[idx, 'genes_names'] = genes_names
 
     # Remove the compacted nodes
     df_compacted = df[~df['name'].isin(nodes_to_remove)].copy()
@@ -466,8 +473,9 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     'genomes': row.get('genomes'),
                     'chromosome': row.get('chromosome'),
                     'sequence': row.get('sequence'),
-                    'annotations': row.get('annotations'),
+                    'genes_names': row.get('genes_names'),
                     'features': row.get('features'),
+                    'exons': row.get('exons'),
                     'color': node_color,
                     'position': row.get(position_field)
                 },
@@ -504,7 +512,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
             targets = nodes_g["name"].iloc[1:].values
             positions = nodes_g[col].values
             sizes = nodes_g["size"].values
-            annotations = nodes_g["annotations"].values
+            annotations = nodes_g["genes_names"].values
 
             for i, (source, target) in enumerate(zip(sources, targets)):
                 edge_key = tuple(sorted([source, target]))
@@ -1367,7 +1375,7 @@ def layout(data=None, initial_size_limit=10):
                             n_clicks=0, style={'marginTop': '10px'}),
 
                 html.Div(html.H4(id='node-info', style={'margin': '10px'})),
-                html.Div(html.Label("Annotations :", title="Compiles all annotations for the displayed nodes.", style={
+                html.Div(html.Label("Annotations in the region:", title="Compiles all annotations for the displayed nodes.", style={
                          'marginBottom': '5px'})),
                 html.Div(html.H4(id='annotations-info',
                          style={'margin': '10px'}))
@@ -1457,28 +1465,128 @@ def toggle_legend(n_clicks, current_style):
     Input('graph', 'tapNodeData'),
     Input('graph', 'tapEdgeData')
 )
-def display_element_data(node_data, edge_data):
+def display_element_data(node_data, edge_data, dbl_tap):
     triggered_id = ctx.triggered_id
 
-    if triggered_id == 'graph' and ctx.triggered[0]['prop_id'] == 'graph.tapEdgeData' and edge_data:
-        return (
-            f"Selected link : {edge_data.get('source')} → {edge_data.get('target')}\n"
-            f"• Flow : {edge_data.get('flow')}\n"
-            f"• Haplotypes : {', '.join(edge_data.get('genomes', []))}"
-        )
-    elif triggered_id == 'graph' and ctx.triggered[0]['prop_id'] == 'graph.tapNodeData' and node_data:
-        return (
-            f"Selected node : {node_data.get('label', node_data.get('name'))}\n"
-            f"• Size : {node_data.get('size')}\n"
-            f"• Position : {node_data.get('position')}\n"
-            f"• Flow : {node_data.get('flow')}\n"
-            f"• Ref node : {node_data.get('ref_node')}\n"
-            f"• Haplotypes : {', '.join(node_data.get('genomes', []))}"
-            f"• Annotations : {', '.join(node_data.get('annotations', []))}"
-            f"• Features : {', '.join(node_data.get('features', []))}"
-            f"• Sequence (first 1000 bp only) : {node_data.get('sequence')}\n"
-        )
+    # -------------------------
+    # EDGE
+    # -------------------------
+    if triggered_id == 'graph' and "prop_id" in ctx.triggered[0] and ctx.triggered[0]['prop_id'] == 'graph.tapEdgeData' and edge_data:
+        return html.Div([
+            html.Div(f"Selected link : {edge_data.get('source')} → {edge_data.get('target')}"),
+            html.Div(f"• Flow : {edge_data.get('flow')}"),
+            html.Div(f"• Haplotypes : {', '.join(edge_data.get('genomes', []))}")
+        ])
+
+    # -------------------------
+    # NODE
+    # -------------------------
+    elif triggered_id == 'graph' and "prop_id" in ctx.triggered[0] and ctx.triggered[0]['prop_id'] == 'graph.tapNodeData' and node_data:
+
+        exon_spans = []
+        for exon in node_data.get("exons", []):
+            exon_id = exon.get("exon_id")
+            if exon_id is None:
+                continue
+
+            tooltip_lines = []
+
+            # transcripts
+            transcripts = exon.get("transcript_ids", [])
+            if transcripts:
+                tooltip_lines.append("Transcripts: " + ", ".join(transcripts))
+
+            # coordinates
+            tooltip_lines.append(f"{exon.get('start')} - {exon.get('end')}")
+
+            exon_spans.append(
+                html.Span(
+                    exon_id,
+                    title="\n".join(tooltip_lines),
+                    style={
+                        "marginRight": "6px",
+                        "textDecoration": "underline",
+                        "cursor": "pointer"
+                    }
+                )
+            )
+
+        return html.Div([
+
+            html.B(
+                f"Selected node : {node_data.get('label', node_data.get('name'))}"
+                f" - Ref node : {node_data.get('ref_node')}"
+            ),
+
+            html.Div([
+                html.Span(f"• Size : {node_data.get('size')} | "),
+                html.Span(f"Position : {node_data.get('position')} | "),
+                html.Span(f"Flow : {node_data.get('flow')}")
+            ]),
+
+            html.Div([
+                html.Span(f"• Haplotypes : {', '.join(node_data.get('genomes', []))}")
+            ]),
+            html.Div([
+                html.Span(f"• Genes : {', '.join(node_data.get('genes_names', []))}")
+            ]),
+            html.Div([
+                html.Span(f"• Features : {', '.join(node_data.get('features', []))}")
+            ]),
+            #Exon with tooltip
+            html.Div([
+                html.Span("• Exons : "),
+                html.Span(exon_spans)
+            ]),
+            html.Br(),
+            html.Div([
+                html.B("Sequence (first 1000 bp only):")
+            ]),
+            html.Pre(node_data.get("sequence"))
+
+        ])
+
     return "Click on a node or link to display data."
+# @app.callback(
+#     Output('node-info', 'children'),
+#     Input('graph', 'tapNodeData'),
+#     Input('graph', 'tapEdgeData')
+# )
+# def display_element_data(node_data, edge_data):
+#     triggered_id = ctx.triggered_id
+#
+#     if triggered_id == 'graph' and ctx.triggered[0]['prop_id'] == 'graph.tapEdgeData' and edge_data:
+#         return (
+#             f"Selected link : {edge_data.get('source')} → {edge_data.get('target')}\n"
+#             f"• Flow : {edge_data.get('flow')}\n"
+#             f"• Haplotypes : {', '.join(edge_data.get('genomes', []))}"
+#         )
+#     elif triggered_id == 'graph' and ctx.triggered[0]['prop_id'] == 'graph.tapNodeData' and node_data:
+#         exons = node_data.get("exons", [])
+#         exons_str = ", ".join(
+#             f"{e.get('exon_id')} ("
+#             f"{', '.join(e.get('transcript_ids', []))})"
+#             for e in exons
+#         )
+#
+#         exons_title = "\n".join(
+#             f"{e.get('exon_id')} | {', '.join(e.get('transcript_ids', []))} | "
+#             f"{e.get('start')}-{e.get('end')}"
+#             for e in exons
+#         )
+#         return (
+#             f"Selected node : {node_data.get('label', node_data.get('name'))}\n"
+#             f"• Size : {node_data.get('size')}\n"
+#             f"• Position : {node_data.get('position')}\n"
+#             f"• Flow : {node_data.get('flow')}\n"
+#             f"• Ref node : {node_data.get('ref_node')}\n"
+#             f"• Haplotypes : {', '.join(node_data.get('genomes', []))}"
+#             f"• genes_names : {', '.join(node_data.get('genes_names', []))}"
+#             f"• Features : {', '.join(node_data.get('features', []))}"
+#             f"• Exons : {exons_str}\n"
+#             f"• Sequence (first 1000 bp only) : {node_data.get('sequence')}\n"
+#         )
+#     return "Click on a node or link to display data."
 
 #Function to construct the region information
 def get_displayed_div(start, end, feature_name, feature_value):
@@ -1538,6 +1646,146 @@ def update_legend_size(legend_data):
         str(min_val),
         str(max_val)
     )
+
+#This function build annotations to display for the global region
+def build_annotations(nodes_data):
+    genes_set = set()
+    genes_to_transcripts = {}
+
+    region_transcripts = {}
+
+    for node_data in nodes_data.values():
+
+        # get genes names
+        if "genes_names" in node_data:
+            for a in node_data["genes_names"]:
+                genes_set.add(a)
+
+        # get transcripts
+        for transcript in node_data.get("transcripts", []):
+
+            transcript_id = transcript["transcript_id"]
+
+            if transcript_id is None:
+                continue
+
+            if transcript_id not in region_transcripts:
+
+                transcript_gene = None
+
+                if "genes_names" in node_data and len(node_data["genes_names"]) > 0:
+                    transcript_gene = sorted(list(node_data["genes_names"]))[0]
+
+                region_transcripts[transcript_id] = {
+                    "start": transcript["start"],
+                    "end": transcript["end"],
+                    "exons": [],
+                    "gene_name": transcript_gene
+                }
+
+                # mapping gene -> transcripts (tooltip)
+                if transcript_gene is not None:
+                    if transcript_gene not in genes_to_transcripts:
+                        genes_to_transcripts[transcript_gene] = []
+                    genes_to_transcripts[transcript_gene].append(transcript_id)
+
+        # get exons
+        for exon in node_data.get("exons", []):
+
+            exon_id = exon.get("exon_id")
+
+            if exon_id is None:
+                continue
+            transcript_ids = exon.get("transcript_ids", [])
+
+            for transcript_id in transcript_ids:
+
+                if transcript_id is None:
+                    continue
+
+                if transcript_id not in region_transcripts:
+                    continue
+
+                region_transcripts[transcript_id]["exons"].append({
+                    "exon_id": exon_id,
+                    "start": exon["start"],
+                    "end": exon["end"]
+                })
+
+    # construct ordered exon list (toujours utile pour futur usage)
+    for transcript_id, transcript_data in region_transcripts.items():
+
+        exons = transcript_data.get("exons", [])
+
+        unique_exons = {}
+
+        for exon in exons:
+
+            exon_id = exon.get("exon_id")
+
+            if exon_id is None:
+                continue
+
+            if exon_id not in unique_exons:
+                unique_exons[exon_id] = exon
+            else:
+                existing = unique_exons[exon_id]
+                existing["start"] = min(existing["start"], exon["start"])
+                existing["end"] = max(existing["end"], exon["end"])
+
+        exons = list(unique_exons.values())
+
+        # sort
+        exons.sort(key=lambda x: (x["start"], x["end"], x["exon_id"]))
+
+        exon_ids = [e["exon_id"] for e in exons]
+
+        transcript_data["exon_chain"] = " - ".join(exon_ids)
+        transcript_data["exons"] = exon_ids
+
+    genes_list = sorted(list(genes_set))
+
+    #Gene with tooltip
+    genes_html = []
+
+    for gene in genes_list:
+        transcripts_for_gene = genes_to_transcripts.get(gene, [])
+        tooltip_lines = []
+        for tid in transcripts_for_gene:
+            t = region_transcripts.get(tid)
+
+            if t is None:
+                continue
+
+            tooltip_lines.append(
+                f"{tid} ({t['start']}-{t['end']}) {t.get('exon_chain', '')}"
+            )
+        tooltip_text = "\n".join(tooltip_lines) if tooltip_lines else "No transcripts"
+
+        genes_html.append(
+            html.Span(
+                gene,
+                title=tooltip_text,
+                style={
+                    "marginRight": "6px",
+                    "textDecoration": "underline",
+                    "cursor": "pointer"
+                }
+            )
+        )
+
+
+    annotations_html = html.Div([
+
+        html.Div([
+            html.B("Genes: "),
+            html.Span(genes_html)
+        ],
+        style={"marginBottom": "10px"})
+
+    ])
+
+    return annotations_html
 
 
 # Main callback to update graph when changing size, or selecting genomes, etc.
@@ -1885,16 +2133,10 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                     defined_color += 1
         stylesheet = compute_stylesheet(defined_color, nodes_names, node_shape_as_circle)
         count = len(elements)
-        annotations = ""
-        set_annot = set()
-        if data_storage_nodes != None:
-            for n in data_storage_nodes:
-                if "annotations" in data_storage_nodes[n]:
-                    for a in data_storage_nodes[n]["annotations"]:
-                        set_annot.add(a)
-        for a in set_annot:
-            annotations += str(a) + "\n"
 
+        annotations = ""
+        if data_storage_nodes != None and len(data_storage_nodes) > 0:
+            annotations = build_annotations(data_storage_nodes)
         #default layout is fcose
         layout = {
             'name': 'fcose',
@@ -1939,21 +2181,6 @@ def toggle_inputs(shared_mode):
         return {'display': 'flex', 'flexWrap': 'wrap'}, {'display': 'none'}
 
 
-# @app.callback(
-#     Output('home-page-store', 'data', allow_duplicate=True),
-#     Output("size-output", 'children'),
-#     Input('size_slider', 'value'),
-#     State('home-page-store', 'data'),
-#     prevent_initial_call=True
-# )
-# def save_slider_value(size_slider_val, data):
-#     if data is None:
-#         data = {}
-#     if size_slider_val is None:
-#         data['slider_value'] = DEFAULT_SIZE_VALUE
-#     else:
-#         data['slider_value'] = size_slider_val
-#     return data, f"Min node size  : {data['slider_value']}"
 
 # Restore value after navigation
 @app.callback(
