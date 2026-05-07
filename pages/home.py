@@ -1482,7 +1482,6 @@ def display_element_data(node_data, edge_data):
     # NODE
     # -------------------------
     elif triggered_id == 'graph' and "prop_id" in ctx.triggered[0] and ctx.triggered[0]['prop_id'] == 'graph.tapNodeData' and node_data:
-
         exon_spans = []
         for exon in node_data.get("exons", []):
             exon_id = exon.get("exon_id")
@@ -1490,7 +1489,6 @@ def display_element_data(node_data, edge_data):
                 continue
 
             tooltip_lines = []
-
             # transcripts
             transcripts = exon.get("transcript_ids", [])
             if transcripts:
@@ -1510,20 +1508,16 @@ def display_element_data(node_data, edge_data):
                     }
                 )
             )
-
         return html.Div([
-
             html.B(
                 f"Selected node : {node_data.get('label', node_data.get('name'))}"
                 f" - Ref node : {node_data.get('ref_node')}"
             ),
-
             html.Div([
                 html.Span(f"• Size : {node_data.get('size')} | "),
                 html.Span(f"Position : {node_data.get('position')} | "),
                 html.Span(f"Flow : {node_data.get('flow')}")
             ]),
-
             html.Div([
                 html.Span(f"• Haplotypes : {', '.join(node_data.get('genomes', []))}")
             ]),
@@ -1543,50 +1537,10 @@ def display_element_data(node_data, edge_data):
                 html.B("Sequence (first 1000 bp only):")
             ]),
             html.Pre(node_data.get("sequence"))
-
         ])
 
     return "Click on a node or link to display data."
-# @app.callback(
-#     Output('node-info', 'children'),
-#     Input('graph', 'tapNodeData'),
-#     Input('graph', 'tapEdgeData')
-# )
-# def display_element_data(node_data, edge_data):
-#     triggered_id = ctx.triggered_id
-#
-#     if triggered_id == 'graph' and ctx.triggered[0]['prop_id'] == 'graph.tapEdgeData' and edge_data:
-#         return (
-#             f"Selected link : {edge_data.get('source')} → {edge_data.get('target')}\n"
-#             f"• Flow : {edge_data.get('flow')}\n"
-#             f"• Haplotypes : {', '.join(edge_data.get('genomes', []))}"
-#         )
-#     elif triggered_id == 'graph' and ctx.triggered[0]['prop_id'] == 'graph.tapNodeData' and node_data:
-#         exons = node_data.get("exons", [])
-#         exons_str = ", ".join(
-#             f"{e.get('exon_id')} ("
-#             f"{', '.join(e.get('transcript_ids', []))})"
-#             for e in exons
-#         )
-#
-#         exons_title = "\n".join(
-#             f"{e.get('exon_id')} | {', '.join(e.get('transcript_ids', []))} | "
-#             f"{e.get('start')}-{e.get('end')}"
-#             for e in exons
-#         )
-#         return (
-#             f"Selected node : {node_data.get('label', node_data.get('name'))}\n"
-#             f"• Size : {node_data.get('size')}\n"
-#             f"• Position : {node_data.get('position')}\n"
-#             f"• Flow : {node_data.get('flow')}\n"
-#             f"• Ref node : {node_data.get('ref_node')}\n"
-#             f"• Haplotypes : {', '.join(node_data.get('genomes', []))}"
-#             f"• genes_names : {', '.join(node_data.get('genes_names', []))}"
-#             f"• Features : {', '.join(node_data.get('features', []))}"
-#             f"• Exons : {exons_str}\n"
-#             f"• Sequence (first 1000 bp only) : {node_data.get('sequence')}\n"
-#         )
-#     return "Click on a node or link to display data."
+
 
 #Function to construct the region information
 def get_displayed_div(start, end, feature_name, feature_value):
