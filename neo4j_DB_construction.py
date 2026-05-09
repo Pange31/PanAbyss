@@ -1678,12 +1678,12 @@ def get_chromosome_annotation(annotation):
         t = tab[i]
         if t.upper().startswith(("CHR")):
             if len(t) > 3:
-                chromosome = t[3:].lstrip('0')
+                chromosome = t[3:].lstrip('0') or "0"
             else:
                 if i < len(tab)-1:
-                    chromosome = tab[i+1].lstrip('0')
+                    chromosome = tab[i+1].lstrip('0') or "0"
         else:
-            chromosome = annotation.split()[0].upper().replace("CHR", "").replace("C", "").lstrip('0')       
+            chromosome = annotation.split()[0].upper().replace("CHR", "").replace("C", "").lstrip('0') or "0"
     return chromosome
     
 
@@ -1746,7 +1746,6 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
                 cols = line.strip().split("\t")
                 if len(cols) < 9:
                     continue
-
                 chromosome = get_chromosome_annotation(cols[0])
                 if single_chromosome and chromosome != single_chromosome:
                     continue
