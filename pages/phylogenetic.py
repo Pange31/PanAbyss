@@ -76,6 +76,7 @@ def layout():
                         html.Li("Plot tree of selected region : This allows you to calculate a tree for the region currently being viewed on the home page."
                                 " It is therefore necessary to select a region to view beforehand (on the home or gwas pages)."
                                 " The tree is constructed based on a distance matrix. This matrix is calculated using the Jaccard index, taking into account the strand and repetition of each node."
+                                " If Weight by node size is checked, then nodes size are used to weight the Jaccard index."
                                 " The tree is then calculated using the neighbor joining algorithm."), 
                     ])
             ])
@@ -202,13 +203,32 @@ def layout():
         html.Div([
             html.Button("Plot tree of selected region", id="btn-plot-region",  n_clicks=0, title="Before using this button, data must be displayed on home page. If data are displayed, then this will computes the phylogenetic tree of displayed haplotypes (see help for details).",style={'marginRight': '15px'}),
             html.Button("Save tree", title="Tree will be saved into newick format.", id="btn-save-tree"),
-            dcc.Checklist(
-                options=[
-                    {"label": "Weight by node size", "value": "weight_by_size"}
+            # dcc.Checklist(
+            #     options=[
+            #         {"label": "Weight by node size", "value": "weight_by_size", "text": "If checked, the nodes size will be used to weight the Jaccard index used to compute distance matrix."}
+            #     ],
+            #     value=[],
+            #     id="checkbox-weight-node-size",
+            #     style={'marginTop': '10px'}
+            # ),
+            html.Label(
+                [
+                    dcc.Checklist(
+                        options=[{"label": "", "value": "weight_by_size"}],
+                        value=[],
+                        id="checkbox-weight-node-size",
+                        style={"display": "inline-block"}
+                    ),
+                    html.Span(
+                        "Weight by node size",
+                        title="If checked, the nodes size will be used to weight the Jaccard index used to compute distance matrix.",
+                        style={"marginLeft": "5px"}
+                    )
                 ],
-                value=[],
-                id="checkbox-weight-node-size",
-                style={'marginTop': '10px'}
+                style={
+                    "marginTop": "10px",
+                    "display": "block"  # <-- important
+                }
             ),
             dcc.Download(id="download-tree"),
             dcc.Loading(
