@@ -165,13 +165,7 @@ def layout():
                         n_clicks=0,
                         style={"marginTop": "10px"}
                     ),
-                    # dcc.Loading(
-                    #     id="phylogenetic_loading-spinner",
-                    #     #type="circle",
-                    #     persistence=True,
-                    #     persistence_type="memory",
-                    #     children=html.Div(id="load_spinner_zone")
-                    # ),
+
                     html.Div(
                         html.Div(className="custom-spinner"),
                         id="phylo-spinner-container",

@@ -425,12 +425,16 @@ def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home
                 max_nodes_from_db = global_parameters["max_nodes_from_db"]
 
             genome = home_data_storage.get("selected_genome", None)
+            if "genome_zoom" in home_data_storage and home_data_storage["genome_zoom"]:
+                genome = home_data_storage["genome_zoom"]
+            use_anchor = not home_data_storage.get("zoom", False)
+
             chromosome = home_data_storage.get("selected_chromosome", None)
             start = home_data_storage.get("start", None)
             end = home_data_storage.get("end", None)
             logger.debug(f"Phylo tree construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
             nodes, return_metadata = get_nodes_by_region(
-                genome, chromosome=chromosome, start=start, end=end, use_anchor=True, max_nodes_number=max_nodes_from_db)
+                genome, chromosome=chromosome, start=start, end=end, use_anchor=use_anchor, max_nodes_number=max_nodes_from_db)
             logger.debug(f"Number of nodes in the region: {len(nodes)}")
             stored_data = nodes
 

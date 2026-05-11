@@ -95,18 +95,22 @@ def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters)
         ], style=error_style)), nodes
     else:
         # Step 1: Check if all nodes are in the region (since min node size can be set greater than 1)
-        if home_data_storage["current_size"] > 1:
+        if "current_size" not in home_data_storage or home_data_storage["current_size"] > 1:
             # Get all the nodes from the region
             max_nodes_from_db = MAX_NODES_FROM_DB
             if global_parameters and "max_nodes_from_db" in global_parameters:
                 max_nodes_from_db = global_parameters["max_nodes_from_db"]
             genome = home_data_storage.get("selected_genome", None)
+            if "genome_zoom" in home_data_storage and home_data_storage["genome_zoom"]:
+                genome = home_data_storage["genome_zoom"]
+            use_anchor = not home_data_storage.get("zoom", False)
+
             chromosome = home_data_storage.get("selected_chromosome", None)
             start = home_data_storage.get("start", None)
             end = home_data_storage.get("end", None)
             logger.debug(f"Sequences construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
             nodes, return_metadata = get_nodes_by_region(
-                genome, chromosome=chromosome, start=start, end=end, use_anchor=True)
+                genome, chromosome=chromosome, start=start, end=end, use_anchor=use_anchor)
             logger.debug(f"Number of nodes in the region: {len(nodes)}")
             nodes_data = nodes
 

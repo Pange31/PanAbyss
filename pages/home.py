@@ -1818,6 +1818,10 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         start_value = None
         end_value = None
         new_request = False
+        #alternatif genome in case of zoom on a region that doesn't contain the reference genome
+        alt_genome = ""
+        home_data_storage["genome_zoom"] = None
+        home_data_storage["zoom"] = False
         triggered_id = ctx.triggered_id
         logger.debug(f"{triggered_id} update")
         max_nodes_to_visualize = MAX_NODES_TO_VISUALIZE
@@ -1914,7 +1918,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 zoom_shared_storage_out["end"] = home_data_storage["end"]
             position_field = genome + "_position"
             selected_positions =set()
-            alt_genome= ""
+
             for n in data_storage_nodes:
                 node = data_storage_nodes[n]
                 alt_genome = node["genomes"][0]
@@ -1997,6 +2001,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 use_anchor = True
                 if triggered_id == "btn-zoom":
                     use_anchor = False
+                    home_data_storage["zoom"] = True
+                    home_data_storage["genome_zoom"] = alt_genome
                 new_data, return_metadata = get_nodes_by_region(
                         genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor, min_node_size=size_slider_val,
                         max_nodes_number=max_nodes_from_db)
