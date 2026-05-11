@@ -1180,32 +1180,35 @@ def layout(data=None, initial_size_limit=10):
                             'gap': '8px',
                             'whiteSpace': 'nowrap'
                         }),
+
                         html.Div([
                             dcc.Checklist(
-                                options=[{
-                                    'label': html.Span([
-                                        "Compress graph for nodes with flow ≥ ",
-                                        dcc.Input(
-                                            id='min-flow',
-                                            type='number',
-                                            min=0,
-                                            max=1,
-                                            step=0.01,
-                                            value=0,
-                                            style={
-                                                'width': '70px',
-                                                'marginLeft': '5px'
-                                            }
-                                        )
-                                    ]),
-                                    'value': 'graph_compression'
-                                }],
                                 id='graph-compression',
+                                options=[
+                                    {
+                                        'label': 'Compress graph',
+                                        'value': 'graph_compression'
+                                    }
+                                ],
                                 value=[],
-                                style={'whiteSpace': 'nowrap'}
+                                style={'display': 'inline-block'}
+                            ),
+
+                            html.Span(" for nodes with flow ≥ "),
+
+                            dcc.Input(
+                                id='min-flow',
+                                type='number',
+                                min=0,
+                                max=1,
+                                step=0.01,
+                                value=0,
+                                style={
+                                    'width': '70px',
+                                    'marginLeft': '5px'
+                                }
                             )
                         ]),
-
 
 
                     ], style={
