@@ -203,14 +203,7 @@ def layout():
         html.Div([
             html.Button("Plot tree of selected region", id="btn-plot-region",  n_clicks=0, title="Before using this button, data must be displayed on home page. If data are displayed, then this will computes the phylogenetic tree of displayed haplotypes (see help for details).",style={'marginRight': '15px'}),
             html.Button("Save tree", title="Tree will be saved into newick format.", id="btn-save-tree"),
-            # dcc.Checklist(
-            #     options=[
-            #         {"label": "Weight by node size", "value": "weight_by_size", "text": "If checked, the nodes size will be used to weight the Jaccard index used to compute distance matrix."}
-            #     ],
-            #     value=[],
-            #     id="checkbox-weight-node-size",
-            #     style={'marginTop': '10px'}
-            # ),
+
             html.Label(
                 [
                     dcc.Checklist(
