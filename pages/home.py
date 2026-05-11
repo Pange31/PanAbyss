@@ -78,11 +78,11 @@ def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=Fal
             },
             {
                 'selector': '.main-node',
-                'style': {'shape': 'circle'}
+                'style': {'shape': node_shape}
             },
             {
                 'selector': '.degenerate-node',
-                'style': {'shape': 'square'}
+                'style': {'shape': 'ellipse'}
             },
             {
                 'selector': 'edge',
@@ -131,11 +131,11 @@ def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=Fal
             },
             {
                 'selector': '.main-node',
-                'style': {'shape': 'circle'}
+                'style': {'shape': node_shape}
             },
             {
                 'selector': '.degenerate-node',
-                'style': {'shape': 'square'}
+                'style': {'shape': 'ellipse'}
             },
             {
                 'selector': 'edge',
@@ -781,7 +781,7 @@ legend = html.Div(
 
         # === REPEATED NODE ===
         svg.Svg(width="300", height="30", children=[
-            svg.Rect(x="25", y="5", width="20", height="20", fill="red"),
+            svg.Ellipse(cx="35", cy="15", rx="14", ry="8", fill="red"),
             svg.Text("Repeated node", x="80", y="20", fontSize="12")
         ]),
 
@@ -866,7 +866,7 @@ def layout(data=None, initial_size_limit=10):
                     html.Li(
                         "Colored edges size: set the edge size for colored haplotypes."),
                     html.Li(
-                        "Graph compression: when a min node size is set greater than 0, this will compact the linear parts of the graph (i.e. nodes connected to exactly 2 nodes will be compacted."),
+                        "Graph compression: when a min node size is set greater than 0, this will compact the linear parts of the graph (i.e. nodes connected to exactly 2 nodes will be compacted. It is possible to set the minimal percentage of individuals for compressing a node (for instance to compress only the core nodes)."),
                     html.Li("Search shared paths : if the box is checked, the display is modified to allow the selection of haplotypes for which you want to view shared links. This display can be configured:"),
                     html.Ul([
                         html.Li(
@@ -892,7 +892,7 @@ def layout(data=None, initial_size_limit=10):
                     html.Li("Graph description :"),
                     html.Ul([
                         html.Li(
-                            "Node shape : a node is drawn as a circle, unless if it's a repeated node in which case it will be displayed as a square."),
+                            "Node shape : a node is drawn as a round rectangle (can be configured in about page), unless if it's a repeated node in which case it will be displayed as an ellipse."),
                         html.Li("Node color : The color of the nodes ranges from blue to red. The bluer the color, the less common the node (node associated with only one or a small number of haplotypes). Conversely, red nodes are those of the core genome shared by all haplotypes."),
                         html.Li(
                             "Node size : the size of a node is proportionnal to the size of the sequence associated."),
@@ -1186,7 +1186,7 @@ def layout(data=None, initial_size_limit=10):
                                 id='graph-compression',
                                 options=[
                                     {
-                                        'label': 'Compress graph',
+                                        'label': 'Compress nodes with at least ',
                                         'value': 'graph_compression'
                                     }
                                 ],
@@ -1194,20 +1194,20 @@ def layout(data=None, initial_size_limit=10):
                                 style={'display': 'inline-block'}
                             ),
 
-                            html.Span(" for nodes with flow ≥ "),
-
                             dcc.Input(
                                 id='min-flow',
                                 type='number',
                                 min=0,
-                                max=1,
-                                step=0.01,
+                                max=100,
+                                step=1,
                                 value=0,
                                 style={
                                     'width': '70px',
                                     'marginLeft': '5px'
                                 }
-                            )
+                            ),
+
+                            html.Span(" % of individuals. "),
                         ]),
 
 
@@ -1894,7 +1894,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         min_flow_compression_value = 0
         if compression:
             try:
-                min_flow_compression_value = float(min_flow_compression)
+                min_flow_compression_value = float(min_flow_compression)/100
             except (TypeError, ValueError):
                 min_flow_compression_value = 0
             if not (0 <= min_flow_compression_value <= 1):
