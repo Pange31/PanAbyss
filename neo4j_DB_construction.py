@@ -149,7 +149,7 @@ def get_chromosomes():
 #This function create stats about chromosomes
 @require_authorization
 def create_chromosome_stats(chromosomes_stats = None):
-
+    chromosome_values = {}
     chromosome_max_values = {}
     if chromosomes_stats is None :
         chromosomes = get_chromosomes()
@@ -165,42 +165,51 @@ def create_chromosome_stats(chromosomes_stats = None):
         if chromosomes_stats is None :
             for chrom in tqdm(chromosomes, desc="Processing chromosomes"):
                 logger.debug(f"Getting stats for chromosome : {chrom}")
-                max_result = session.run(
+                result = session.run(
                     """
                     MATCH (n:Node {chromosome: $chrom})
-                    RETURN max(n.position_mean) AS max_pos
+                    RETURN max(n.position_mean) as max_pos, count(n) AS nodes_nb
                     """,
                     chrom=chrom
                 )
-                max_val = max_result.single()["max_pos"]
-                key_name = f"{chrom}_max_position_mean"
-                chromosome_max_values[key_name] = max_val
+                record = result.single()
+                max_val = record["max_pos"]
+                nodes_nb = record["nodes_nb"]
 
-        cs_result = session.run(
-            "MATCH (cs:chromosome_stats) RETURN cs LIMIT 1"
-        )
-        cs_record = cs_result.single()
-        if cs_record:
-            #Stats already exists => update
-            # set_clause = ", ".join([f"cs.{k} = $props.{k}" for k in chromosome_max_values])
-            # session.run(
-            #     f"MATCH (cs:chromosome_stats) SET {set_clause}",
-            #     props=chromosome_max_values
-            # )
-            session.run(
-                "MATCH (cs:chromosome_stats) SET cs += $props",
-                props=chromosome_max_values
+                chromosome_values[f"{chrom}_max_position_mean"] = max_val
+                chromosome_values[f"{chrom}_nodes_number"] = nodes_nb
+
+            cs_result = session.run(
+                "MATCH (cs:chromosome_stats) RETURN cs LIMIT 1"
             )
-            logger.debug(f"Updated chromosome_stats node with: {chromosome_max_values}")
-        else:
-            #Stats doesn't exist => create it
-            session.run(
-                "CREATE (cs:chromosome_stats) SET cs += $props",
-                props=chromosome_max_values
-            )
-            logger.debug(f"Created chromosome_stats node with: {chromosome_max_values}")
-    logger.info("✅ Chromosome stats node created")
-    logger.debug(f"✅ Chromosome stats value : {chromosome_max_values}")
+
+            cs_record = cs_result.single()
+
+            if cs_record:
+                # Update existing node
+                session.run(
+                    "MATCH (cs:chromosome_stats) SET cs += $props",
+                    props=chromosome_values
+                )
+
+                logger.debug(
+                    f"Updated chromosome_stats node with: {chromosome_values}"
+                )
+
+            else:
+                # Create new node
+                session.run(
+                    "CREATE (cs:chromosome_stats) SET cs += $props",
+                    props=chromosome_values
+                )
+
+                logger.debug(
+                    f"Created chromosome_stats node with: {chromosome_values}"
+                )
+
+        logger.info("✅ Chromosome stats node created")
+        logger.debug(f"✅ Chromosome stats value : {chromosome_values}")
+
     return
 
 
@@ -502,14 +511,15 @@ def create_indexes(base=True, extend=False, genomes_index=False):
                 all_genomes = record["all_genomes"]
             nb_genomes = len(all_genomes)
             logger.info(all_genomes)
+            logger.info("creating indexes for position_mean ")
+            indexes_queries = ["CREATE INDEX NodeIndexMeanPosition IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.position_mean)"]
             for g in all_genomes:
                 logger.info("creating indexes for genome " + g + " ("+str(current_genome+1) + "/"+str(nb_genomes) +")")
                 current_genome += 1
-                indexes_queries = []
                 indexes_queries.append("CREATE INDEX NodeIndex"+str(g).replace("-", "_").replace(".","_")+"_position IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.`"+str(g)+"_position`)")
-                with session.begin_transaction() as tx:
-                    for query in indexes_queries :
-                        tx.run(query)
+            with session.begin_transaction() as tx:
+                for query in indexes_queries :
+                    tx.run(query)
             
 
 
@@ -1726,6 +1736,9 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
 
     pending_nodes = []
 
+    gene_ids = set()
+    transcript_ids = set()
+
     driver = get_scoped_driver()
     if driver is None:
         return None
@@ -1805,6 +1818,7 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
                         gene_id = feature_id
 
                         if gene_id:
+                            gene_ids.add(gene_id)
                             gene_info[gene_id] = {
                                 "gene_name": attr.get("name") or attr.get("gene_name") or gene_id,
                                 "full_gene_name": attr.get("description") or attr.get("full_name") or attr.get("full_gene_name")
@@ -1814,6 +1828,9 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
                     elif feature in ["mrna", "transcript"]:
                         transcript_id = feature_id
                         gene_id = parent
+
+                        if transcript_id:
+                            transcript_ids.add(transcript_id)
 
                         if transcript_id and gene_id:
                             transcript_to_gene[transcript_id] = gene_id
@@ -1825,17 +1842,23 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
 
                     # other features
                     else:
-                        transcript_id = parent
-                        if transcript_id:
+                        if parent in transcript_ids:
+                            transcript_id = parent
                             gene_id = transcript_to_gene.get(transcript_id)
 
-                    if gene_id and gene_id in gene_info:
-                        node["gene_id"] = gene_id
-                        node.update(gene_info[gene_id])
+                        elif parent in gene_ids:
+                            gene_id = parent
+                            transcript_id = None
 
-                    elif gene_id or transcript_id:
-                        pending_nodes.append((node, gene_id, transcript_id))
-                        continue
+                        else:
+                            # parent is not known yet
+                            pending_nodes.append((node, parent, None))
+                            continue
+
+                    if gene_id:
+                        node["gene_id"] = gene_id
+                        if gene_id in gene_info:
+                            node.update(gene_info[gene_id])
 
                     if transcript_id:
                         node["transcript_id"] = transcript_id
