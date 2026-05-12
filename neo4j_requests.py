@@ -789,6 +789,9 @@ def get_nodes_by_feature(genome, chromosome, feature=None, value=None, min_node_
     elif feature.lower() == "transcript" or feature.lower() == "mrna":
         key_id = "transcript_id"
         key_name = "transcript_name"
+    elif feature.lower() == "exon":
+        key_id = "exon_id"
+        key_name = "exon_id"
 
     with driver.session() as session:
         genome_position = genome + "_position"

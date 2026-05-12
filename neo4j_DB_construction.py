@@ -1715,7 +1715,8 @@ def parse_gff_attributes(attr_string):
     return attr_dict
 
 
-#This function will create the Annotation nodes in the neo4j database from a gtf file, but without creating the relationships.
+#This function will create the Annotation nodes in the neo4j database from a gff or gtf file,
+# but without creating the relationships.
 @require_authorization
 def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotation",single_chromosome=None):
     start_time = time.time()
@@ -1790,19 +1791,27 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
 
                 # GTF
                 if file_format == "gtf":
-
                     for key, val in attr.items():
                         node[key] = val
 
-                    gene_id = attr.get("gene_id")
-                    transcript_id = attr.get("transcript_id")
+                    gene_id = (
+                            attr.get("gene_id")
+                            or attr.get("gene")
+                    )
+                    if not gene_id and feature == "gene":
+                        gene_id = attr.get("id")
 
                     if gene_id:
                         node["gene_id"] = gene_id
-
                         if "gene_name" not in node:
                             node["gene_name"] = gene_id
 
+                    transcript_id = (
+                            attr.get("transcript_id")
+                            or attr.get("transcript")
+                    )
+                    if not transcript_id and (feature == "transcript" or feature == "mrna"):
+                        transcript_id = attr.get("id")
                     if transcript_id:
                         node["transcript_id"] = transcript_id
 
@@ -1842,6 +1851,10 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
 
                     # other features
                     else:
+                        if feature == "exon":
+                            exon_id = attr.get("id") or attr.get("exon_id")
+                            if exon_id:
+                                node["exon_id"] = exon_id
                         if parent in transcript_ids:
                             transcript_id = parent
                             gene_id = transcript_to_gene.get(transcript_id)
