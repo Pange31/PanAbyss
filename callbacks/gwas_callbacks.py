@@ -254,6 +254,7 @@ def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data)
     Output("btn-cancel-find-shared", "disabled", allow_duplicate=True),
     Input('btn-find-shared', 'n_clicks'),
     State('genome-list', 'value'),
+    State('genome-list', 'options'),
     State("parameters-gwas-page-store", "data"),
     State("gwas-min-node-size-int", 'value'),
     State("gwas-max-node-size-int", 'value'),
@@ -268,7 +269,8 @@ def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data)
     prevent_initial_call=True,
 
 )
-def handle_shared_region_search_click(n_clicks, selected_genomes, data, min_node_size, max_node_size,
+def handle_shared_region_search_click(n_clicks, selected_genomes, all_genomes_dict,
+                                data, min_node_size, max_node_size,
                                 min_percent_selected, tolerance_percentage, region_gap,
                                 deletion_checkbox, chromosome, ref_genome, deletion_percentage, gwas_data):
     poll_enabled = True
@@ -277,6 +279,7 @@ def handle_shared_region_search_click(n_clicks, selected_genomes, data, min_node
     if not n_clicks:
         return no_update, no_update, no_update, no_update, no_update, no_update
     min_size = 10
+    all_genomes = [opt["value"] for opt in all_genomes_dict]
     if min_node_size is not None and min_node_size != "" and isinstance(min_node_size, int):
         min_size = min_node_size
     if min_node_size is None:
@@ -321,6 +324,7 @@ def handle_shared_region_search_click(n_clicks, selected_genomes, data, min_node
 
     params = {
         "genomes_list": selected_genomes,
+        "all_genomes":all_genomes,
         "genome_ref": ref_genome,
         "chromosomes": c,
         "node_min_size": min_node_size,

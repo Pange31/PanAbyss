@@ -262,6 +262,11 @@ def layout():
                 {"name": "region size", "id": "region_size"},
                 {"name": "shared size", "id": "shared_size"},
                 {"name": "shared deleted nodes size", "id": "shared_deleted_size"},
+                {"name": "p-value", "id": "pval"},
+                {"name": "score", "id": "score"},
+                # {"name": "nodes number", "id": "nb_nodes_in_region"},
+                # {"name": "start position mean", "id": "start_position_mean"},
+                # {"name": "stop position mean", "id": "stop_position_mean"},
                 #{"name": "Sequences", "id": "get_sequence", "presentation": "markdown", "selectable": True}
                 {"name": "Sequences", "id": "get_sequence"}
             ],
