@@ -781,18 +781,28 @@ def get_nodes_by_feature(genome, chromosome, feature=None, value=None, min_node_
 
     nodes_data = {}
     shared_genomes = []
+    key_id = "id"
+    key_name = "name"
+    if feature.lower() == "gene":
+        key_id = "gene_id"
+        key_name = "gene_name"
+    elif feature.lower() == "transcript" or feature.lower() == "mrna":
+        key_id = "transcript_id"
+        key_name = "transcript_name"
 
     with driver.session() as session:
         genome_position = genome + "_position"
         # Step 1 : find nodes with gene annotation
         if feature is not None and value is not None:
             logger.info(f"Looking for {feature} : {value}")
+
             query = f"""
-            MATCH (a:Annotation {{chromosome:"{chromosome}", {feature}: $value}})<-[]-(n:Node)
-            WHERE n[$genome_position] IS NOT NULL
-            RETURN DISTINCT n
-            ORDER BY n[$genome_position] ASC
-            """
+                    MATCH (a:Annotation {{chromosome:"{chromosome}", feature:"{feature}"}})<-[]-(n:Node)
+                    WHERE n[$genome_position] IS NOT NULL
+                      AND (a.{key_id} = $value OR a.{key_name} = $value)
+                    RETURN DISTINCT n
+                    ORDER BY n[$genome_position] ASC
+                    """
             result = session.run(query, value=value, genome_position=genome_position)
             # logger.debug(query)
             noeuds_annotes = [record["n"] for record in result]

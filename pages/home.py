@@ -1022,20 +1022,25 @@ def layout(data=None, initial_size_limit=10):
                                     'gap': '15px',
                                     'marginBottom': '20px'
                                 },
-                                children=[
 
+                                children=[
+                                    html.Label("Annotation : ", title="Search by annotations."),
                                     html.Div(
                                         #style={'width': '300px'},
                                         children=[
                                             dcc.Dropdown(
                                                 id='features-dropdown',
                                                 options=[
-                                                            {'label': f"{feature}_name", 'value': f"{feature}_name"}
-                                                            for feature in features
-                                                        ] + [
-                                                            {'label': f"{feature}_id", 'value': f"{feature}_id"}
+                                                            {'label': f"{feature}", 'value': f"{feature}"}
                                                             for feature in features
                                                         ],
+                                                # options=[
+                                                #             {'label': f"{feature}_name", 'value': f"{feature}_name"}
+                                                #             for feature in features
+                                                #         ] + [
+                                                #             {'label': f"{feature}_id", 'value': f"{feature}_id"}
+                                                #             for feature in features
+                                                #         ],
                                                 value='gene_name' if 'gene' in features else None,
                                                 clearable=False,
                                                 placeholder="Choose a feature to search",
@@ -1059,7 +1064,7 @@ def layout(data=None, initial_size_limit=10):
                                             'lineHeight': '38px',
                                             'padding': '0 10px',
                                             'boxSizing': 'border-box',
-                                            'minWidth': '160px',
+                                            'minWidth': '200px',
                                             'width': 'auto'
                                         }
                                     )
