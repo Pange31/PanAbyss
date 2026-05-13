@@ -1836,6 +1836,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         new_request = False
         #alternatif genome in case of zoom on a region that doesn't contain the reference genome
         alt_genome = ""
+        if home_data_storage is None:
+            home_data_storage = {}
         home_data_storage["genome_zoom"] = None
         home_data_storage["zoom"] = False
         triggered_id = ctx.triggered_id
