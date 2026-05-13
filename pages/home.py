@@ -1962,9 +1962,11 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
 
             for n in data_storage_nodes:
                 node = data_storage_nodes[n]
-                alt_genome = node["genomes"][0]
                 if node["name"] in selected_nodes_name and position_field in node :
                     selected_positions.add(node[position_field])
+                if alt_genome is None or alt_genome == "":
+                    if node["name"] in selected_nodes_name:
+                        alt_genome = node["genomes"][0]
             if len(selected_positions) == 0 and alt_genome != "":
                 #Try to switch to another reference genome
                 genome = alt_genome
