@@ -49,6 +49,9 @@ S_MAX = 200
 #MIN size of displayed nodes
 S_MIN = 30
 
+#MAX_EDGE WIDTH
+MAX_EDGE_WIDTH = 4
+
 def records_to_dataframe(nodes_data):
     rows = []
     for record in nodes_data:
@@ -56,9 +59,9 @@ def records_to_dataframe(nodes_data):
     return pd.DataFrame(rows)
 
 
-def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=False):
+def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=False, nodes_size_scale=1):
     node_shape = 'circle' if node_shape_as_circle else 'round-rectangle'
-    node_height = 'data(displayed_node_size)' if node_shape_as_circle else 18
+    node_height = 'data(displayed_node_size)' if node_shape_as_circle else 18*nodes_size_scale
     if color_number > 1:
         stylesheet = [
             {
@@ -354,7 +357,8 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                            specifics_genomes=None, color_genomes=[], x_max=1000, y_max=1000, labels=True,
                            min_shared_genome=100, tolerance=0, color_shared_regions=DEFAULT_SHARED_REGION_COLOR,
                            exons=False, exons_color=DEFAULT_EXONS_COLOR, colored_edges_size=5,
-                           compression=False, min_flow_compression_value=0, max_nodes_to_visualize=MAX_NODES_TO_VISUALIZE):
+                           compression=False, min_flow_compression_value=0, max_nodes_to_visualize=MAX_NODES_TO_VISUALIZE,
+                           nodes_size_scale=1):
     logger.debug(f"Compute elements with ref genome {ref_genome}")
 
     legend_nodes_size_dict = {
@@ -388,7 +392,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         size_max = df['size'].max()
         size_min = df['size'].min()
 
-        df["displayed_node_size"] = S_MIN + (df["size"]-size_min)*(S_MAX-S_MIN)/(size_max-size_min)
+        df["displayed_node_size"] = (S_MIN + (df["size"]-size_min)*(S_MAX-S_MIN)/(size_max-size_min))*nodes_size_scale
 
         legend_nodes_size_dict = {
                 "size_min": str(size_min),
@@ -611,10 +615,9 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     'target-arrow-color': link_color,
                     'label': label,
                     'text-rotation': 'autorotate',
-                    'width': (virtual_flow+int(0.2*len(all_genomes)))/len(all_genomes)*10
+                    'width': (virtual_flow+int(0.2*len(all_genomes)))/len(all_genomes)*MAX_EDGE_WIDTH
                 }
             })
-
             if len(colored_genomes) > 0:
                 i = 0
                 for g in list(colored_genomes.keys()):
@@ -1282,13 +1285,38 @@ def layout(data=None, initial_size_limit=10):
                         }),
 
                         # Node scale size slider
+                        html.Div([
+                            html.Label("Nodes size scale", style={'marginBottom': '0'}),
+                            dcc.Slider(
+                                id='node-size-scale-slider',
+                                min=0.1,
+                                max=5,
+                                step=0.1,
+                                value=1,
+                                marks={
+                                    0.1: '0.1',
+                                    1: '1',
+                                    2: '2',
+                                    3: '3',
+                                    4: '4',
+                                    5: '5'
+                                }
+                            )
+                        ], style={
+                            'display': 'flex',
+                            'alignItems': 'center',
+                            'gap': '15px',
+                            'width': '300px',
+                            'paddingRight': '20px',
+                            'marginBottom': '10px'
+                        }),
                     ],
-                    style={
-                        'display': 'flex',
-                        'flexWrap': 'wrap',
-                        'gap': '20px',
-                        'alignItems': 'center'
-                    }),
+                        style={
+                            'display': 'flex',
+                            'flexWrap': 'wrap',
+                            'gap': '20px',
+                            'alignItems': 'center'
+                        }),
 
                     # === Second line: checkboxes and color picker ===
                     html.Div([
@@ -1837,6 +1865,7 @@ def build_annotations(nodes_data):
     State("phylogenetic-page-store", "data"),
     State('sequences-page-store', 'data'),
     State('colored-edge-size-slider', 'value'),
+    State('node-size-scale-slider', 'value'),
     State('graph-compression', 'value'),
     State('min-flow', 'value'),
     State('nodes-names', 'value'),
@@ -1848,7 +1877,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                  selected_nodes_data, size_slider, home_data_storage, n_clicks, update_graph_command_storage, start, end,
                  feature_name, feature_value, genome, chromosome, data_storage, data_storage_nodes,
                  min_shared_genome, tolerance, shared_regions_link_color, zoom_shared_storage, 
-                 show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size,
+                 show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size, nodes_size_scale,
                  graph_compression_value, min_flow_compression, nodes_names_value, global_parameters):
     if genome is not None and chromosome is not None:
         ctx = dash.callback_context
@@ -2081,7 +2110,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
-                                              max_nodes_to_visualize=max_nodes_to_visualize)
+                                              max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale)
             home_data_storage["current_size"] = size_slider_val
             if triggered_id == "search-button":
                 zoom_shared_storage_out = {}
@@ -2140,7 +2169,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
-                                              max_nodes_to_visualize=max_nodes_to_visualize)
+                                              max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale)
             if len(elements) == 0 and nodes_count > 0:
                 message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
         defined_color = 0
@@ -2148,7 +2177,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             for c in color_genomes:
                 if c != "#000000":
                     defined_color += 1
-        stylesheet = compute_stylesheet(defined_color, nodes_names, node_shape_as_circle)
+        stylesheet = compute_stylesheet(defined_color, nodes_names, node_shape_as_circle,nodes_size_scale=nodes_size_scale)
         count = len(elements)
 
         annotations = ""
