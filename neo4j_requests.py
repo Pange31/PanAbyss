@@ -1231,13 +1231,18 @@ def _run_job_gwas(job_id, params):
 def compute_acat(pvals, weights=None):
 
     pvals = np.asarray(pvals)
-
     #pvals = np.clip(pvals, 1e-300, 1-1e-16)
 
     if weights is None:
         weights = np.ones(len(pvals)) / len(pvals)
     else:
         weights = np.asarray(weights)
+        if len(weights) != len(pvals):
+            raise ValueError(
+                f"weights and pvals must have same length "
+                f"({len(weights)} != {len(pvals)})"
+            )
+
         weights = weights / np.sum(weights)
 
     t = np.sum(
@@ -1570,6 +1575,8 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                 # Group regions if they are separated vy less than nodes_max_gap
                 p_values_list = []
                 weighted_p_values_list = []
+                #used to ponderate score by node_size**alpha or shared_deletion_size**alpha
+                alpha = 1.5
                 for g in genomes_list:
                     # Checks if all results are required, if not, computes result only for reference genome
                     if results_only_for_ref and g != genome_ref:
@@ -1599,7 +1606,6 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                 annotations = annotations_sorted[0]
 
                                 sum_pval = -np.log10(pval_sorted[0])
-                                p_values_list.append(pval_sorted[0])
                                 if len(deleted_nodes_sorted[0]) > 0:
                                     current_deletion = {}
                                     for dg in deleted_nodes_sorted[0]:
@@ -1608,7 +1614,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                             "end_deletion": deleted_nodes_sorted[0][dg]["end_deletion"]}
                                 else:
                                     current_deletion = None
-                                    sum_score = size_sorted[0] * (-np.log10(pval_sorted[0]))
+                                    sum_score = (size_sorted[0]**alpha) * (-np.log10(pval_sorted[0]))
                                     weighted_p_values_list = [size_sorted[0]]
                                     p_values_list = [pval_sorted[0]]
 
@@ -1674,7 +1680,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                                         current_deletion[dg]["end_deletion"] - current_deletion[dg][
                                                             "start_deletion"]))
                                             shared_deleted_size += statistics.median(gap)
-                                            sum_score += shared_deleted_size * (-np.log10(pval_sorted[i]))
+                                            sum_score += (shared_deleted_size**alpha) * (-np.log10(pval_sorted[i]))
                                             weighted_p_values_list.append(shared_deleted_size)
                                             p_values_list.append(pval_sorted[i])
                                             for dg in deleted_nodes_sorted[i]:
@@ -1683,7 +1689,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                                     "end_deletion": deleted_nodes_sorted[i][dg]["end_deletion"]}
                                     else:
                                         #Not a deleted node
-                                        sum_score += size_sorted[i] * (-np.log10(pval_sorted[i]))
+                                        sum_score += (size_sorted[i]**alpha) * (-np.log10(pval_sorted[i]))
                                         weighted_p_values_list.append(size_sorted[i])
                                         p_values_list.append(pval_sorted[i])
                                 else:
@@ -1700,7 +1706,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                         shared_deleted_size += statistics.median(gap)
                                         weighted_p_values_list.append(shared_deleted_size)
                                         p_values_list.append(pval_sorted[i])
-                                        sum_score += shared_deleted_size * (-np.log10(pval_sorted[i]))
+                                        sum_score += (shared_deleted_size**alpha) * (-np.log10(pval_sorted[i]))
                                     if shared_deleted_size > 0 and region_stop < region_start + shared_deleted_size:
                                         region_stop = region_start + shared_deleted_size
 
@@ -1735,7 +1741,6 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                     # min_position_mean = position_mean_sorted[i]
                                     # max_position_mean = min_position_mean + size_sorted[i]
                                     sum_pval = -np.log10(pval_sorted[i])
-                                    p_values_list = [pval_sorted[i]]
                                     annotations = annotations_sorted[i]
                                     if len(deleted_nodes_sorted[i]) > 0:
                                         sum_score = 0
@@ -1749,7 +1754,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                                 "end_deletion": deleted_nodes_sorted[i][dg]["end_deletion"]}
                                     else:
                                         current_deletion = None
-                                        sum_score = size_sorted[i] * (-np.log10(pval_sorted[i]))
+                                        sum_score = (size_sorted[i]**alpha) * (-np.log10(pval_sorted[i]))
                                         weighted_p_values_list = [size_sorted[i]]
                                         p_values_list = [pval_sorted[i]]
                                     region_start = nodes_position_sorted[i]
@@ -1764,7 +1769,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                     gap.append(abs(current_deletion[dg]["end_deletion"] - current_deletion[dg][
                                         "start_deletion"]))
                             shared_deleted_size += statistics.median(gap)
-                            sum_score += shared_deleted_size * (-np.log10(pval_sorted[i]))
+                            sum_score += (shared_deleted_size**alpha) * (-np.log10(pval_sorted[i]))
                             weighted_p_values_list.append(shared_deleted_size)
                             p_values_list.append(pval_sorted[i])
                         if shared_deleted_size > 0 and region_stop < region_start + shared_deleted_size:
