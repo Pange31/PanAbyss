@@ -373,6 +373,8 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
             position_field = "mean_pos"
         df = records_to_dataframe(data)
         df = df[df["size"] >= size_min].copy()
+        if df.empty:
+            return [], 0, legend_nodes_size_dict
         #If compression is set to true then it will compress the graph
         #Nodes with a single predecessor and a single successor, and for which the predecessor
         #has only one outgoing node, are removed
@@ -1983,6 +1985,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             selected_nodes_name = set()
             if selected_nodes_data is not None and len(selected_nodes_data) > 0:
                 selected_nodes_name = set([node['name'] for node in selected_nodes_data])
+            else:
+                raise PreventUpdate
             if len(zoom_shared_storage_out) ==0:
                 zoom_shared_storage_out["start"] = home_data_storage["start"]
                 zoom_shared_storage_out["end"] = home_data_storage["end"]
@@ -2016,10 +2020,12 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         if triggered_id == "btn-zoom-out":
             if "start" in home_data_storage and home_data_storage["start"] is not None \
                 and "end" in home_data_storage and home_data_storage["end"] is not None:
-                start_value = max(0,home_data_storage["start"] - 1000)
-                end_value = home_data_storage["end"] + 1000
+                start_value = max(0,int(home_data_storage["start"]) - 1000)
+                end_value = int(home_data_storage["end"]) + 1000
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
+            else:
+                raise PreventUpdate
         if triggered_id == "btn-reset-zoom":
             if len(zoom_shared_storage_out) > 0:
                 logger.debug(f"reset zoom to {zoom_shared_storage_out['start']} - {zoom_shared_storage_out['end']}")
@@ -2029,6 +2035,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
             else:
+                logger.debug(f"No zoom, can't reset zoom")
+                raise PreventUpdate
                 if ("feature_name" in home_data_storage and home_data_storage["feature_name"] is not None and home_data_storage["feature_name"] != ""
                     and "feature_value" in home_data_storage and home_data_storage["feature_value"] is not None and home_data_storage["feature_value"] != ""):
                     feature_name = home_data_storage["feature_name"]
