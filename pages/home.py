@@ -1026,25 +1026,43 @@ def layout(data=None, initial_size_limit=10):
 
 
                             ], style={'marginBottom': '10px'}),
+
+
                             html.Div(
                                 style={
                                     'display': 'flex',
-                                    'alignItems': 'center',
-                                    'gap': '15px',
-                                    'marginBottom': '20px'
+                                    'flexDirection': 'column',
+                                    'gap': '6px',
+                                    'marginBottom': '20px',
+                                    'width': '100%'
                                 },
 
                                 children=[
-                                    html.Label("Annotation : ", title="Search by annotations."),
+
+                                    # Label
+                                    html.Label(
+                                        "Annotations :",
+                                        title="Search by annotations."
+                                    ),
+
                                     html.Div(
-                                        #style={'width': '300px'},
+                                        style={
+                                            'display': 'flex',
+                                            'flexDirection': 'row',
+                                            'alignItems': 'center',
+                                            'gap': '12px',
+                                            'flexWrap': 'wrap'
+                                        },
+
                                         children=[
+
                                             dcc.Dropdown(
                                                 id='features-dropdown',
+
                                                 options=[
-                                                            {'label': f"{feature}", 'value': f"{feature}"}
-                                                            for feature in features
-                                                        ],
+                                                    {'label': f, 'value': f}
+                                                    for f in features
+                                                ],
                                                 # options=[
                                                 #             {'label': f"{feature}_name", 'value': f"{feature}_name"}
                                                 #             for feature in features
@@ -1052,35 +1070,40 @@ def layout(data=None, initial_size_limit=10):
                                                 #             {'label': f"{feature}_id", 'value': f"{feature}_id"}
                                                 #             for feature in features
                                                 #         ],
-                                                value='gene_name' if 'gene' in features else None,
+                                                value='gene' if 'gene' in features else None,
                                                 clearable=False,
-                                                placeholder="Choose a feature to search",
+                                                placeholder="Feature",
+
                                                 style={
-                                                    'display': 'inline-block',
-                                                    'marginRight': '10px',
                                                     'width': 'max-content',
-                                                    'minWidth': '120px'
+                                                    'minWidth': '160px',
+                                                    'maxWidth': '240px'
+                                                }
+                                            ),
+
+                                            dcc.Input(
+                                                id='feature-input',
+                                                type='text',
+                                                placeholder='Name or id to search',
+                                                debounce=True,
+
+                                                style={
+                                                    'width': '200px',
+                                                    'minWidth': '140px',
+                                                    'maxWidth': '260px',
+
+                                                    'height': '38px',
+                                                    'padding': '0 10px',
+                                                    'boxSizing': 'border-box'
                                                 }
                                             )
                                         ]
-                                    ),
-
-                                    dcc.Input(
-                                        id='feature-input',
-                                        type='text',
-                                        placeholder='Value to search',
-                                        debounce=True,
-                                        style={
-                                            'height': '38px',
-                                            'lineHeight': '38px',
-                                            'padding': '0 10px',
-                                            'boxSizing': 'border-box',
-                                            'minWidth': '200px',
-                                            'width': 'auto'
-                                        }
                                     )
                                 ]
                             ),
+
+
+
                             html.Button('Search', id='search-button',
                                         n_clicks=0, style={'marginTop': '10px'}),
                             dcc.Loading(
