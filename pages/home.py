@@ -229,17 +229,18 @@ def merge_node_data(df, nodes_to_remove, predecessors):
         # add exons
         e1 = df.loc[df['name'] == n, 'exons'].iloc[0]
         e2 = df.loc[df['name'] == pred_node, 'exons'].iloc[0]
-
         #exons = list(set((e1 if isinstance(e1, list) else []) + (e2 if isinstance(e2, list) else [])))
         combined_exons = (
                 (e1 if isinstance(e1, list) else []) +
                 (e2 if isinstance(e2, list) else [])
         )
 
+        seen_exon_ids = set()
         exons = []
-
         for exon in combined_exons:
-            if exon not in exons:
+            exon_id = exon.get("exon_id")
+            if exon_id not in seen_exon_ids:
+                seen_exon_ids.add(exon_id)
                 exons.append(exon)
         df.at[idx, 'exons'] = exons
 
