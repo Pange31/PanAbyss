@@ -157,7 +157,9 @@ def create_chromosome_stats(chromosomes_stats = None):
             return
     else :
         for chrom, stats_dic in chromosomes_stats.items():
-            chromosome_max_values[chrom+"_max_position_mean"] = stats_dic["max_position_mean"]
+            if "max_position_mean" in stats_dic and "nodes_number" in stats_dic :
+                chromosome_values[chrom+"_max_position_mean"] = stats_dic["max_position_mean"]
+                chromosome_values[chrom + "_nodes_number"] = stats_dic["nodes_number"]
     driver = get_scoped_driver()
     if driver is None:
         return None
@@ -179,33 +181,33 @@ def create_chromosome_stats(chromosomes_stats = None):
                 chromosome_values[f"{chrom}_max_position_mean"] = max_val
                 chromosome_values[f"{chrom}_nodes_number"] = nodes_nb
 
-            cs_result = session.run(
-                "MATCH (cs:chromosome_stats) RETURN cs LIMIT 1"
+        cs_result = session.run(
+            "MATCH (cs:chromosome_stats) RETURN cs LIMIT 1"
+        )
+
+        cs_record = cs_result.single()
+
+        if cs_record:
+            # Update existing node
+            session.run(
+                "MATCH (cs:chromosome_stats) SET cs += $props",
+                props=chromosome_values
             )
 
-            cs_record = cs_result.single()
+            logger.debug(
+                f"Updated chromosome_stats node with: {chromosome_values}"
+            )
 
-            if cs_record:
-                # Update existing node
-                session.run(
-                    "MATCH (cs:chromosome_stats) SET cs += $props",
-                    props=chromosome_values
-                )
+        else:
+            # Create new node
+            session.run(
+                "CREATE (cs:chromosome_stats) SET cs += $props",
+                props=chromosome_values
+            )
 
-                logger.debug(
-                    f"Updated chromosome_stats node with: {chromosome_values}"
-                )
-
-            else:
-                # Create new node
-                session.run(
-                    "CREATE (cs:chromosome_stats) SET cs += $props",
-                    props=chromosome_values
-                )
-
-                logger.debug(
-                    f"Created chromosome_stats node with: {chromosome_values}"
-                )
+            logger.debug(
+                f"Created chromosome_stats node with: {chromosome_values}"
+            )
 
         logger.info("✅ Chromosome stats node created")
         logger.debug(f"✅ Chromosome stats value : {chromosome_values}")
@@ -939,7 +941,7 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
                 chromosome, genome = get_chromosome_genome(ligne, haplotype = haplotype, chromosome_file=chromosome_file)
                 if chromosome not in set_all_chromosomes :
                     chromosomes_list.append(chromosome)
-                    chromosomes_stats[chromosome]={"max_position_mean":0}
+                    chromosomes_stats[chromosome]={"max_position_mean":0, "nodes_number":0}
                 if len(set_all_chromosomes) == 0:
                     first_chromosome = chromosome
                     if start_chromosome is not None and start_chromosome != "":
@@ -1143,6 +1145,7 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
                     #Flow computing
                     logger.info("\nSize of elements to create into DB : " + str(len(list(nodes_dic.items()))))
                     if len(nodes_dic) > 0:
+                        chromosomes_stats[c]["nodes_number"] += len(nodes_dic)
                         for node in nodes_dic:
                             nodes_dic[node]["flow"] = len(nodes_dic[node]["genomes"])/len(set_all_genomes)
                             position_mean = 0
@@ -1324,10 +1327,9 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                         last_line = line
                 except StopIteration:
                     break
-        
-        if last_line:
+        if cpt_lines > 1 and last_line:
             last_node_id = int(last_line[0])+1
-            
+
     csv_sequence_file = open(import_dir+"/sequences.csv", "a", newline="", encoding="utf-8") 
     sequences_writer = csv.writer(csv_sequence_file)
     if print_header_sequences:
@@ -1375,7 +1377,7 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                 chromosome, genome = get_chromosome_genome(ligne, haplotype = haplotype, chromosome_file=chromosome_file)
                 if chromosome not in set_all_chromosomes :
                     chromosomes_list.append(chromosome)
-                    chromosomes_stats[chromosome] = {"max_position_mean":0}
+                    chromosomes_stats[chromosome] = {"max_position_mean":0, "nodes_number":0}
                 if len(set_all_chromosomes) == 0:
                     first_chromosome = chromosome
                     if start_chromosome is not None and start_chromosome != "":
@@ -1424,6 +1426,7 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                     index_first_chromosme = k
         logger.info("Genomes number : " + str(len(set_all_genomes)) + " - genomes list : " + str(set_all_genomes) +  "- chromosomes list : " + str(set_all_chromosomes))
         logger.info("Start parsing, nodes number : " + str(total_nodes) + "\nstart chromosome : " + str(start_chromosome) + "\nstart index : " + str(node_id))
+        total_nodes_chr = 0
         for k in range(index_first_chromosme,len(chromosomes_list)) :
             c = chromosomes_list[k]
             relations_repeat_nodes = {}
@@ -1651,6 +1654,7 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                         ligne = file.readline() 
                 nodes_list = None
                 #Flow computing
+                chromosomes_stats[c]["nodes_number"] += len(nodes_set)
                 logger.info("\nSize of elements to create into csv : " + str(len(csv_nodes_lines)))
                 for line in csv_nodes_lines:
                     line[csv_fields_index["flow"]] = len(line[csv_fields_index["genomes"]])/len(set_all_genomes) if len(set_all_genomes) > 0 else 0
