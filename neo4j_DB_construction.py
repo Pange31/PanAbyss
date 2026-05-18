@@ -1428,7 +1428,6 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
             c = chromosomes_list[k]
             relations_repeat_nodes = {}
             dic_nodes_id = {}
-            total_relations += len(set_relations)
             set_relations = set()
             nodes_set_chromosome = set(nodes_set_next_chromosome)
             nodes_set_next_chromosome = set()
@@ -1670,8 +1669,7 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                 batch_node_id = 0
                 dic_batch_nodes_index = {}
 
-                    
-                    
+            total_relations += len(set_relations)
         nodes_size_dic = None
         logger.info("Csv creation is terminated\nTotal time : " + str(time.time()-temps_depart) + "\nGenomes analysed : " + str(set_genome) + "\nNodes number : "+str(total_nodes) +"\nRelations number : " + str(total_relations))
         
