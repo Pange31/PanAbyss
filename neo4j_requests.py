@@ -783,6 +783,7 @@ def get_nodes_by_feature(genome, chromosome, feature=None, value=None, min_node_
     shared_genomes = []
     key_id = "id"
     key_name = "name"
+    value_lower = value.lower()
     if feature.lower() == "gene":
         key_id = "gene_id"
         key_name = "gene_name"
@@ -802,11 +803,11 @@ def get_nodes_by_feature(genome, chromosome, feature=None, value=None, min_node_
             query = f"""
                     MATCH (a:Annotation {{chromosome:"{chromosome}", feature:"{feature}"}})<-[]-(n:Node)
                     WHERE n[$genome_position] IS NOT NULL
-                      AND (a.{key_id} = $value OR a.{key_name} = $value)
+                      AND (a.{key_id} = $value OR a.{key_name} = $value OR a.{key_id} = $value_lower OR a.{key_name} = $value_lower)
                     RETURN DISTINCT n
                     ORDER BY n[$genome_position] ASC
                     """
-            result = session.run(query, value=value, genome_position=genome_position)
+            result = session.run(query, value=value, value_lower=value_lower, genome_position=genome_position)
             # logger.debug(query)
             noeuds_annotes = [record["n"] for record in result]
             if len(noeuds_annotes) > 0 and genome_position in noeuds_annotes[0] and genome_position in \

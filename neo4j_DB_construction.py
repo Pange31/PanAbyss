@@ -1702,6 +1702,8 @@ def parse_gtf_attributes(attr_string):
     attr_dict = {}
     for match in re.finditer(r'(\S+)\s+"([^"]+)"', attr_string):
         key, val = match.groups()
+        if isinstance(val, str):
+            val = val.lower()
         attr_dict[key.lower()] = val
     return attr_dict
 
@@ -1711,6 +1713,8 @@ def parse_gff_attributes(attr_string):
     for field in attr_string.strip().split(";"):
         if "=" in field:
             key, val = field.split("=", 1)
+            if isinstance(val, str):
+                val = val.lower()
             attr_dict[key.lower()] = val
     return attr_dict
 
@@ -1867,7 +1871,6 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
                             # parent is not known yet
                             pending_nodes.append((node, parent, None))
                             continue
-
                     if gene_id:
                         node["gene_id"] = gene_id
                         if gene_id in gene_info:
