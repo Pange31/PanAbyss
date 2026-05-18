@@ -29,7 +29,7 @@ newgrp docker
 ```
 * Miniconda 3. Please choose the installer corresponding to your OS: [Miniconda dowloads](https://docs.conda.io/en/latest/miniconda.html) 
 * Mamba: this package will be automatically installed if not present.
-* 20 GB RAM (32 Go+ recommended for big data)
+* 20 GB RAM (32 Go+ recommended for big data). For small pangenome it is possible to run with 8 GB RAM and 6 GB swap or virtual memory (to do this, modify memory configuration in data/conf/neo4j.conf file )
 * Sufficient disk space: approximately 10 times the size of the GFA, ideally SSD (HDD are about 10 times slower and are not recommended for this use)
 * The version of Panabyss used to construct the database must be compatible with the version to visualize and analyse data (the version of the database is indicated in the Stats node)
 
