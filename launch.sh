@@ -1,6 +1,45 @@
 #!/bin/bash
 # --- Parameters ---
-DASH_PORT=${1:-8050}
+# --- Parameters ---
+DASH_PORT=8050
+GENERATE_CSV_IMPORT=0
+
+case "${1:-}" in
+    --generate_csv_import)
+        GENERATE_CSV_IMPORT=1
+        ;;
+    --help|-h)
+        echo ""
+        echo "PanAbyss launcher"
+        echo ""
+        echo "Usage:"
+        echo "  ./start.sh [PORT]"
+        echo "  ./start.sh --generate_csv_import"
+        echo "  ./start.sh --help"
+        echo ""
+        echo "Options:"
+        echo "  PORT"
+        echo "      Launch Dash application on specified port"
+        echo "      Default: 8050"
+        echo ""
+        echo "  --generate_csv_import"
+        echo "      Convert all .gfa files from:"
+        echo "          ./data/gfa/"
+        echo "      into CSV import files in:"
+        echo "          ./data/import/"
+        echo ""
+        echo "  --help, -h"
+        echo "      Show this help message"
+        echo ""
+        exit 0
+        ;;
+    "")
+        ;;
+    *)
+        DASH_PORT="$1"
+        ;;
+esac
+
 ENV_NAME="panabyss"
 ENV_FILE="panabyss.yaml"
 HASH_FILE="./.${ENV_NAME}_env_hash"
@@ -45,7 +84,6 @@ fi
 echo "Activating environment '$ENV_NAME'"
 conda activate "$ENV_NAME"
 
-
 # Check conf file
 #First check old config file
 if [ -f "db_conf.json" ]; then
@@ -78,6 +116,39 @@ else
 		exit 1
 	fi
 fi
+
+# --- Special mode: generate CSV import from GFA files ---
+if [ "$GENERATE_CSV_IMPORT" -eq 1 ]; then
+
+    echo "Generating CSV import files from GFA..."
+
+    shopt -s nullglob
+
+    for file_path in ./data/gfa/*.gfa; do
+
+        echo "Processing $file_path ..."
+
+        python -c "
+from neo4j_DB_construction import load_gfa_data_to_csv
+
+load_gfa_data_to_csv(
+    r'''$file_path''',
+    import_dir='./data/import',
+    chromosome_file='',
+    chromosome_prefix=True,
+    batch_size=2000000,
+    start_chromosome=None,
+    haplotype=True
+)
+"
+
+    done
+
+    echo "CSV generation completed."
+    exit 0
+fi
+
+
     
 # --- Launch application ---
 echo "Launching PanAbyss on port $DASH_PORT..."

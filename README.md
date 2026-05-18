@@ -29,7 +29,7 @@ newgrp docker
 ```
 * Miniconda 3. Please choose the installer corresponding to your OS: [Miniconda dowloads](https://docs.conda.io/en/latest/miniconda.html) 
 * Mamba: this package will be automatically installed if not present.
-* 20 GB RAM (32 Go+ recommended for big data). For small pangenome it is possible to run with 8 GB RAM and 6 GB swap or virtual memory (to do this, modify memory configuration in data/conf/neo4j.conf file )
+* 20 GB RAM (32 Go+ recommended for big data). For small pangenome it is possible to run with 8 GB RAM and 6 GB swap or virtual memory (to do this, modify memory configuration in data/conf/neo4j.conf file)
 * Sufficient disk space: approximately 10 times the size of the GFA, ideally SSD (HDD are about 10 times slower and are not recommended for this use)
 * The version of Panabyss used to construct the database must be compatible with the version to visualize and analyse data (the version of the database is indicated in the Stats node)
 
@@ -124,6 +124,25 @@ To do so, modify the configuration file (`./conf.json`):
 - To stop application, use the ```./stop_server.sh``` script.
 - Gunicorn log into /logs/gunicorn but it is recommended to set a rotation file for this log.
 
+
+## Running PanAbyss on Low-Memory Systems
+
+Several solutions are available to run PanAbyss on machines with limited RAM:
+
+- The simplest solution, especially when using an SSD, is to increase the swap size so that the total available memory (RAM + swap) is sufficient.
+- If increasing swap is not possible, the application can still run with **8 GB of RAM and 6 GB of swap/virtual memory** for small pangenomes.  
+  In this case, before the first launch of the application, you must edit the file: ```./install/conf/neo4j.conf```
+  and adjust the following parameters according to your machine resources:
+  - server.memory.heap.max_size=4g
+  - server.memory.pagecache.size=2g
+  
+- The most memory-intensive step is the conversion of the pangenome into a Neo4j-compatible import format (GFA → CSV conversion).
+For very large pangenomes or when working on a machine with limited RAM, this preprocessing step can be executed on another machine with more resources or on a computing cluster. To do so:
+  - Download PanAbyss on the remote machine
+  - Place the .gfa file(s) into ```./data/gfa```
+  - Run: ```./launch.sh --generate_csv_import```. This command generates the Neo4j import files inside ```./data/import```
+  - The generated files can then be copied into the local machine's ```./data/import``` directory
+  - After that, the database can be created locally **without selecting a GFA file**, and the application can be used normally.
 
 ## Parameters file
 
