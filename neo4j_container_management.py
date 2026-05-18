@@ -76,6 +76,7 @@ def import_dump():
         #"-e", f"NEO4J_dbms.memory.heap.max_size={MAX_MEM}",
         "-v", f"{IMPORT_DIR}:/import",
         "-v", f"{NEO4J_BASE_DIR}/data:/data",
+        "-u", f"{os.getuid()}:{os.getgid()}",
         DOCKER_IMAGE,
         "neo4j-admin", "database", "load", "neo4j",
         "--from-path=/import", "--overwrite-destination=true"
@@ -93,6 +94,7 @@ def import_csv():
         "-v", f"{NEO4J_BASE_DIR}/data:/data",
         "-v", f"{IMPORT_DIR}:/import",
         "-e", f"NEO4J_AUTH={NEO4J_AUTH}",
+        "-u", f"{os.getuid()}:{os.getgid()}",
         DOCKER_IMAGE,
         "neo4j-admin", "database", "import", "full",
         "--verbose",
@@ -141,6 +143,7 @@ def start_container():
                 "-e", "NEO4J_apoc_import_file_enabled=true",
                 "-e", "NEO4J_apoc_import_file_use__neo4j__config=true",
                 "-e", "NEO4J_PLUGINS=[\"apoc\"]",
+                "-u", f"{os.getuid()}:{os.getgid()}",
                 "-p", f"{HTTP_PORT}:7474",
                 "-p", f"{BOLT_PORT}:7687",
                 "-v", f"{NEO4J_BASE_DIR}/data:/data",
@@ -363,6 +366,7 @@ def dump_db(container_name, docker_image=DOCKER_IMAGE):
             #"-e", f"NEO4J_dbms.memory.heap.max_size={MAX_MEM}",
             "-v", f"{NEO4J_BASE_DIR}/data:/data",
             "-v", f"{IMPORT_DIR}:/import",
+            "-u", f"{os.getuid()}:{os.getgid()}",
             DOCKER_IMAGE,
             "neo4j-admin", "database", "dump", "neo4j",
             f"--to-path=/import"
