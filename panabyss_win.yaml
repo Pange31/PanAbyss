@@ -1,8 +1,8 @@
 name: panabyss
 channels:
-  - defaults
   - conda-forge
   - bioconda
+  - defaults
 dependencies:
   - python=3.10
   - pandas
