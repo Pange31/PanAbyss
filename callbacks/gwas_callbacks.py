@@ -191,29 +191,82 @@ def build_chromosome_figure(data):
         line_color="black"
     )
 
+    # fig.update_layout(
+    #     title=dict(
+    #         text="Distribution of Shared Regions",
+    #         x=0.5,
+    #         xanchor="center",
+    #         y=0.95,
+    #         yanchor="top"
+    #     ),
+    #     xaxis=dict(
+    #         tickmode="array",
+    #         tickvals=chromosome_centers,
+    #         ticktext=chromosome_labels,
+    #         title="Chromosomes and mean position."
+    #     ),
+    #     yaxis=dict(
+    #         title="Size of the shared region (negative = deletions)",
+    #         range=[y_min - y_pad, y_max + y_pad]
+    #     ),
+    #     showlegend=False,
+    #     plot_bgcolor="white",
+    #     margin=dict(l=40, r=20, t=90, b=40)
+    # )
     fig.update_layout(
         title=dict(
             text="Distribution of Shared Regions",
             x=0.5,
             xanchor="center",
             y=0.95,
-            yanchor="top"
+            yanchor="top",
+            font=dict(
+                family="Inter, Arial, sans-serif",
+                size=18,
+                color="black"
+            )
         ),
+
+        font=dict(
+            family="Inter, Arial, sans-serif",
+            size=12,
+            color="black"
+        ),
+
         xaxis=dict(
             tickmode="array",
             tickvals=chromosome_centers,
             ticktext=chromosome_labels,
-            title="Chromosomes and mean position."
+
+            title=dict(
+                text="Chromosomes and mean position",
+                font=dict(size=14, color="black")
+            ),
+
+            tickfont=dict(size=11, color="black"),
+            linecolor="black",
+            mirror=True
         ),
+
         yaxis=dict(
-            title="Size of the shared region (negative = deletions)",
-            range=[y_min - y_pad, y_max + y_pad]
+            title=dict(
+                text="Size of the shared region (negative = deletions)",
+                font=dict(size=14, color="black")
+            ),
+
+            tickfont=dict(size=11, color="black"),
+            range=[y_min - y_pad, y_max + y_pad],
+
+            linecolor="black",
+            mirror=True
         ),
+
         showlegend=False,
         plot_bgcolor="white",
-        margin=dict(l=40, r=20, t=90, b=40)
-    )
+        paper_bgcolor="white",
 
+        margin=dict(l=60, r=20, t=90, b=60)
+    )
     return fig
 
 #Callback to get selected genomes and put them in the genome dropdown
@@ -413,7 +466,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
             for annot in analyse_to_plot[r].get("annotations", []):
                 gene = annot.get("gene_name")
                 if gene:
-                    set_gene_name.add(gene)
+                    set_gene_name.add(gene.upper())
 
             if set_gene_name:
                 genes = sorted(set_gene_name)
@@ -433,18 +486,20 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
             annot_before = ""
             annot_data = analyse_to_plot[r].get("annotation_before")
             if annot_data:
-                gene_name = annot_data.get("gene_name")
+                gene_name = annot_data.get("gene_name").upper()
                 distance = annot_data.get("distance")
-                annot_before = f"Gene_name: {gene_name}<br>Distance: {distance}"
+                annot_before = f"{gene_name}<br>{distance}"
+                #annot_before = f"Gene:{gene_name}\nDist:{distance}"
             analyse_to_plot[r]["annotation_before"] = annot_before
 
             annot_after = ""
             annot_data = analyse_to_plot[r].get("annotation_after")
             if annot_data:
-                gene_name = annot_data.get("gene_name")
+                gene_name = annot_data.get("gene_name").upper()
                 distance = annot_data.get("distance")
 
-                annot_after = f"Gene_name: {gene_name}<br>Distance: {distance}"
+                #annot_after = f"Gene_name: {gene_name}<br>Distance: {distance}"
+                annot_after = f"{gene_name}<br>{distance}"
             analyse_to_plot[r]["annotation_after"] = annot_after
 
         message = f"{len(analyse_to_plot)} shared regions found."

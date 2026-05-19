@@ -1685,12 +1685,12 @@ def build_annotations(nodes_data):
         # get genes names
         if "genes_names" in node_data:
             for a in node_data["genes_names"]:
-                genes_set.add(a)
+                genes_set.add(a.upper())
 
         # get transcripts
         for transcript in node_data.get("transcripts", []):
 
-            transcript_id = transcript["transcript_id"]
+            transcript_id = transcript["transcript_id"].upper()
 
             if transcript_id is None:
                 continue
@@ -1700,7 +1700,7 @@ def build_annotations(nodes_data):
                 transcript_gene = None
 
                 if "genes_names" in node_data and len(node_data["genes_names"]) > 0:
-                    transcript_gene = sorted(list(node_data["genes_names"]))[0]
+                    transcript_gene = sorted(list(node_data["genes_names"]))[0].upper()
 
                 region_transcripts[transcript_id] = {
                     "start": transcript["start"],
@@ -1718,7 +1718,7 @@ def build_annotations(nodes_data):
         # get exons
         for exon in node_data.get("exons", []):
 
-            exon_id = exon.get("exon_id")
+            exon_id = exon.get("exon_id").upper()
 
             if exon_id is None:
                 continue
