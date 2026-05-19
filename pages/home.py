@@ -100,12 +100,33 @@ def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=Fal
                     'z-compound-depth': 'bottom'
                 },
             },
-            {'selector': ':selected', 'style': {
-                'backgroundColor': 'grey',
+            # {'selector': ':selected', 'style': {
+            #     'backgroundColor': 'grey',
+            #     'line-color': '#FF4136',
+            #     'border-width': 3,
+            #     'border-color': 'black'
+            # }}
+            {'selector': 'edge:selected', 'style': {
+                'line-color': 'red',
+                'background-color': 'red',
+                'target-arrow-color': 'red',
+                'width': 6,
+                'opacity': 1,
+                'z-index': 9999
+            }},
+            {'selector': 'edge:hover', 'style': {
+                'line-color': 'red',
+                'target-arrow-color': 'red',
+                'width': 5,
+                'opacity': 1,
+            }},
+
+            {'selector': 'node:selected', 'style': {
+                'background-color': 'grey',
                 'line-color': '#FF4136',
                 'border-width': 3,
                 'border-color': 'black'
-            }}  
+            }},
             
             ]
         for i in range(1, color_number+1):
@@ -154,12 +175,33 @@ def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=Fal
 
                 }
             },
-            {'selector': ':selected', 'style': {
+            # {'selector': ':selected', 'style': {
+            #     'background-color': 'grey',
+            #     'line-color': '#FF4136',
+            #     'border-width': 3,
+            #     'border-color': 'black'
+            # }}
+            {'selector': 'edge:selected', 'style': {
+                'line-color': 'red',
+                'background-color': 'red',
+                'target-arrow-color': 'red',
+                'width': 6,
+                'opacity': 1,
+                'z-index': 9999
+            }},
+            {'selector': 'edge:hover', 'style': {
+                'line-color': 'red',
+                'target-arrow-color': 'red',
+                'width': 5,
+                'opacity': 1,
+            }},
+
+            {'selector': 'node:selected', 'style': {
                 'background-color': 'grey',
                 'line-color': '#FF4136',
                 'border-width': 3,
                 'border-color': 'black'
-            }}
+            }},
         ]
     return stylesheet
 
@@ -1151,18 +1193,41 @@ def layout(data=None, initial_size_limit=10):
                         'width': '100%',
                     }),
                     html.Div([
-                        html.Label("Haplotypes to visualize :", title="Nodes containing only unselected haplotypes won't be displayed.", style={
-                                   'marginBottom': '5px'}),
+                        html.Label(
+                            "Haplotypes to visualize :",
+                            title="Nodes containing only unselected haplotypes won't be displayed.",
+                            style={'marginBottom': '5px'}
+                        ),
+
                         dcc.Checklist(
                             id="genome_selector",
-                            options=[{"label": g, "value": g}
-                                     for g in all_genomes],
+                            options=[{"label": g, "value": g} for g in all_genomes],
                             value=all_genomes,
-                            inline=True
-                        )
 
+                            labelStyle={
+                                "margin": "0px",
+                                "padding": "0px",
+                                "lineHeight": "1",
+                                "fontSize": "11.5px",
+                                "display": "flex",
+                                "alignItems": "center",
+                                "gap": "4px"
+                            },
+
+                            style={
+                                "display": "grid",
+                                "gridTemplateColumns": "repeat(auto-fit, minmax(110px, max-content))",
+                                "columnGap": "8px",
+                                "rowGap": "0px",
+                                "width": "100%",
+                                "lineHeight": "1"
+                            }
+
+                        )
                     ],
                         style={'marginBottom': '20px'}),
+
+
 
                 ],
                     style={'marginBottom': '20px'}
@@ -1360,16 +1425,6 @@ def layout(data=None, initial_size_limit=10):
                             style={'width': '25px', 'minWidth':'25px', 'height': '25px', 'marginRight': '10px'}
                         ),
 
-                        # dcc.Checklist(
-                        #     options=[{
-                        #         'label': 'Graph compression',
-                        #         'value': 'graph_compression',
-                        #         'title': 'Check to compact the graph nodes.'
-                        #     }],
-                        #     id='graph-compression',
-                        #     style={'marginRight': '10px'},
-                        #     value=[]
-                        # ),
 
 
 
@@ -1400,12 +1455,29 @@ def layout(data=None, initial_size_limit=10):
                     html.Div([
                         html.Label(
                             "Vizualize shared paths :", title="Detect the links through which the selected haplotypes pass - the following input fields allow you to refine the search. ", style={'marginBottom': '20px'}),
+
                         dcc.Checklist(
                             id="specific-genome_selector",
-                            options=[{"label": g, "value": g}
-                                     for g in all_genomes],
-                            # value=[],
-                            inline=True
+                            options=[{"label": g, "value": g} for g in all_genomes],
+                            inline=False,
+
+                            labelStyle={
+                                "display": "flex",
+                                "alignItems": "center",
+                                "gap": "4px",
+                                "fontSize": "11.5px",
+                                "whiteSpace": "nowrap",
+                                "lineHeight": "1"
+                            },
+
+                            style={
+                                "display": "grid",
+                                "gridTemplateColumns": "repeat(auto-fit, minmax(100px, 1fr))",
+                                "columnGap": "2px",
+                                "rowGap": "0px",
+                                "width": "100%",
+                                "lineHeight": "1"
+                            }
                         ),
                         html.Label("Min (%) of shared haplotypes : ", title="Min (%) of shared haplotypes = M. Number of selected haplotypes = N. To detect a shared node it must contains almost (M/100) x N of the selected haplotypes. If M = 0 then the minimum number of selected haplotypes will be 1."),
                         dcc.Input(id='min_shared_genomes-input', type='number',
@@ -1426,21 +1498,46 @@ def layout(data=None, initial_size_limit=10):
                         ),
 
                     ], id='shared-checklist-container'),
+
                     html.Div([
                         html.Div([
-                            html.Label(s),
                             dbc.Input(
                                 id={'type': 'color-picker', 'index': i},
                                 type='color',
                                 value="#000000",
-                                style={'width': '25px',
-                                       'height': '25px', 'marginLeft': '10px'}
+                                style={
+                                    'width': '22px',
+                                    'height': '22px',
+                                    'minWidth': '22px',
+                                    'padding': '0',
+                                    'border': 'none',
+                                    'borderRadius': '5px',
+                                    'overflow': 'hidden',
+                                    'cursor': 'pointer'
+                                }
+                            ),
+                            html.Label(
+                                s,
+                                style={
+                                    "marginLeft": "5px",
+                                    "fontSize": "12px",
+                                    "whiteSpace": "nowrap"
+                                }
                             )
-
-                        ], style={'marginRight': '10px'}) for i, s in enumerate(all_genomes)
-                    ], style={'display': 'flex',
-                              'flexWrap': 'wrap',
-                              'gap': '5px'}, id='color-picker-container')
+                        ],
+                            style={
+                                'display': 'flex',
+                                'alignItems': 'center',
+                                'width': '140px',
+                                'padding': '1px 2px'
+                            })
+                        for i, s in enumerate(all_genomes)
+                    ],
+                        style={
+                            'display': 'flex',
+                            'flexWrap': 'wrap',
+                            'gap': '2px 6px'
+                        }, id='color-picker-container')
 
                 ], id='sample-controls'),
                 html.Button("Update graph", id="update-btn",
