@@ -93,11 +93,33 @@ def layout():
         #     }
         # ),
 
+        # dcc.Checklist(
+        #     id="genome-list",
+        #     options=[],
+        #     value=[],
+        #     inline=True
+        # ),
         dcc.Checklist(
             id="genome-list",
             options=[],
             value=[],
-            inline=True
+            inline=False,
+
+            labelStyle={
+                "display": "flex",
+                "alignItems": "center",
+                "gap": "5px",
+                "fontSize": "12px",
+                "whiteSpace": "nowrap"
+            },
+
+            style={
+                "display": "grid",
+                "gridTemplateColumns": "repeat(auto-fit, minmax(120px, 1fr))",
+                "columnGap": "0px",
+                "rowGap": "0px",
+                "width": "100%"
+            }
         ),
 
         html.Br(), 
