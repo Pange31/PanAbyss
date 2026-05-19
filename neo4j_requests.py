@@ -1168,13 +1168,15 @@ def compute_gwas_params_hash(params):
 #If a job with the same parameters already exists and is SUCCESS,
 #return the existing job_id directly.
 #Otherwise, create a new job and launch the background process.
-def submit_job_gwas(params):
+def submit_job_gwas(params, recompute = False):
     check_running_gwas()
     params_hash = compute_gwas_params_hash(params)
     existing_job = find_existing_gwas_job(params_hash)
 
     if existing_job:
         job_id = existing_job["job_id"]
+        if recompute:
+            set_gwas_job_pending(job_id)
         logger.debug(f"Job already exist: {job_id}")
     else:
         # New job => create and launch
@@ -1229,8 +1231,8 @@ def _run_job_gwas(job_id, params):
         return None
 
 #ACAT P-value combination method
-def compute_acat(pvals, weights=None):
-
+def compute_acat(pvals, weights=None, return_log=True):
+    eps = 1e-300
     pvals = np.asarray(pvals)
     #pvals = np.clip(pvals, 1e-300, 1-1e-16)
 
@@ -1251,6 +1253,8 @@ def compute_acat(pvals, weights=None):
     )
 
     p_acat = 0.5 - np.arctan(t) / np.pi
+    if return_log:
+        return round(-np.log10(np.clip(p_acat, 1e-300, 1)),3)
 
     return p_acat
 
@@ -1733,7 +1737,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                                                          "shared_deleted_size": shared_deleted_size,
                                                                          "region_size": region_stop - region_start,
                                                                          "annotations": annotations,
-                                                                         "score":sum_score/(max(region_stop - region_start, 1)),
+                                                                         "score":round(sum_score/(max(region_stop - region_start, 1)),1),
                                                                          "pval": acat})
                                     #Init the data for the new region
                                     shared_size = size_sorted[i]
@@ -1799,7 +1803,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                                              "shared_deleted_size": shared_deleted_size,
                                                              "region_size": region_stop - region_start,
                                                              "annotations": annotations,
-                                                             "score":sum_score/(max(region_stop - region_start, 1)),
+                                                             "score":round(sum_score/(max(region_stop - region_start, 1)),1),
                                                              "pval": acat})
 
             nb_regions = 0

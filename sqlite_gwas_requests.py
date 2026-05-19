@@ -122,6 +122,14 @@ def set_gwas_job_cancel(job_id):
             WHERE job_id=?
         """, ("CANCEL", now_utc(), now_utc(), job_id))
 
+def set_gwas_job_pending(job_id):
+    with get_gwas_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE gwas_jobs
+            SET status=?, started_at=?, modified_at=?, progression=?
+            WHERE job_id=?
+        """, ("PENDING", now_utc(), now_utc(), 0, job_id))
 
 #Function to set the job to success and store the results
 

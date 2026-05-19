@@ -183,6 +183,8 @@ def layout():
 
     
         html.Button("Find shared regions", id='btn-find-shared', n_clicks=0, style={'margin': '15px 0', 'marginRight':'15px'}),
+        html.Button("Recompute shared regions (ignore cache)", id='btn-recompute-find-shared', n_clicks=0,
+                    style={'margin': '15px 0', 'marginRight': '15px'}),
         html.Button("Cancel", id='btn-cancel-find-shared', disabled=True, n_clicks=0, style={'margin': '15px 0'}),
         html.Div(id='shared-status', style={'marginBottom': '15px'}),
         html.Div(
@@ -262,7 +264,7 @@ def layout():
                 {"name": "region size", "id": "region_size"},
                 {"name": "shared size", "id": "shared_size"},
                 {"name": "shared deleted nodes size", "id": "shared_deleted_size"},
-                {"name": "p-value", "id": "pval"},
+                {"name": "-log10(p-value)", "id": "pval"},
                 {"name": "score", "id": "score"},
                 # {"name": "nodes number", "id": "nb_nodes_in_region"},
                 # {"name": "start position mean", "id": "start_position_mean"},
