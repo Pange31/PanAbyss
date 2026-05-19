@@ -623,6 +623,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                     result = session.run(query_genome)
                     counts = {r["genome"]: r["nb"] for r in result}
                     # logger.debug(counts)
+                    print(counts)
                     median_value = statistics.median(counts.values())
                     individuals_exceptions = []
                     valid_individuals_exceptions = []
