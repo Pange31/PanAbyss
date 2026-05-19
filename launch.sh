@@ -28,6 +28,22 @@ case "${1:-}" in
         echo "      into CSV import files in:"
         echo "          ./data/import/"
         echo ""
+		echo "      If multiple .gfa files are present in ./data/gfa/,"
+		echo "      a file named:"
+		echo "          ./data/gfa/chromosomes_file.csv"
+		echo "      must also be present."
+		echo ""
+		echo "      Supported separators:"
+		echo "          comma (,)"
+		echo "          semicolon (;)"
+		echo "          tab"
+		echo ""
+		echo "      Expected structure:"
+		echo ""
+		echo "          filename,chromosome"
+		echo "          chr1.gfa,chr1"
+		echo "          chr2.gfa,chr2"
+        echo ""
         echo "  --help, -h"
         echo "      Show this help message"
         echo ""
@@ -119,33 +135,8 @@ fi
 
 # --- Special mode: generate CSV import from GFA files ---
 if [ "$GENERATE_CSV_IMPORT" -eq 1 ]; then
-
-    echo "Generating CSV import files from GFA..."
-
-    shopt -s nullglob
-
-    for file_path in ./data/gfa/*.gfa; do
-
-        echo "Processing $file_path ..."
-
-        python -c "
-from neo4j_DB_construction import load_gfa_data_to_csv
-
-load_gfa_data_to_csv(
-    r'''$file_path''',
-    import_dir='./data/import',
-    chromosome_file='',
-    chromosome_prefix=True,
-    batch_size=2000000,
-    start_chromosome=None,
-    haplotype=True
-)
-"
-
-    done
-
-    echo "CSV generation completed."
-    exit 0
+    bash ./scripts/generate_csv_import_file.sh
+    exit $?
 fi
 
 

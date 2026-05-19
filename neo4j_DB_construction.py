@@ -776,7 +776,7 @@ def load_sequences(gfa_file_name, chromosome_file = None, create=False, batch_si
                             bar.update(1)
                             seq = ligne_dec[2]
                             if (chromosome_file != None and chromosome_file != "") :
-                                node = chromosome_file + "_"+ ligne_dec[1]
+                                node = chromosome_file + ":"+ ligne_dec[1]
                             else : 
                                 node = ligne_dec[1]
                             nodes_dic[node] = {"sequence":seq}
@@ -1079,7 +1079,7 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
                                                 ref_node = node
                                                 size = nodes_size_dic[ref_node]
                                                 if chromosome_prefix or (chromosome_file is not None and chromosome_file != ""):
-                                                    node = chromosome + "_" + node
+                                                    node = chromosome + ":" + node
 
                                                 #Node is consider only if it is part of batch
 
@@ -1202,7 +1202,7 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
                                     nodes_list = re.split(sep[walk], ligne_dec[ind])
                                     if chromosome_prefix or (chromosome_file is not None and chromosome_file != ""):
                                         liste_strand = [chaine[-1] for chaine in nodes_list]
-                                        nodes_list = [chromosome+"_"+chaine[:-1] for chaine in nodes_list]   
+                                        nodes_list = [chromosome+":"+chaine[:-1] for chaine in nodes_list]
                                     else :
                                         liste_strand = [chaine[-1] for chaine in nodes_list]
                                         nodes_list = [chaine[:-1] for chaine in nodes_list]                           
@@ -1212,7 +1212,7 @@ def load_gfa_data_to_neo4j(gfa_file_name, chromosome_file = None, chromosome_pre
                                     nodes_list = re.split(sep[walk], ligne_dec[ind])
                                     liste_strand = [nodes_list[j] for j in range(1, len(nodes_list)) if j % 2 != 0]
                                     if chromosome_prefix or (chromosome_file is not None and chromosome_file != ""):
-                                        nodes_list = [chromosome+"_"+nodes_list[j] for j in range(1, len(nodes_list)) if j % 2 == 0]
+                                        nodes_list = [chromosome+":"+nodes_list[j] for j in range(1, len(nodes_list)) if j % 2 == 0]
                                     else:
                                         nodes_list = [nodes_list[j] for j in range(1, len(nodes_list)) if j % 2 == 0]
         
@@ -1362,7 +1362,7 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                 ligne_dec = ligne.split()
                 if (len(ligne_dec) > 0): 
                     if chromosome_file is not None and chromosome_file != "": 
-                        node_name = chromosome_file + "_" + ligne_dec[1]
+                        node_name = chromosome_file + ":" + ligne_dec[1]
                     else :
                         node_name = ligne_dec[1]
                     nodes_size_dic[ligne_dec[1]]=int(len(ligne_dec[2]))
@@ -1551,7 +1551,7 @@ def load_gfa_data_to_csv(gfa_file_name, import_dir="./data/import", chromosome_f
                                             ref_node = node
                                             size = nodes_size_dic[ref_node]
                                             if chromosome_prefix or (chromosome_file is not None and chromosome_file != ""):
-                                                node = chromosome + "_" + node
+                                                node = chromosome + ":" + node
                                             prefix_ref_node = node
                                             
                                             #Node is consider only if it is part of batch
@@ -2202,7 +2202,7 @@ def construct_db_by_chromosome(gfa_chromosomes_dir, annotation_file_name = None,
     logger.info("Sequences loaded in " + str(db_time-start_time) + " s")
     create_indexes(base=False, extend=True, genomes_index=True)
     index_time = time.time()
-    logger.info("Indexes created in " + str(index_time-graph_time) + " s")
+    logger.info("Indexes created in " + str(index_time-start_time) + " s")
     if annotation_file_name != None and genome_ref != None :
         load_annotations_neo4j(annotation_file_name, genome_ref = genome_ref, single_chromosome = chromosome_file)
         annotation_time = time.time()
