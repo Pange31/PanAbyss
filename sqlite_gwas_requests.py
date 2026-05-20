@@ -12,7 +12,7 @@ logger = logging.getLogger("panabyss_logger")
 DB_PATH = "./sqlite"
 DB_FILENAME = DB_PATH +"/gwas_jobs.db"
 
-MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS = get_gwas_conf()
+MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS, GWAS_MAX_RUNNING_JOBS = get_gwas_conf()
 
 def now_utc():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -258,7 +258,23 @@ def find_existing_gwas_job(params_hash):
         "status": row[1]
     }
 
+#Function to get the running jobs
+def find_running_gwas_jobs():
+    with get_gwas_connection() as conn:
+        cursor = conn.cursor()
 
+        cursor.execute("""
+            SELECT job_id
+            FROM gwas_jobs
+            WHERE status = ?
+        """, ("RUNNING",))
+
+        rows = cursor.fetchall()
+
+    if not rows:
+        return []
+
+    return [row[0] for row in rows]
 
 #Cancel job in the database
 def delete_gwas_job(job_id: str):

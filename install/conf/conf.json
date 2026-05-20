@@ -16,5 +16,6 @@
   "max_gwas_running_inactivity_hours":5,
   "max_gwas_regions":0,
   "gwas_annotations_windows_size":100000,
-  "gwas_annotations_max_attempts":5
+  "gwas_annotations_max_attempts":5,
+  "gwas_max_running_jobs":0
 }

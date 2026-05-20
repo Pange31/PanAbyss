@@ -54,11 +54,12 @@ MAX_NODES_NUMBER = get_max_nodes_from_db()
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 logger.debug(f"Max nodes number from DB: {MAX_NODES_NUMBER}")
 
-MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS = get_gwas_conf()
+MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS, GWAS_MAX_RUNNING_JOBS = get_gwas_conf()
 
 
-logger.debug(f"GWAS parameters : max_store = {MAX_GWAS_STORE}, "
-             f"max_running_inactivity_hours = {MAX_RUNNING_INACTIVITY_HOURS}, max_gwas_regions = {MAX_GWAS_REGIONS}")
+logger.info(f"GWAS parameters : max_store = {MAX_GWAS_STORE}, "
+             f"max_running_inactivity_hours = {MAX_RUNNING_INACTIVITY_HOURS}, max_gwas_regions = {MAX_GWAS_REGIONS}, "
+             f"gwas_max_running_jobs = {GWAS_MAX_RUNNING_JOBS} (-1 = blocked, 0 = not limited)")
 
 # This function allows to execute parallel queries in neo4j
 def run_queries_parallel(queries_dict, max_threads=10, job_id=None):
@@ -1180,6 +1181,14 @@ def submit_job_gwas(params, recompute = False):
         logger.debug(f"Job already exist: {job_id}")
     else:
         # New job => create and launch
+        #Check if a limit of running job has been set and if so, check the limit
+        if GWAS_MAX_RUNNING_JOBS:
+            if GWAS_MAX_RUNNING_JOBS > 0:
+                running_gwas_jobs = find_running_gwas_jobs()
+                if len(running_gwas_jobs) >= GWAS_MAX_RUNNING_JOBS:
+                    return "limit_exceeded"
+            if GWAS_MAX_RUNNING_JOBS == -1:
+                return "blocked_functionality"
         job_id = str(uuid.uuid4())
         insert_gwas_job(job_id, params, params_hash)
         logger.debug(f"Launching new job {job_id}")

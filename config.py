@@ -44,6 +44,11 @@ DEFAULT_GWAS_ANNOTATIONS_WINDOWS_SIZE = 100000
 # => the total region over which annotations are searched = DEFAULT_GWAS_ANNOTATIONS_WINDOWS_SIZE x DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS
 DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS = 5
 
+#Maximum number of running gwas job to limit it on server mode configuration
+#0 or None to no limit
+#-1 to desactivate the functionnality
+DEFAULT_GWAS_MAX_RUNNING_JOBS = 0
+
 CONF_FILE = os.path.abspath("./conf.json")
 OLD_CONF_FILE = os.path.abspath("./db_conf.json")
 INSTALL_CONF_FILE = os.path.abspath("./install/conf/conf.json")
@@ -64,7 +69,14 @@ DEFAULT_ADDITIONS = {
     "admin_users": {"admin": "1234"},
     "server_log_mode": "both",
     "log_retention_days": 7,
-    "log_level": "DEBUG"
+    "log_level": "DEBUG",
+    "db_gfa_loading_batch_size":DEFAULT_DB_LOAD_GFA_BATCH_SIZE,
+    "max_nodes_to_visualize":DEFAULT_MAX_NODES_TO_VISUALIZE,
+    "max_nodes_from_db":DEFAULT_MAX_NODES_FROM_DB,
+    "max_gwas_store":DEFAULT_MAX_GWAS_STORE,
+    "gwas_annotations_windows_size":DEFAULT_GWAS_ANNOTATIONS_WINDOWS_SIZE,
+    "gwas_annotations_max_attempts":DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS,
+    "gwas_max_running_jobs":DEFAULT_GWAS_MAX_RUNNING_JOBS
 }
 
 #Function to retrocompatibility with old conf file
@@ -152,6 +164,8 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
         MAX_GWAS_REGIONS = None
     GWAS_ANNOTATIONS_WINDOWS_SIZE = int(conf.get("gwas_annotations_windows_size",DEFAULT_GWAS_ANNOTATIONS_WINDOWS_SIZE))
     GWAS_ANNOTATIONS_MAX_ATTEMPTS = int(conf.get("gwas_annotations_max_attempts",DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS))
+    GWAS_MAX_RUNNING_JOBS = int(
+        conf.get("gwas_max_running_jobs", DEFAULT_GWAS_MAX_RUNNING_JOBS))
     if LOG_LEVEL_PARAM in log_levels:
         LOG_LEVEL= "logging."+LOG_LEVEL_PARAM
     else:
@@ -171,7 +185,7 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
             "MAX_NODES_TO_VISUALIZE":MAX_NODES_TO_VISUALIZE, "MAX_NODES_FROM_DB":MAX_NODES_FROM_DB, "READ_BUFFER_SIZE":READ_BUFFER_SIZE,
             "MAX_GWAS_STORE":MAX_GWAS_STORE, "MAX_GWAS_RUNNING_INACTIVITY_HOURS":MAX_GWAS_RUNNING_INACTIVITY_HOURS,
             "MAX_GWAS_REGIONS":MAX_GWAS_REGIONS, "GWAS_ANNOTATIONS_WINDOWS_SIZE":GWAS_ANNOTATIONS_WINDOWS_SIZE,
-            "GWAS_ANNOTATIONS_MAX_ATTEMPTS":GWAS_ANNOTATIONS_MAX_ATTEMPTS}
+            "GWAS_ANNOTATIONS_MAX_ATTEMPTS":GWAS_ANNOTATIONS_MAX_ATTEMPTS, "GWAS_MAX_RUNNING_JOBS":GWAS_MAX_RUNNING_JOBS}
 
 
 CONF = get_conf()
@@ -242,9 +256,9 @@ def get_max_nodes_from_db():
 
 def get_gwas_conf():
     if CONF:
-        return CONF["MAX_GWAS_STORE"], CONF["MAX_GWAS_RUNNING_INACTIVITY_HOURS"], CONF["MAX_GWAS_REGIONS"], CONF["GWAS_ANNOTATIONS_WINDOWS_SIZE"], CONF["GWAS_ANNOTATIONS_MAX_ATTEMPTS"]
+        return CONF["MAX_GWAS_STORE"], CONF["MAX_GWAS_RUNNING_INACTIVITY_HOURS"], CONF["MAX_GWAS_REGIONS"], CONF["GWAS_ANNOTATIONS_WINDOWS_SIZE"], CONF["GWAS_ANNOTATIONS_MAX_ATTEMPTS"], CONF["GWAS_MAX_RUNNING_JOBS"]
     else :
-        return DEFAULT_MAX_GWAS_STORE, DEFAULT_MAX_GWAS_RUNNING_INACTIVITY_HOURS, DEFAULT_MAX_GWAS_REGIONS, DEFAULT_GWAS_ANNOTATIONS_WINDOWS_SIZE, DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS
+        return DEFAULT_MAX_GWAS_STORE, DEFAULT_MAX_GWAS_RUNNING_INACTIVITY_HOURS, DEFAULT_MAX_GWAS_REGIONS, DEFAULT_GWAS_ANNOTATIONS_WINDOWS_SIZE, DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS, DEFAULT_GWAS_MAX_RUNNING_JOBS
 
 #Authorization is set to True for local installation of PanAbyss
 #or if the mode admin is set to True
@@ -263,27 +277,3 @@ def get_users():
          users = conf["USERS"]
      return users
 
-    
-# def get_driver(max_retries=5, retry_delay=5):
-#     if CONF:
-#         if "container_name" in CONF and CONF["container_name"] != None and CONF["container_name"] != "":
-#             DB_URL = CONF["DB_URL"]
-#             AUTH= CONF["AUTH"]
-#             for attempt in range(1, max_retries + 1):
-#                 if test_connection(DB_URL, AUTH):
-#                     driver = GraphDatabase.driver(DB_URL, auth=AUTH)
-#                     return driver
-#                 else:
-#                     logger.warn(f"Retry {attempt}/{max_retries} to connect to driver")
-#                     time.sleep(retry_delay)
-#
-#
-#             if test_connection(DB_URL, AUTH):
-#                     driver = GraphDatabase.driver(DB_URL, auth=AUTH)
-#                     return driver
-#             logger.error(f"❌ Fail to access Database of container {conf['container_name']}.")
-#             return None
-#         else:
-#             return None
-#     else:
-#         return None

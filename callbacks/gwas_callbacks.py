@@ -28,7 +28,7 @@ EXPORT_DIR = "./export/gwas/"
 
 NB_POINTS_WEBGL = 1000
 
-MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS = get_gwas_conf()
+MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS, GWAS_MAX_RUNNING_JOBS = get_gwas_conf()
 
 def compute_gwas_file_name(selected_genomes_list, min_node_size, max_node_size, selected_hap_percent, tolerance_percent,
                            max_gap, deletion, unselected_hap_percent):
@@ -389,6 +389,12 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genome
     }
     logger.debug(f"GWAS params: {params}")
     job_id = submit_job_gwas(params, recompute)
+    if job_id == "limit_exceeded":
+        return ("❌ Too many jobs are currently running on the server, please try again later.",
+                no_update, no_update, no_update, no_update, no_update)
+    elif job_id == "blocked_functionality":
+        return ("❌ This functionnality has been blocked.",
+                no_update, no_update, no_update, no_update, no_update)
     gwas_data["job_id"] = job_id
     # Enable polling
     poll_enabled = False if job_id else True
@@ -432,7 +438,6 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
         search_button = False
         cancel_button = True
         return "", no_update, no_update, progress_style, progress_value, enable_poll, search_button, cancel_button
-        return (no_update,) * 5, True,
 
     if status == "SUCCESS":
         job_data = get_gwas_job(job_id)
