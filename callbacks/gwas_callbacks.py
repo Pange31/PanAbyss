@@ -306,7 +306,7 @@ def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data)
     Output("btn-find-shared", "disabled", allow_duplicate=True),
     Output("btn-cancel-find-shared", "disabled", allow_duplicate=True),
     Input('btn-find-shared', 'n_clicks'),
-    Input('btn-recompute-find-shared', 'n_clicks'),
+    State("use-cache-checkbox", "value"),
     State('genome-list', 'value'),
     State('genome-list', 'options'),
     State("parameters-gwas-page-store", "data"),
@@ -322,7 +322,7 @@ def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data)
     State("gwas-page-store", "data"),
     prevent_initial_call=True,
 )
-def handle_shared_region_search_click(n_clicks, recompute_n_clicks, selected_genomes, all_genomes_dict,
+def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genomes, all_genomes_dict,
                                 data, min_node_size, max_node_size,
                                 min_percent_selected, tolerance_percentage, region_gap,
                                 deletion_checkbox, chromosome, ref_genome, deletion_percentage, gwas_data):
@@ -330,11 +330,9 @@ def handle_shared_region_search_click(n_clicks, recompute_n_clicks, selected_gen
     find_button = False
     cancel_button = True
     triggered_id = ctx.triggered_id
-    recompute = False
-    if not n_clicks and not recompute_n_clicks:
+    recompute = "enabled" not in recompute_chkbx
+    if not n_clicks:
         return no_update, no_update, no_update, no_update, no_update, no_update
-    if triggered_id == "btn-recompute-find-shared":
-        recompute = True
 
     min_size = 10
     all_genomes = [opt["value"] for opt in all_genomes_dict]
@@ -529,7 +527,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
         toast = {"title": "Shared region discovery error", "message": job_data.get("error_message", "Unknown error"), "type": "danger"}
         return msg, gwas_data, toast,  progress_style, progress_value, enable_poll, search_button, cancel_button
 
-    elif status == "RUNNING":
+    elif status == "RUNNING" or status == "PENDING":
         current_progress = int(get_gwas_progress(job_id))
 
         deg = current_progress * 3.6
@@ -573,7 +571,6 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
     Output("gwas-progress-text", "children", allow_duplicate=True),
     Output("gwas-poll-interval", "disabled", allow_duplicate=True),
     Output("btn-find-shared", "disabled", allow_duplicate=True),
-    Output("btn-recompute-find-shared", "disabled", allow_duplicate=True),
     Output("btn-cancel-find-shared", "disabled", allow_duplicate=True),
     Input('btn-cancel-find-shared', 'n_clicks'),
     State("gwas-page-store", "data"),
@@ -582,7 +579,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
 )
 def handle_cancel_click(n_clicks, gwas_data):
     if not n_clicks or "job_id" not in gwas_data:
-        return (no_update,) * 9
+        return (no_update,) * 8
 
     progress_value = "100"
     progress_style = {"display": "none"}
@@ -598,7 +595,7 @@ def handle_cancel_click(n_clicks, gwas_data):
     })
     return ("❌ Job canceled by user.", gwas_data,
             {"title": "Job canceled", "message": "User stopped the job", "type": "warning"},
-            progress_style, progress_value, True, False, False, True)
+            progress_style, progress_value, True, False, True)
 
 
 
@@ -666,7 +663,6 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data):
     Output("gwas_chromosomes_dropdown", 'value'),
     Output("gwas_ref_genome_dropdown", 'value'),
     Output("btn-find-shared","disabled", allow_duplicate=True),
-    Output("btn-recompute-find-shared","disabled", allow_duplicate=True),
     Output("btn-cancel-find-shared","disabled", allow_duplicate=True),
     Output("gwas-poll-interval", "disabled", allow_duplicate=True),
     Input('url', 'pathname'),
@@ -698,7 +694,6 @@ def update_data(path, data, parameters_data):
     ref_genome = None
     chromosome = None
     search_button = False
-    recompute_button = False
     cancel_button = True
     enable_poll = no_update
 
@@ -712,7 +707,6 @@ def update_data(path, data, parameters_data):
             if job_data and job_data["status"] == "RUNNING":
                 message_analyse = "Processing..."
                 search_button = True
-                recompute_button = True
                 cancel_button = False
                 enable_poll = False
             else:
@@ -777,7 +771,7 @@ def update_data(path, data, parameters_data):
 
     return (message_analyse,analyse, checkbox, min_node_size, max_node_size,
             min_percent_selected,tolerance_percentage,region_gap, deletion_checkbox, deletion_percentage,
-            chromosome_figure, figure_display, chromosome, ref_genome,search_button,recompute_button, cancel_button, enable_poll)
+            chromosome_figure, figure_display, chromosome, ref_genome,search_button, cancel_button, enable_poll)
 
 #Callback to save the gwas data table into csv file
 @app.callback(
@@ -870,12 +864,13 @@ def load_csv(contents, filename, gwas_page_store):
             row['get_sequence'] = "Get sequence"
 
         gwas_page_store["analyse"] = analyse
+        gwas_page_store["message"] = f"{len(analyse)} shared regions found."
 
         if params:
             parameters_store = params
         else:
             parameters_store = no_update
-        logger.info("csv file loaded")
+        logger.info(f"csv file {filename} loaded, {len(analyse)} shared regions found.")
         return f"{len(analyse)} shared regions found.", analyse, gwas_page_store, parameters_store
 
     except Exception as e:

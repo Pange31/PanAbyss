@@ -8,6 +8,7 @@ Created on Wed Jul  2 21:55:56 2025
 
 from dash import html, dcc, dash_table
 import dash_bootstrap_components as dbc
+from plotly.graph_objs.layout.ternary.aaxis import title
 
 EXPORT_DIR = "./export/gwas/"
 
@@ -18,7 +19,18 @@ style_help = {
     "marginLeft": "5px"
 }
 
-
+#Parameters style for the different gwas parameters
+PARAM_STYLE = {
+    "display": "flex",
+    "flexDirection": "column",
+    "gap": "6px",
+    "minWidth": "130px",
+    "padding": "10px",
+    "border": "1px solid #e5e5e5",
+    "borderRadius": "8px",
+    "backgroundColor": "white",
+    "boxShadow": "0 1px 3px rgba(0,0,0,0.05)",
+}
 
 def layout():
     return html.Div([
@@ -41,7 +53,7 @@ def layout():
                                 
                             ]),
                             
-                     html.Li("Deleted nodes : Here, the objective is to detect deletions shared by the selected haplotypes."
+                     html.Li("Deleted nodes: Here, the objective is to detect deletions shared by the selected haplotypes."
                              " This mode is activated only if 'include deletion' is checked."
                              " It detects nodes with the minimum of selected haplotypes and minimal size (see parameters) and at least one of the unselected haplotypes."
                              " If this node is following by a node with all the unselected haplotypes and only these haplotypes, and another following node with the selected haplotypes and almost on more haplotype, then a deletion node will be detected."
@@ -59,7 +71,7 @@ def layout():
                             
                     ]),
                  html.Ul([
-                     html.Li("general settings :"),
+                     html.Li("General:"),
                          html.Ul([
                              html.Li("Size of region : this size is used to group nodes separated by less than this value (in bp)."),
                              html.Li("Limit search to chromosom : If a chromosom is selected, it will look for shared region only on this chromosom."),
@@ -69,7 +81,12 @@ def layout():
                              html.Li("Load csv : it allows to load the saved csv (it located in the '/gwas' directory or a selected file)."),
                              html.Li("First column : by clicking on the first columns it will display the region in the home page."),
                              html.Li("Sequences column : by clicking on this column it will display the sequence associated to the region."),
-                             ])
+                             html.Li(
+                                 "Use cache: if the same search has been computed then the results will be immediately retrieved."),
+                             html.Li(
+                                 "p-value: The p-value is calculated using a chi-square test on the contingency table of selected/non-selected individuals. The p-values are then aggregated on the region using the ACAT method, weighted by the sizes of the nodes.")
+                             ]),
+
                      ])
             ])
         ], style={"marginBottom": "20px"}),
@@ -78,20 +95,6 @@ def layout():
         # Area of genomes selection
         html.Div(id='genome-checkboxes'),
        html.H3("Select genomes : ", title="Select haplotypes for which you want to find shared regions."),
-
-        # dcc.Checklist(
-        #     id='genome-list',
-        #     options=[],
-        #     value=[],
-        #     labelStyle={
-        #         'display': 'inline-flex',
-        #         'alignItems': 'center',
-        #         'marginRight': '12px'
-        #     },
-        #     inputStyle={
-        #         'marginRight': '4px'
-        #     }
-        # ),
 
         # dcc.Checklist(
         #     id="genome-list",
@@ -124,66 +127,232 @@ def layout():
 
         html.Br(), 
         html.H3("Parameters : "),
-        html.Div([
-            html.Div([
-                html.Label(
-                    "Min node size to detect a shared region (integer) : ",
-                    title="The nodes with a size below this value won't be detected by the process.",
-                    style={'marginRight': '15px'}
+
+        #Parameters section
+        html.Div(
+            [
+                # =====================================================
+                # Min node size
+                # =====================================================
+                html.Div(
+                    [
+                        html.Label(
+                            "Min node size"
+                        ),
+                        html.Div(
+                            dcc.Input(
+                                id='gwas-min-node-size-int',
+                                type='number',
+                                step=1,
+                                value=10,
+                                debounce=True,
+                                style={"width": "75px"}
+                            ),
+                            title="The nodes with a size below this value won't be detected by the process."
+                        ),
+                    ],
+                    style=PARAM_STYLE
                 ),
-                dcc.Input(id='gwas-min-node-size-int',style={'width': '80px', 'marginRight': '15px'},  type='number', step=1, value=10, debounce=True),
-                html.Label(
-                    "Max node size to detect a shared region (integer) : ",
-                    title="The nodes with a size above this value won't be detected by the process. Set to 0 or empty for no max size.",
-                    style={'marginRight': '15px'}
+
+                # =====================================================
+                # Max node size
+                # =====================================================
+                html.Div(
+                    [
+                        html.Label(
+                            "Max node size",
+
+                        ),
+                        html.Div(
+                            dcc.Input(
+                                id='gwas-max-node-size-int',
+                                type='number',
+                                step=1,
+                                debounce=True,
+                                style={"width": "75px"}
+                            ),
+                            title="Set to 0 for no limit."
+                        )
+                    ],
+                    style=PARAM_STYLE
                 ),
-                dcc.Input(id='gwas-max-node-size-int',style={'width': '80px', 'marginRight': '15px'},  type='number', step=1, debounce=True),
-                html.Label(
-                    "Min (%) of selected haplotypes : ",
-                     title="Min (%) of shared haplotypes = M. Number of selected haplotypes = N. To detect a shared node it must contains almost (M/100) x N of the selected haplotypes. If M = 0 then the minimum number of selected haplotypes will be 1.",
-                     style={'marginRight': '15px'}),
-                dcc.Input(id='gwas-min-percent_selected',style={'width': '80px', 'marginRight': '15px'}, type='number', step=1, value=100, debounce=True),
-                html.Label(
-                    "Tolerance (%) :  ",
-                    title="Tolerance = T. Number of haplotypes on a node = n. To detect a shared node it must contains less than (T/100) x n of the non selected haplotypes. If T = 0 then detected nodes should contain only selected haplotypes.",
-                    style={'marginRight': '15px'}
+
+                # =====================================================
+                # Min selected %
+                # =====================================================
+                html.Div(
+                    [
+                        html.Label(
+                            "Min selected (%)",
+
+                        ),
+                        html.Div(
+                            dcc.Input(
+                                id='gwas-min-percent_selected',
+                                type='number',
+                                step=1,
+                                value=100,
+                                debounce=True,
+                                style={"width": "75px"}
+                            ),
+                            title="Minimum percentage of selected haplotypes."
+                        )
+                    ],
+                    style=PARAM_STYLE
                 ),
-                dcc.Input(id='tolerance_percentage',style={'width': '80px', 'marginRight': '15px'}, type='number', step=1, value=0, debounce=True),
-                html.Label(
-                    "Max gap : ",
-                    title="All the nodes detected will be grouped in larger regions. If two nodes are separated by less thant this value (in bp) they will be grouped in the same region.",
-                     style={'marginRight': '15px'}
+
+                # =====================================================
+                # Tolerance
+                # =====================================================
+                html.Div(
+                    [
+                        html.Label(
+                            "Tolerance (%)",
+
+                        ),
+                        html.Div(
+                            dcc.Input(
+                                id='tolerance_percentage',
+                                type='number',
+                                step=1,
+                                value=0,
+                                debounce=True,
+                                style={"width": "75px"}
+                            ),
+                            title="Allowed percentage of non-selected haplotypes."
+                        )
+                    ],
+                    style=PARAM_STYLE
                 ),
-                dcc.Input(id='gwas-region-gap',style={'width': '80px', 'marginRight': '15px'}, type='number', step=1, value=10000, debounce=True),
-                html.Div([
-                    dcc.Checklist(
-                        id='gwas-toggle-deletion',
-                        options=[{'label':'', 'title':"If checked, the process will look for deletion node: it looks for nodes with minimal selected and unselected haplotypes followed by a node deleted for defined percentage of selected haplotype. The node size must be greater than min node size value.", 'value': 'show'}],
-                        value=['show'],
-                        style={'marginRight': '15px'}
-                    ),
-                    html.Label(
-                        "Search for deletion (take more time). Unselected haplotypes percentage (%):  ",
-                        style={"marginRight": "15px"},
-                        title="If checked. Used to detect deleted nodes. Search for nodes with at least (T x number of unselected haplotypes / 100) unselected haplotypes + the defined percentage of selected haplotypes. For each node found, it looks for a deleted following node."
-                    ),
-                    dcc.Input(id='deletion-percentage',style={'width': '80px', 'marginRight': '15px'}, type='number', step=1, value=100, debounce=True),
-                ], style={"display": "flex", "alignItems": "center", "marginRight": "20px"}),
-            ], style={"display": "flex", "flexWrap": "wrap", "alignItems": "center", "marginRight": "20px"}
-            ),
-                dcc.Dropdown(
-                    id='gwas_chromosomes_dropdown',
-                    placeholder="Limit search to chromosome : ",
-                    style={
-                        "width": "250px",     
-                        "minWidth": "150px",
-                        "maxWidth": "100%",   
-                        "flexShrink": 0
-                    }
+
+                # =====================================================
+                # Max gap
+                # =====================================================
+                html.Div(
+                    [
+                        html.Label(
+                            "Max gap (bp)",
+
+                        ),
+                        html.Div(
+                            dcc.Input(
+                                id='gwas-region-gap',
+                                type='number',
+                                step=1,
+                                value=10000,
+                                debounce=True,
+                                style={
+                                    "width": "170px"
+                                }
+                            ),
+                            title="Merge nodes that are separated by less than the GAP threshold."
+                        )
+                    ],
+                    style=PARAM_STYLE
                 ),
-        ], style={"display": "flex", "flexWrap": "wrap", "flexDirection": "row", "alignItems": "center", "marginBottom": "20px"}),
-        
-        html.Br(), 
+
+                # =====================================================
+                # Cache
+                # =====================================================
+                html.Div(
+                    [
+                        html.Label("Cache"),
+                        html.Div(
+                            dcc.Checklist(
+                                id='use-cache-checkbox',
+                                options=[
+                                    {
+                                        'label': 'Use cache',
+                                        'value': 'enabled'
+                                    }
+                                ],
+                                value=['enabled']
+                            ),
+                            title="If enabled, previously computed results will be reused instead of rerunning the computation"
+                        )
+                    ],
+                    style=PARAM_STYLE
+                ),
+
+                # =====================================================
+                # Deletion search
+                # =====================================================
+                html.Div(
+                    [
+                        html.Label(
+                            "Deletion search",
+                            title="Search for deletion nodes."
+                        ),
+                        html.Div(
+                            [
+                                dcc.Checklist(
+                                    id='gwas-toggle-deletion',
+                                    options=[
+                                        {
+                                            'label': 'Enable',
+                                            'value': 'show'
+                                        }
+                                    ],
+                                    value=['show']
+                                ),
+                                html.Div(
+                                    dcc.Input(
+                                        id='deletion-percentage',
+                                        type='number',
+                                        step=1,
+                                        value=100,
+                                        debounce=True,
+                                        placeholder="% unselected",
+                                        style={"width": "85px"}
+                                    ),
+                                    title="A deletion is detected only when at least the specified percentage of non-selected individuals is present on it."
+                                )
+                            ],
+                            style={
+                                "display": "flex",
+                                "alignItems": "center",
+                                "gap": "10px",
+                            }
+                        ),
+
+                    ],
+                    style=PARAM_STYLE
+                ),
+
+                # =====================================================
+                # Chromosome dropdown
+                # =====================================================
+                html.Div(
+                    [
+
+                        html.Label("Chromosome"),
+
+                        dcc.Dropdown(
+                            id='gwas_chromosomes_dropdown',
+                            placeholder="All chromosomes",
+                            style={
+                                "width": "200px"
+                            }
+                        ),
+                    ],
+                    style=PARAM_STYLE
+                ),
+            ],
+            #Global style for the whole parameters
+            style={
+                "display": "flex",
+                "flexWrap": "wrap",
+                "alignItems": "flex-start",
+                "gap": "14px",
+                "padding": "14px",
+                "border": "1px solid #ddd",
+                "borderRadius": "10px",
+                "backgroundColor": "#fafafa",
+                "maxWidth": "100%",
+            }
+        ),
+
+        html.Br(),
         html.Label(
             "Choose a reference haplotype :  ",
             title="Select the genome for which you want to view the results and obtain annotations. If no genome is selected, the result will be the first genome found with annotations. If there are no annotations, it will be the first genome found."
@@ -195,9 +364,9 @@ def layout():
                     placeholder="Reference haplotype : ",
                     clearable=False,
                     style={
-                    "width": "250px",     
+                    "width": "250px",
                     "minWidth": "150px",
-                    "maxWidth": "100%",   
+                    "maxWidth": "100%",
                     "flexShrink": 0
                 })
 
@@ -205,8 +374,6 @@ def layout():
 
     
         html.Button("Find shared regions", id='btn-find-shared', n_clicks=0, style={'margin': '15px 0', 'marginRight':'15px'}),
-        html.Button("Recompute shared regions (ignore cache)", id='btn-recompute-find-shared', n_clicks=0,
-                    style={'margin': '15px 0', 'marginRight': '15px'}),
         html.Button("Cancel", id='btn-cancel-find-shared', disabled=True, n_clicks=0, style={'margin': '15px 0'}),
         html.Div(id='shared-status', style={'marginBottom': '15px'}),
         html.Div(
@@ -283,11 +450,11 @@ def layout():
                 {"name": "Annotation before\ngene / distance", "id": "annotation_before", "presentation": "markdown"},
                 {"name": "Annotations", "id": "annotations", "presentation": "markdown"},
                 {"name": "Annotation after\ngene / distance", "id": "annotation_after", "presentation": "markdown"},
-                {"name": "Region size", "id": "region_size"},
-                {"name": "Shared size", "id": "shared_size"},
-                {"name": "Shared deleted nodes size", "id": "shared_deleted_size"},
-                {"name": "-log10(p-value)", "id": "pval"},
-                {"name": "Score", "id": "score"},
+                {"name": "Region size", "id": "region_size", 'type': 'numeric'},
+                {"name": "Shared size", "id": "shared_size", 'type': 'numeric'},
+                {"name": "Shared deleted nodes size", "id": "shared_deleted_size", 'type': 'numeric'},
+                {"name": "-log10(p-value)", "id": "pval", 'type': 'numeric'},
+                {"name": "Score", "id": "score", 'type': 'numeric'},
                 # {"name": "nodes number", "id": "nb_nodes_in_region"},
                 # {"name": "start position mean", "id": "start_position_mean"},
                 # {"name": "stop position mean", "id": "stop_position_mean"},
@@ -296,6 +463,7 @@ def layout():
             ],
             data=[],
             sort_action='native',
+            filter_action='native',
             style_header={
                 'whiteSpace': 'normal',
                 'fontFamily': 'Inter, system-ui, sans-serif',
@@ -312,16 +480,6 @@ def layout():
                 'textAlign': 'center',
             },
             cell_selectable=True,
-            # style_cell={
-            #     'whiteSpace': 'pre-line',
-            #     'height':'auto',
-            #     'textAlign':'left',
-            #     'userSelect': 'text',
-            #     "textOverflow": "ellipsis",
-            #     "minWidth": "100px",
-            #     "maxWidth": "200px",
-            #     "overflow": "hidden",
-            # },
             style_cell={
                 "whiteSpace": "pre-line",
                 'userSelect': 'text',
@@ -347,7 +505,6 @@ def layout():
                     "maxWidth": "120px",
                 },
             ],
-
             style_table={
                 "overflowX": "auto",
                 "width": "100%",

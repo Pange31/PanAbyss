@@ -1236,7 +1236,10 @@ def compute_acat(pvals, weights=None, return_log=True):
     pvals = np.asarray(pvals)
     #pvals = np.clip(pvals, 1e-300, 1-1e-16)
 
-    if weights is None:
+    if np.sum(weights) == 0:
+        logger.debug(f"ACAT: Sum of weight is 0. Weight: {weights}, P-Value: {pvals}. Use default weights.")
+
+    if weights is None or np.sum(weights) == 0:
         weights = np.ones(len(pvals)) / len(pvals)
     else:
         weights = np.asarray(weights)
