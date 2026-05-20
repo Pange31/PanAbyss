@@ -145,7 +145,7 @@ def layout():
                                 type='number',
                                 step=1,
                                 value=10,
-                                debounce=True,
+                                debounce=False,
                                 style={"width": "75px"}
                             ),
                             title="The nodes with a size below this value won't be detected by the process."
@@ -168,7 +168,7 @@ def layout():
                                 id='gwas-max-node-size-int',
                                 type='number',
                                 step=1,
-                                debounce=True,
+                                debounce=False,
                                 style={"width": "75px"}
                             ),
                             title="Set to 0 for no limit."
@@ -192,7 +192,7 @@ def layout():
                                 type='number',
                                 step=1,
                                 value=100,
-                                debounce=True,
+                                debounce=False,
                                 style={"width": "75px"}
                             ),
                             title="Minimum percentage of selected haplotypes."
@@ -216,7 +216,7 @@ def layout():
                                 type='number',
                                 step=1,
                                 value=0,
-                                debounce=True,
+                                debounce=False,
                                 style={"width": "75px"}
                             ),
                             title="Allowed percentage of non-selected haplotypes."
@@ -240,7 +240,7 @@ def layout():
                                 type='number',
                                 step=1,
                                 value=10000,
-                                debounce=True,
+                                debounce=False,
                                 style={
                                     "width": "170px"
                                 }
@@ -301,7 +301,7 @@ def layout():
                                         type='number',
                                         step=1,
                                         value=100,
-                                        debounce=True,
+                                        debounce=False,
                                         placeholder="% unselected",
                                         style={"width": "85px"}
                                     ),
@@ -413,24 +413,140 @@ def layout():
                                             "wordWrap": "break-word",
                                             "overflowWrap": "break-word"
                                             }),
+
         html.Div([
-            html.Button("💾 Export to CSV", title=f"Export the results in the table into a csv file in the {EXPORT_DIR} directory. Sequences won't be present.",id='save-csv-button', n_clicks=0),
-            html.Button("💾 Export to CSV with sequences", title=f"Export the results in the table into a csv file in the {EXPORT_DIR} directory. Sequences will be present.", id='save-csv-with_seq-button', n_clicks=0),
-            dcc.Download(id="download-csv"),
-            html.Button("📂 Load csv", title="Load a csv file generated from this page.", id='load-csv-button', n_clicks=0),
-            html.Div(id='save-feedback'),
-            dcc.Upload(
-                id='upload-csv',
-                children=html.Div(['Drag a CSV file here or click to select a file.']),
+
+            html.Button(
+                "💾 Export to CSV",
+                id="save-csv-button",
+                n_clicks=0,
+                title=f"Export results into {EXPORT_DIR} (no sequences)",
                 style={
-                    'display': 'none',
-                    'borderWidth': '1px',
-                    'borderStyle': 'dashed',
-                    'padding': '10px',
-                },
-                multiple=False
-            )
-        ]),
+                    "minWidth": "140px",
+                    "height": "32px",
+                    "whiteSpace": "nowrap",
+                    "padding": "0 12px",
+                    "fontSize": "12px",
+                    "flexShrink": 0,
+                }
+            ),
+
+            html.Button(
+                "💾 Export with sequences",
+                id="save-csv-with_seq-button",
+                n_clicks=0,
+                title=f"Export results into {EXPORT_DIR} (with sequences)",
+                style={
+                    "minWidth": "190px",
+                    "height": "32px",
+                    "whiteSpace": "nowrap",
+                    "padding": "0 12px",
+                    "fontSize": "12px",
+                    "flexShrink": 0,
+                }
+            ),
+
+            dcc.Download(id="download-csv"),
+            dcc.Store(id="uploaded-file-store"),
+
+            dcc.Upload(
+                id="upload-csv",
+                children=html.Div(
+                    id="upload-csv-label",
+                    children="📂 Drag & drop or click to select CSV",
+                ),
+                multiple=False,
+                style={
+                    "minWidth": "320px",
+                    "width": "320px",
+                    "height": "32px",
+
+                    "display": "flex",
+                    "alignItems": "center",
+                    "justifyContent": "center",
+
+                    "borderWidth": "1px",
+                    "borderStyle": "dashed",
+                    "borderRadius": "4px",
+
+                    "fontSize": "11px",
+                    "whiteSpace": "nowrap",
+                    "overflow": "hidden",
+
+                    "flexShrink": 0,
+                    "boxSizing": "border-box",
+                }
+            ),
+
+            html.Button(
+                "Load CSV",
+                id="run-csv-button",
+                n_clicks=0,
+                title="Run analysis on uploaded CSV",
+                style={
+                    "minWidth": "110px",
+                    "height": "32px",
+                    "whiteSpace": "nowrap",
+                    "padding": "0 12px",
+                    "fontSize": "12px",
+                    "flexShrink": 0,
+                }
+            ),
+
+            html.Div(id='save-feedback'),
+
+        ], style={
+            "display": "flex",
+            "alignItems": "center",
+            "gap": "8px",
+            "flexWrap": "wrap",
+            "width": "100%",
+        }),
+
+
+        # html.Div([
+        #     html.Button("💾 Export to CSV", title=f"Export the results in the table into a csv file in the {EXPORT_DIR} directory. Sequences won't be present.",id='save-csv-button', n_clicks=0),
+        #     html.Button("💾 Export to CSV with sequences", title=f"Export the results in the table into a csv file in the {EXPORT_DIR} directory. Sequences will be present.", id='save-csv-with_seq-button', n_clicks=0),
+        #     dcc.Download(id="download-csv"),
+        #     dcc.Download(id="download-csv"),
+        #
+        #     html.Button(
+        #         "📂 Load CSV",
+        #         id='load-csv-button',
+        #         n_clicks=0,
+        #         title="Load a CSV generated from this page"
+        #     ),
+        #     dcc.Store(id="uploaded-file-store"),
+        #     html.Span(id='save-feedback', style={"marginLeft": "10px"}),
+        #
+        #     # 👇 IMPORTANT : upload invisible MAIS MONTÉ (pas display:none)
+        #     dcc.Upload(
+        #         id='upload-csv',
+        #         children=html.Div(),
+        #         style={
+        #             "position": "absolute",
+        #             "left": "-9999px",  # 👈 clé UX stable
+        #             "width": "1px",
+        #             "height": "1px",
+        #             "opacity": 0
+        #         },
+        #         multiple=False
+        #     ),
+            # html.Button("📂 Load csv", title="Load a csv file generated from this page.", id='load-csv-button', n_clicks=0),
+            # html.Div(id='save-feedback'),
+            # dcc.Store(id="uploaded-file-store"),
+            # dcc.Upload(
+            #     id='upload-csv',
+            #     children=html.Div(['Drag a CSV file here or click to select a file.']),
+            #     style={
+            #         'display': 'none',
+            #         'borderWidth': '1px',
+            #         'borderStyle': 'dashed',
+            #         'padding': '10px',
+            #     },
+            #     multiple=False
+            # )
+        # ]),
         # dcc.Loading(
         #     id="gwas_loading-spinner",
         #     persistence=True,

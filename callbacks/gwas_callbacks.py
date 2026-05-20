@@ -329,18 +329,15 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genome
     poll_enabled = True
     find_button = False
     cancel_button = True
-    triggered_id = ctx.triggered_id
     recompute = "enabled" not in recompute_chkbx
-    if not n_clicks:
+    if ctx.triggered_id != "btn-find-shared":
+        #raise exceptions.PreventUpdate
         return no_update, no_update, no_update, no_update, no_update, no_update
 
-    min_size = 10
     all_genomes = [opt["value"] for opt in all_genomes_dict]
-    if min_node_size is not None and min_node_size != "" and isinstance(min_node_size, int):
-        min_size = min_node_size
-    if min_node_size is None:
-        min_size = 0
-    data["min_node_size"] = min_size
+    if min_node_size is None or min_node_size == "" or not isinstance(min_node_size, int):
+        min_node_size = 0
+    data["min_node_size"] = min_node_size
     if chromosome == None or chromosome == "All":
         c = None
     else:
@@ -391,7 +388,6 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genome
         "tolerance_percentage": tolerance_percentage,
         "min_deletion_percentage": deletion_percentage
     }
-
     job_id = submit_job_gwas(params, recompute)
     gwas_data["job_id"] = job_id
     # Enable polling
@@ -527,7 +523,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
         toast = {"title": "Shared region discovery error", "message": job_data.get("error_message", "Unknown error"), "type": "danger"}
         return msg, gwas_data, toast,  progress_style, progress_value, enable_poll, search_button, cancel_button
 
-    elif status == "RUNNING" or status == "PENDING":
+    elif status == "RUNNING" or status == "PENDING" or status == "CANCEL":
         current_progress = int(get_gwas_progress(job_id))
 
         deg = current_progress * 3.6
@@ -546,6 +542,24 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
         progress_value = f"{current_progress}%"
 
         return msg, no_update, no_update, progress_style, progress_value, enable_poll, search_button, cancel_button
+    # elif status == "CANCEL":
+    #     current_progress = int(get_gwas_progress(job_id))
+    #
+    #     deg = current_progress * 3.6
+    #     progress_style = {
+    #         "display": "flex",
+    #         "align-items": "center",
+    #         "justify-content": "center",
+    #         "width": "100px",
+    #         "height": "100px",
+    #         "border-radius": "50%",
+    #         "background": f"conic-gradient(#9d4edd 0deg {deg}deg, #e9ecef {deg}deg 360deg)",
+    #         "margin": "auto",
+    #         "position": "relative"
+    #     }
+    #
+    #     progress_value = f"{current_progress}%"
+    #     return msg, no_update, no_update, progress_style, progress_value, enable_poll, search_button, cancel_button
     else:
         enable_poll = True
         msg = f"❌ Error: status {status} unknown"
@@ -824,20 +838,48 @@ def save_csv(n_clicks, n_clicks_seq, table_data, parameters_data, gwas_data):
     else:
         return "No data to download.", no_update
 
+
+#Callback to store a csv file (to avoid pb of update parameters between the differents callbacks)
+@app.callback(
+    Output("uploaded-file-store", "data"),
+    Output("upload-csv-label", "children"),
+    Input("upload-csv", "contents"),
+    State("upload-csv", "filename"),
+    prevent_initial_call=True
+)
+def store_file(contents, filename):
+
+    if not contents:
+        raise exceptions.PreventUpdate
+
+    file_data = {
+        "contents": contents,
+        "filename": filename
+    }
+
+    return file_data, f"📄 {filename}"
+
 #Callback to loads csv file into data table
 @app.callback(
     Output('shared-status', 'children',allow_duplicate=True),
     Output('shared-region-table', 'data',allow_duplicate=True),
     Output("gwas-page-store", "data", allow_duplicate=True),
     Output("parameters-gwas-page-store", "data", allow_duplicate=True),
-    Input('upload-csv', 'contents'),
-    State('upload-csv', 'filename'),
+    Output("uploaded-file-store", "data", allow_duplicate=True),
+    Output("upload-csv-label", "children", allow_duplicate=True),
+    Input("run-csv-button", "n_clicks"),
+    State("uploaded-file-store", "data"),
     State("gwas-page-store", "data"),
     prevent_initial_call=True
 )
-def load_csv(contents, filename, gwas_page_store):
-    if not contents:
+def load_csv(n_clicks,file_data, gwas_page_store):
+    if ctx.triggered_id != "run-csv-button":
         raise exceptions.PreventUpdate
+    if not n_clicks or file_data is None or "contents" not in file_data or "filename" not in file_data:
+        raise exceptions.PreventUpdate
+
+    filename = file_data["filename"]
+    contents = file_data["contents"]
     if gwas_page_store is None:
         gwas_page_store = {}
 
@@ -871,30 +913,33 @@ def load_csv(contents, filename, gwas_page_store):
         else:
             parameters_store = no_update
         logger.info(f"csv file {filename} loaded, {len(analyse)} shared regions found.")
-        return f"{len(analyse)} shared regions found.", analyse, gwas_page_store, parameters_store
+        return (f"{len(analyse)} shared regions found.", analyse,
+                gwas_page_store, parameters_store, None,
+                "📂 Drag & drop or click to select CSV")
 
     except Exception as e:
         logger.info(f"Error while loading file: {e}")
-        return None, None, gwas_page_store, no_update
+        return None, None, gwas_page_store, no_update, no_update, no_update
 
 
-    
 
-@app.callback(
-    Output('upload-csv', 'style'),
-    Input('load-csv-button', 'n_clicks'),
-    prevent_initial_call=True
-)
-def show_upload_area(n_clicks):
-    if not n_clicks:
-        return no_update
-    return {
-        'display': 'block',
-        'borderWidth': '1px',
-        'borderStyle': 'dashed',
-        'padding': '10px',
-        'marginTop': '10px'
-    }
+
+# @app.callback(
+#     Output('upload-csv', 'style'),
+#     Input('load-csv-button', 'n_clicks'),
+#     prevent_initial_call=True
+# )
+# def show_upload_area(n_clicks):
+#     if not n_clicks:
+#         return no_update
+#     return {
+#         'display': 'block',
+#         'borderWidth': '1px',
+#         'borderStyle': 'dashed',
+#         'padding': '10px',
+#         'marginTop': '10px'
+#     }
+
 
 
 #Callback to display sequence on click on the get sequence column
