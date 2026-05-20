@@ -330,9 +330,8 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genome
     find_button = False
     cancel_button = True
     recompute = "enabled" not in recompute_chkbx
-    if ctx.triggered_id != "btn-find-shared":
-        #raise exceptions.PreventUpdate
-        return no_update, no_update, no_update, no_update, no_update, no_update
+    if not n_clicks or ctx.triggered_id != "btn-find-shared":
+        raise exceptions.PreventUpdate
 
     all_genomes = [opt["value"] for opt in all_genomes_dict]
     if min_node_size is None or min_node_size == "" or not isinstance(min_node_size, int):
@@ -388,6 +387,7 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genome
         "tolerance_percentage": tolerance_percentage,
         "min_deletion_percentage": deletion_percentage
     }
+    logger.debug(f"GWAS params: {params}")
     job_id = submit_job_gwas(params, recompute)
     gwas_data["job_id"] = job_id
     # Enable polling

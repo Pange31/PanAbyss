@@ -394,7 +394,9 @@ def color_children(edgeData):
     State('global_parameters', 'data'),
     prevent_initial_call=True
 )
-def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home_data_storage, global_parameters):
+def plot_region(n_clicks, stored_data,
+                phylo_data, weighted_checkbox_value,
+                home_data_storage, global_parameters):
     if not n_clicks:
         raise exceptions.PreventUpdate
 
@@ -418,7 +420,7 @@ def plot_region(n_clicks, stored_data, phylo_data, weighted_checkbox_value, home
 
     try:
         # Step 1: Check if all nodes are in the region (since min node size can be set greater than 1)
-        if home_data_storage["current_size"] > 1:
+        if "current_size" not in home_data_storage or home_data_storage["current_size"] > 1:
             # Get all the nodes from the region
             max_nodes_from_db = MAX_NODES_FROM_DB
             if global_parameters and "max_nodes_from_db" in global_parameters:
