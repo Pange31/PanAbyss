@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.4.0]
+### Added
+- Checkbox to display nodes names
+- Add the fasta downloading in sequence page
+- Add the weighted option for local tree computation
+- Add exon and transcripts information when clicking on a node
+- Add p-value and score in the shared discovery regions page
+- Add nodes size scale on home page
+- Option for launch.sh script to generate csv import files from gfa files without GUI
+- Add filter on find region discovery page
+
+### Changed
+- Gradient color and node size reference in the legend
+- Round rectangle used for nodes instead of circle (configurable)
+- Graph compression: option to compress only nodes whose flow exceeds a theshold
+- Max nodes to get from database and max nodes to visualize are in conf file and can be changed locally on the about page.
+
+### Fixed
+- GFF annotation loading correction: the last annotation of each chromosome was associated to the next chromosome.
+- Fix on the zoom functionality: when the reference genome was not present in the selection the zoom wasn't work.
+
+### Removed
+
+
 ## [1.3.0]
 ### Added
 - Store result of shared region discovery and phylogenetics in a sqlite database
