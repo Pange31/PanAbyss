@@ -118,7 +118,10 @@ def layout():
 
             style={
                 "display": "grid",
-                "gridTemplateColumns": "repeat(auto-fit, minmax(120px, 1fr))",
+                #"gridTemplateColumns": "repeat(auto-fit, minmax(120px, 1fr))",
+                "gridTemplateColumns": "repeat(auto-fill, 110px)",
+                "columnGap": "4px",
+                "rowGap": "2px",
                 "columnGap": "0px",
                 "rowGap": "0px",
                 "width": "100%"
