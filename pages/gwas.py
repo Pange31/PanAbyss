@@ -504,57 +504,6 @@ def layout():
         }),
 
 
-        # html.Div([
-        #     html.Button("💾 Export to CSV", title=f"Export the results in the table into a csv file in the {EXPORT_DIR} directory. Sequences won't be present.",id='save-csv-button', n_clicks=0),
-        #     html.Button("💾 Export to CSV with sequences", title=f"Export the results in the table into a csv file in the {EXPORT_DIR} directory. Sequences will be present.", id='save-csv-with_seq-button', n_clicks=0),
-        #     dcc.Download(id="download-csv"),
-        #     dcc.Download(id="download-csv"),
-        #
-        #     html.Button(
-        #         "📂 Load CSV",
-        #         id='load-csv-button',
-        #         n_clicks=0,
-        #         title="Load a CSV generated from this page"
-        #     ),
-        #     dcc.Store(id="uploaded-file-store"),
-        #     html.Span(id='save-feedback', style={"marginLeft": "10px"}),
-        #
-        #     # 👇 IMPORTANT : upload invisible MAIS MONTÉ (pas display:none)
-        #     dcc.Upload(
-        #         id='upload-csv',
-        #         children=html.Div(),
-        #         style={
-        #             "position": "absolute",
-        #             "left": "-9999px",  # 👈 clé UX stable
-        #             "width": "1px",
-        #             "height": "1px",
-        #             "opacity": 0
-        #         },
-        #         multiple=False
-        #     ),
-            # html.Button("📂 Load csv", title="Load a csv file generated from this page.", id='load-csv-button', n_clicks=0),
-            # html.Div(id='save-feedback'),
-            # dcc.Store(id="uploaded-file-store"),
-            # dcc.Upload(
-            #     id='upload-csv',
-            #     children=html.Div(['Drag a CSV file here or click to select a file.']),
-            #     style={
-            #         'display': 'none',
-            #         'borderWidth': '1px',
-            #         'borderStyle': 'dashed',
-            #         'padding': '10px',
-            #     },
-            #     multiple=False
-            # )
-        # ]),
-        # dcc.Loading(
-        #     id="gwas_loading-spinner",
-        #     persistence=True,
-        #     persistence_type="memory",
-        #     delay_show=500,
-        #     # type="circle",  # 'default', 'circle', or 'dot'
-        #     children=html.Div(id="load_spinner_zone")
-        # ),
         # Analyse array
         dash_table.DataTable(
             id='shared-region-table',
@@ -591,6 +540,7 @@ def layout():
 
                 'borderBottom': '1px solid #cbd5e1',
                 'borderRight': '1px solid #e2e8f0',
+                'borderLeft': '1px solid #e2e8f0',
 
                 'padding': '6px 8px',
                 'textAlign': 'center',
@@ -625,6 +575,8 @@ def layout():
                 "overflowX": "auto",
                 "width": "100%",
                 "maxWidth": "100%",
+                "border": "1px solid #e2e8f0",
+                "borderRadius": "6px",
             },
             row_selectable='single',
             markdown_options={"html": True},
