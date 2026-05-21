@@ -1562,19 +1562,31 @@ def layout(data=None, initial_size_limit=10):
                 html.Button(
                     "🔍 Zoom on selection",
                     id='btn-zoom',
-                    title='Before using this button, nodes must be selected by holding left mouse button and Shift key.'
+                    title='Before using this button, nodes must be selected by holding left mouse button and Shift key.',
+                    style={
+                        'whiteSpace': 'nowrap'
+                    }
                 ),
                 html.Button(
                     "🔄 Reset Zoom",
                     id='btn-reset-zoom',
+                    style={
+                        'whiteSpace': 'nowrap'
+                    }
                 ),
                 html.Button(
                     "🔄 Zoom out 2000 bp",
                     id='btn-zoom-out',
+                    style={
+                        'whiteSpace': 'nowrap'
+                    }
                 ),
                 html.Button(
                     "🗙 Toggle Legend",
                     id='btn-toggle-legend',
+                    style={
+                        'whiteSpace': 'nowrap'
+                    }
                 ),
                 # Download graph div
                 html.Div([
@@ -1602,16 +1614,42 @@ def layout(data=None, initial_size_limit=10):
         ]),
 
         # Graph block
-        cyto.Cytoscape(
-            id='graph',
-            style={'width': '100%', 'height': '1000px'},
-            zoomingEnabled=True,
-            userZoomingEnabled=True,
-            userPanningEnabled=True,
-            wheelSensitivity=0.1,
-            boxSelectionEnabled=True,
-            
+        # cyto.Cytoscape(
+        #     id='graph',
+        #     style={'width': '100%', 'height': '1000px'},
+        #     zoomingEnabled=True,
+        #     userZoomingEnabled=True,
+        #     userPanningEnabled=True,
+        #     wheelSensitivity=0.1,
+        #     boxSelectionEnabled=True,
+        #
+        # )
+
+        html.Div(
+            [
+                cyto.Cytoscape(
+                    id='graph',
+                    style={
+                        'width': '100%',
+                        'height': '1000px',
+                    },
+                    zoomingEnabled=True,
+                    userZoomingEnabled=True,
+                    userPanningEnabled=True,
+                    wheelSensitivity=0.1,
+                    boxSelectionEnabled=True,
+                )
+            ],
+            style={
+                'border': '1px solid #e5e7eb',
+                'borderRadius': '12px',
+                'padding': '10px',
+                'backgroundColor': '#f8f9fa',
+                'boxShadow': '0 2px 6px rgba(0,0,0,0.04)',
+            }
         )
+
+
         ])
 
 #callback to show / hide legend
