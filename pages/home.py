@@ -706,22 +706,14 @@ legend = html.Div(
         "border": "1px solid #ccc",
         "borderRadius": "6px",
         "padding": "10px",
-        "width": "320px",
-        "fontSize": "12px"
+        "width": "400px",
+        "fontSize": "14px"
     },
     children=[
 
         html.Div("Legend", style={"fontWeight": "bold", "marginBottom": "8px"}),
 
         # === NODE SIZE ===
-        #Old version of node size with circles
-        # svg.Svg(width="300", height="40", children=[
-        #     svg.Circle(cx="35", cy="20", r="6", fill="blue"),
-        #     svg.Circle(cx="35", cy="20", r="10", fill="blue", opacity="0.5"),
-        #     svg.Circle(cx="35", cy="20", r="14", fill="blue", opacity="0.4"),
-        #
-        #     svg.Text("Node size ∝ sequence length", x="70", y="25")
-        # ]),
 
         #New version of node size legend
         svg.Svg(width="320", height="70", children=[
@@ -790,24 +782,13 @@ legend = html.Div(
                 "Node size: min → max (sequence length)",
                 x="10",
                 y="60",
-                fontSize="12",
+                fontSize="14",
                 fill="black"
             )
         ]),
 
 
         # === NODE COLOR (BLUE → RED) ===
-
-        #Old version with circle
-        # svg.Svg(width="300", height="30", children=[
-        #     svg.Circle(cx="20", cy="15", r="8", fill="blue"),
-        #     svg.Circle(cx="40", cy="15", r="8", fill="#7f007f"),
-        #     svg.Circle(cx="60", cy="15", r="8", fill="red"),
-        #     svg.Text(
-        #         "Color: few individuals → all individuals",
-        #         x="80", y="20"
-        #     )
-        # ]),
 
         #new version with bar
         svg.Svg(width="300", height="60", children=[
@@ -831,20 +812,21 @@ legend = html.Div(
                 "Color: few individuals → all individuals",
                 x="10",
                 y="45",
-                fontSize="12",
+                fontSize="14",
                 dominantBaseline="middle"
             )
         ]),
 
 
         # === REPEATED NODE ===
-        svg.Svg(width="300", height="30", children=[
-            svg.Ellipse(cx="35", cy="15", rx="14", ry="8", fill="red"),
-            svg.Text("Repeated node", x="80", y="20", fontSize="12")
+        svg.Svg(width="300", height="70", children=[
+            svg.Ellipse(cx="40", cy="25", rx="28", ry="12", fill="red", stroke="black"),
+            svg.Text("Repeated node", x="80", y="30", fontSize="14")
         ]),
 
+
         # === EDGE WIDTH ===
-        svg.Svg(width="300", height="30", children=[
+        svg.Svg(width="360", height="30", children=[
             svg.Line(
                 x1="10", y1="15", x2="60", y2="15",
                 stroke="#333",
@@ -853,12 +835,12 @@ legend = html.Div(
             svg.Text(
                 "Edge width ∝ number of individuals",
                 x="80", y="20",
-                fontSize="12"
+                fontSize="14"
             )
         ]),
 
         # === DASHED EDGE ===
-        svg.Svg(width="300", height="30", children=[
+        svg.Svg(width="360", height="30", children=[
             svg.Line(
                 x1="10", y1="15", x2="60", y2="15",
                 stroke="#333",
@@ -867,11 +849,12 @@ legend = html.Div(
             ),
             svg.Text(
                 "Dashed edge: long genomic distance",
-                x="80", y="20", fontSize="12"
+                x="80", y="20", fontSize="14"
             )
         ]),
     ]
 )
+
 
 
 def layout(data=None, initial_size_limit=10):
@@ -1582,7 +1565,7 @@ def layout(data=None, initial_size_limit=10):
                     }
                 ),
                 html.Button(
-                    "🗙 Toggle Legend",
+                    "Toggle Legend",
                     id='btn-toggle-legend',
                     style={
                         'whiteSpace': 'nowrap'
@@ -1609,7 +1592,7 @@ def layout(data=None, initial_size_limit=10):
             html.Div(
                 legend,
                 id='legend-div',
-                style={'marginBottom': '10px'}
+                style={'marginBottom': '10px','display': 'none'}
             )
         ]),
 
