@@ -862,6 +862,8 @@ def layout(data=None, initial_size_limit=10):
     all_genomes.sort()
     all_chromosomes = get_chromosomes()
     features = get_annotations_features()
+    max_label_len = max(len(s) for s in all_genomes)
+    min_item_width = min(max_label_len * 8, 350)
     if data != None:
         elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(
             data, all_genomes, initial_size_limit, all_genomes, all_chromosomes, [], [])
@@ -1191,21 +1193,20 @@ def layout(data=None, initial_size_limit=10):
                                 "margin": "0px",
                                 "padding": "0px",
                                 "lineHeight": "1",
-                                "fontSize": "11.5px",
+                                "fontSize": "14px",
                                 "display": "flex",
                                 "alignItems": "center",
-                                "gap": "4px"
+                                "gap": "4px",
+                                "whiteSpace": "nowrap",
                             },
 
                             style={
                                 "display": "grid",
-                                "gridTemplateColumns": "repeat(auto-fit, minmax(110px, max-content))",
-                                "columnGap": "8px",
-                                "rowGap": "0px",
+                                "gridTemplateColumns": f"repeat(auto-fit, minmax({min_item_width}px, 1fr))",
+                                "columnGap": "12px",
+                                "rowGap": "2px",
                                 "width": "100%",
-                                "lineHeight": "1"
                             }
-
                         )
                     ],
                         style={'marginBottom': '20px'}),
@@ -1448,23 +1449,24 @@ def layout(data=None, initial_size_limit=10):
                                 "display": "flex",
                                 "alignItems": "center",
                                 "gap": "4px",
-                                "fontSize": "11.5px",
+                                "fontSize": "14px",
                                 "whiteSpace": "nowrap",
                                 "lineHeight": "1"
                             },
 
                             style={
                                 "display": "grid",
-                                "gridTemplateColumns": "repeat(auto-fit, minmax(100px, 1fr))",
+                                "gridTemplateColumns": f"repeat(auto-fit, minmax({min_item_width}px, 1fr))",
                                 "columnGap": "2px",
                                 "rowGap": "0px",
                                 "width": "100%",
-                                "lineHeight": "1"
+                                "lineHeight": "1",
+                                "marginBottom": "5px"
                             }
                         ),
                         html.Label("Min (%) of shared haplotypes : ", title="Min (%) of shared haplotypes = M. Number of selected haplotypes = N. To detect a shared node it must contains almost (M/100) x N of the selected haplotypes. If M = 0 then the minimum number of selected haplotypes will be 1."),
                         dcc.Input(id='min_shared_genomes-input', type='number',
-                                  value=100, style={'width': '100px', 'marginRight': '10px'}),
+                                  value=100, style={'width': '100px', 'marginRight': '10px', "marginBottom": "5px"}),
                         html.Label("Tolerance (%) : ", title="Tolerance = T. Number of haplotypes on a node = n. To detect a shared node it must contains less than (T/100) x n of the non selected haplotypes. If T = 0 then detected nodes should contain only selected haplotypes."),
                         dcc.Input(id='tolerance-input', type='number', value=0,
                                   style={'width': '100px', 'marginRight': '20px'}),
@@ -1511,8 +1513,9 @@ def layout(data=None, initial_size_limit=10):
                             style={
                                 'display': 'flex',
                                 'alignItems': 'center',
-                                'width': '140px',
-                                'padding': '1px 2px'
+                                'width': f'{min_item_width}px',
+                                'padding': '1px 2px',
+                                "marginBottom": "5px"
                             })
                         for i, s in enumerate(all_genomes)
                     ],

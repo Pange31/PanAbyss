@@ -112,14 +112,14 @@ def layout():
                 "display": "flex",
                 "alignItems": "center",
                 "gap": "5px",
-                "fontSize": "12px",
+                "fontSize": "14px",
                 "whiteSpace": "nowrap"
             },
 
             style={
                 "display": "grid",
                 #"gridTemplateColumns": "repeat(auto-fit, minmax(120px, 1fr))",
-                "gridTemplateColumns": "repeat(auto-fill, 110px)",
+                "gridTemplateColumns": "repeat(auto-fill, 250px)",
                 "columnGap": "4px",
                 "rowGap": "2px",
                 "columnGap": "0px",
