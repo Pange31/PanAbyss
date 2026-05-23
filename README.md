@@ -139,7 +139,7 @@ Several solutions are available to run PanAbyss on machines with limited RAM:
 - The most memory-intensive step is the conversion of the pangenome into a Neo4j-compatible import format (GFA → CSV conversion).
 For very large pangenomes or when working on a machine with limited RAM, this preprocessing step can be executed on another machine with more resources or on a computing cluster. To do so:
   - Download PanAbyss on the remote machine
-  - Place the .gfa file(s) into ```./data/gfa```. In case of multiple gfa, a ```chromosomes_file.csv``` must be created in the same directory with in first column the gfa file name and in second column the chromosome name associated to the gfa.
+  - Place the .gfa file(s) into ```./data/gfa```. In case of multiple gfa, a ```chromosomes_file.csv``` must be created in the same directory with in first column the gfa file name (filename) and in second column the chromosome name associated to the gfa (chromosome).
   - Run: ```./launch.sh --generate_csv_import```. This command generates the Neo4j import files inside ```./data/import```
   - The generated files can then be copied into the local machine's ```./data/import``` directory
   - After that, the database can be created locally **without selecting a GFA file**, and the application can be used normally.
