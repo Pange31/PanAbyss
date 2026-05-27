@@ -1521,13 +1521,6 @@ def layout(data=None, initial_size_limit=10):
                                 "marginBottom": "5px",
                                 "overflow": "visible"
                             })
-                            # style={
-                            #     'display': 'flex',
-                            #     'alignItems': 'center',
-                            #     'width': f'{min_item_width}px',
-                            #     'padding': '1px 2px',
-                            #     "marginBottom": "5px"
-                            # })
                         for i, s in enumerate(all_genomes)
                     ],
 

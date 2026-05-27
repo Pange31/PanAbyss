@@ -457,6 +457,41 @@ def check_state_index(index_name: str):
             logger.error(f"❌ Error while checking index state: {e}")
             return None
 
+#Function to clean indexes in failed status
+def drop_failed_indexes():
+    driver = get_scoped_driver()
+    if driver is None:
+        return None
+    with driver.session() as session:
+        # Get FAILED indexes FAILED
+        result = session.run("""
+            SHOW INDEXES
+            YIELD name, state
+            WHERE state = 'FAILED'
+            RETURN name
+        """)
+
+        indexes = [record["name"] for record in result]
+
+        if not indexes:
+            logger.debug("No failed indexes.")
+            return
+
+        logger.debug(f"{len(indexes)} index(es) FAILED found.")
+
+        for index_name in indexes:
+            query = f"DROP INDEX `{index_name}` IF EXISTS"
+
+            try:
+                session.run(query)
+                logger.debug(f"Deleted index : {index_name}")
+
+            except Exception as e:
+                print(f"Error: index {index_name} not deleted")
+                print(e)
+
+
+
 
 #Function to create index in database
 #If base = True => create the base indexes = index on Node name and chromosome
@@ -465,6 +500,7 @@ def check_state_index(index_name: str):
 @require_authorization
 def create_indexes(base=True, extend=False, genomes_index=False):
     indexes_queries = []
+    drop_failed_indexes()
     driver = get_scoped_driver()
     if driver is None:
         return None
@@ -496,7 +532,7 @@ def create_indexes(base=True, extend=False, genomes_index=False):
                 tx.run(query)
 
         indexes_queries = []
-
+        #(ret, msg_indexes) = wait_for_indexes()
         if genomes_index :
             current_genome = 0
             #Uncomment the following lines if index creation takes too much ressources
