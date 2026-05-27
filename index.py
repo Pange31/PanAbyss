@@ -25,6 +25,9 @@ import pages.db_management as db_management
 import pages.about as about
 import pages.gwas_management as gwas_management
 import pages.phylo_management as phylo_management
+from urllib.parse import urlencode
+from pathlib import Path
+import json
 
 
 from neo4j_requests import *
@@ -94,6 +97,7 @@ app.layout = html.Div([
     dcc.Store(id="home-page-store", storage_type='session'),
     dcc.Store(id="home-page-legend-store", data={}, storage_type="memory"),
     dcc.Store(id="db-management-page-store", data={}, storage_type="memory"),
+    dcc.Store(id="demo_store", data={}, storage_type="memory"),
     #A bug in dash requires to set memory for gwas-page-store because this storage is used by a background treatment
     #Else it will raise a "Maximum depth" error in the gwas process
     dcc.Store(id="gwas-page-store", storage_type="memory"),
@@ -300,50 +304,56 @@ def sync_tabs_with_url(pathname):
 def update_url_from_tab(tab_value):
     return tab_value
 
+
+#Function use in demo mode to retrieve default values
+def charger_demo_values():
+
+    demo_file = Path("demo.json")
+
+    if not demo_file.exists():
+        return None
+
+    with open(demo_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    start = data.get("start")
+    end = data.get("end")
+    haplotype = data.get("haplotype")
+    chromosome = data.get("chromosome")
+    demo = {"url_start": start, "url_end": end, "url_hap": haplotype, "url_chromosome": chromosome, "force_refresh": time.time()}
+    return demo
+
 #Routing
 @app.callback(
     Output("page-content", "children"),
+    Output("demo_store", "data"),
     Input("url", "pathname")
 )
 def display_page(pathname):
-    #logger.info("callback routing " + str(pathname))
-    # if pathname in ["/", "", None]:
-    #     return home_layout
-    # elif pathname == "/phylogenetic":
-    #     return phylo_layout
-    # elif pathname == "/gwas":
-    #     return gwas_layout
-    # elif pathname == "/db_management":
-    #     if BLOCK_ADMIN_FUNCTIONNALITIES:
-    #         return html.H3("🚫 Access denied — administration is disabled.", style={"color": "red"})
-    #     return db_mgmt_layout
-    # elif pathname == "/sequences":
-    #     return sequences_layout
-    # elif pathname == "/about":
-    #     return about_layout
-    # else:
-    #     return html.H1("Page non trouvée")
-
+    demo_data = {}
     if pathname in ["/", "", None]:
-        return home.layout()
+        return home.layout(), demo_data
+    if pathname in ["/demo", "", None]:
+        demo_data = charger_demo_values()
+        return home.layout(), demo_data
     elif pathname == "/phylogenetic":
-        return phylogenetic.layout()
+        return phylogenetic.layout(), demo_data
     elif pathname == "/gwas":
-        return gwas.layout()
+        return gwas.layout(), demo_data
     elif pathname == "/db_management":
         if BLOCK_ADMIN_FUNCTIONNALITIES:
-            return html.H3("🚫 Access denied — administration is disabled.", style={"color": "red"})
-        return db_management.layout()
+            return html.H3("🚫 Access denied — administration is disabled.", style={"color": "red"}), demo_data
+        return db_management.layout(), demo_data
     elif pathname == "/sequences":
-        return sequences.layout()
+        return sequences.layout(), demo_data
     elif pathname == "/about":
-        return about.layout()
+        return about.layout(), demo_data
     elif pathname == "/gwas_management":
-        return gwas_management.layout()
+        return gwas_management.layout(), demo_data
     elif pathname == "/phylogenetic_management":
-        return phylo_management.layout()
+        return phylo_management.layout(), demo_data
     else:
-        return html.H1("Page non trouvée")
+        return html.H1("Page non trouvée"), demo_data
 
 
 def run():

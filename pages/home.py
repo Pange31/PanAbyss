@@ -1202,7 +1202,7 @@ def layout(data=None, initial_size_limit=10):
 
                             style={
                                 "display": "grid",
-                                "gridTemplateColumns": f"repeat(auto-fit, minmax({min_item_width}px, 1fr))",
+                                "gridTemplateColumns": f"repeat(auto-fit, minmax({min_item_width}px, max-content))",
                                 "columnGap": "12px",
                                 "rowGap": "2px",
                                 "width": "100%",
@@ -1456,7 +1456,7 @@ def layout(data=None, initial_size_limit=10):
 
                             style={
                                 "display": "grid",
-                                "gridTemplateColumns": f"repeat(auto-fit, minmax({min_item_width}px, 1fr))",
+                                "gridTemplateColumns": f"repeat(auto-fit, minmax({min_item_width}px, max-content))",
                                 "columnGap": "2px",
                                 "rowGap": "0px",
                                 "width": "100%",
@@ -1513,12 +1513,21 @@ def layout(data=None, initial_size_limit=10):
                             style={
                                 'display': 'flex',
                                 'alignItems': 'center',
-                                'width': f'{min_item_width}px',
+                                'width': f'{min_item_width + 15}px',
                                 'padding': '1px 2px',
-                                "marginBottom": "5px"
+                                "marginBottom": "5px",
+                                "overflow": "visible"
                             })
+                            # style={
+                            #     'display': 'flex',
+                            #     'alignItems': 'center',
+                            #     'width': f'{min_item_width}px',
+                            #     'padding': '1px 2px',
+                            #     "marginBottom": "5px"
+                            # })
                         for i, s in enumerate(all_genomes)
                     ],
+
                         style={
                             'display': 'flex',
                             'flexWrap': 'wrap',
@@ -2419,11 +2428,15 @@ def process_query_params(search):
     State('shared_storage', 'data'),
     State('genomes-dropdown', 'options'),
     State('chromosomes-dropdown', 'options'),
-    State('specific-genome_selector', 'value')
+    State('specific-genome_selector', 'value'),
+    State('demo_store', 'data'),
 )
-def update_parameters_on_page_load(pathname,data,query_params,shared_data,options_genomes,options_chromosomes,specifics_genomes):
+def update_parameters_on_page_load(pathname,data,
+                                   query_params,shared_data,
+                                   options_genomes,options_chromosomes,
+                                   specifics_genomes, demo_data):
 
-    if pathname != "/":
+    if pathname != "/" and pathname != "/demo":
         raise PreventUpdate
     slider_value = DEFAULT_SIZE_VALUE
 
@@ -2479,6 +2492,14 @@ def update_parameters_on_page_load(pathname,data,query_params,shared_data,option
             end_input = int(url_end)
 
         update_graph_command_storage = query_params
+    elif (pathname == "/demo" and demo_data and len(demo_data) > 0 and "url_start" in demo_data
+          and "url_end" in demo_data and "url_chromosome" in demo_data and "url_hap" in demo_data):
+        no_query_params = False
+        selected_genome = demo_data.get("url_hap", options_genomes[0]["value"])
+        selected_chromosome = demo_data.get("url_chromosome", options_chromosomes[0]["value"])
+        start_input = demo_data.get("url_start")
+        end_input = demo_data.get("url_end")
+        update_graph_command_storage = demo_data
 
     if no_query_params:
         if "selected_genome" in data:
