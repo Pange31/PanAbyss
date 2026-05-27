@@ -862,7 +862,10 @@ def layout(data=None, initial_size_limit=10):
     all_genomes.sort()
     all_chromosomes = get_chromosomes()
     features = get_annotations_features()
-    max_label_len = max(len(s) for s in all_genomes)
+    if all_genomes :
+        max_label_len = max(len(s) for s in all_genomes)
+    else :
+        max_label_len = 30
     min_item_width = min(max_label_len * 8, 350)
     if data != None:
         elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(
