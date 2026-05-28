@@ -474,7 +474,7 @@ def drop_failed_indexes():
         indexes = [record["name"] for record in result]
 
         if not indexes:
-            logger.debug("No failed indexes.")
+            logger.debug("No failed indexes to remove.")
             return
 
         logger.debug(f"{len(indexes)} index(es) FAILED found.")
