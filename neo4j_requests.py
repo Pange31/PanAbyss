@@ -351,21 +351,23 @@ def construct_base_query(ranges, chromosome, min_node_size=None, flow=None, vali
 
 #This function filter the outliers in number of nodes to avoid limit threshold
 #counts: dict[individu] = nodes numbers
-#factor: sensitivity(1.5 = standard, 3 = allow more)
+#factor: sensitivity(1.5 = standard, 3 = less filter)
 def filter_outliers(counts, factor = 1.5):
-    values = np.array(list(counts.values()))
-
-    q1 = np.percentile(values, 25)
-    q3 = np.percentile(values, 75)
-
-    iqr = q3 - q1
-
-    upper_limit = q3 + factor * iqr
-
     filter_list = []
-    for k, v in counts.items():
-        if v > upper_limit or v > MAX_NODES_NUMBER:
-            filter_list.append(k)
+    if counts and len(counts) > 0:
+        values = np.array(list(counts.values()))
+
+        q1 = np.percentile(values, 25)
+        q3 = np.percentile(values, 75)
+
+        iqr = q3 - q1
+
+        upper_limit = q3 + factor * iqr
+
+
+        for k, v in counts.items():
+            if v > upper_limit or v > MAX_NODES_NUMBER:
+                filter_list.append(k)
 
 
     return filter_list
@@ -645,7 +647,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                     result = session.run(query_genome)
                     counts = {r["genome"]: r["nb"] for r in result}
                     # logger.debug(counts)
-                    median_value = statistics.median(counts.values())
+                    #median_value = statistics.median(counts.values())
                     individuals_exceptions = []
                     valid_individuals_exceptions = []
                     individuals_exceptions = filter_outliers(counts)
