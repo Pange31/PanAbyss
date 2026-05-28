@@ -866,7 +866,7 @@ def layout(data=None, initial_size_limit=10):
         max_label_len = max(len(s) for s in all_genomes)
     else :
         max_label_len = 30
-    min_item_width = min(max_label_len * 8, 350)
+    min_item_width = min(max_label_len * 8 + 15, 350)
     if data != None:
         elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(
             data, all_genomes, initial_size_limit, all_genomes, all_chromosomes, [], [])
