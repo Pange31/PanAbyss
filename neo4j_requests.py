@@ -349,6 +349,27 @@ def construct_base_query(ranges, chromosome, min_node_size=None, flow=None, vali
         """
     return base_query_genome
 
+#This function filter the outliers in number of nodes to avoid limit threshold
+#counts: dict[individu] = nodes numbers
+#factor: sensitivity(1.5 = standard, 3 = allow more)
+def filter_outliers(counts, factor = 1.5):
+    values = np.array(list(counts.values()))
+
+    q1 = np.percentile(values, 25)
+    q3 = np.percentile(values, 75)
+
+    iqr = q3 - q1
+
+    upper_limit = q3 + factor * iqr
+
+    filter_list = []
+    for k, v in counts.items():
+        if v > upper_limit or v > MAX_NODES_NUMBER:
+            filter_list.append(k)
+
+
+    return filter_list
+
 
 #This function take the result of neo4 request and get the different annotations
 #It returns the nodes_data
@@ -627,9 +648,10 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                     median_value = statistics.median(counts.values())
                     individuals_exceptions = []
                     valid_individuals_exceptions = []
-                    for g in counts:
-                        if counts[g] > LIMIT and counts[g] > 10 * median_value:
-                            individuals_exceptions.append(g)
+                    individuals_exceptions = filter_outliers(counts)
+                    # for g in counts:
+                    #     if counts[g] > LIMIT and counts[g] > 10 * median_value:
+                    #         individuals_exceptions.append(g)
                     if len(individuals_exceptions) > 0:
                         logger.debug(f"Exceptional individuals : {individuals_exceptions}")
                     if len(individuals_exceptions) == 1 or len(individuals_exceptions) <= 0.2 * len(counts):
@@ -696,9 +718,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                     # logger.debug(f"query genome : {query_genome}")
                     # logger.info(query_genome)
                     result = session.run(query_genome, start=start, end=end)
-
                     nodes_data = get_nodes_data_from_record(result)
-
 
                     # for record in result:
                     #     nodes_data[record["m"]["name"]] = dict(record["m"]) | {"sequence": record["sequence"]} | {
