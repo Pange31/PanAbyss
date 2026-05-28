@@ -431,7 +431,9 @@ def get_nodes_data_from_record(result):
             feature = (a.get("feature") or "").lower()
             if feature != "exon":
                 continue
-            exon_id = a.get("exon_id", a.get("gene_name")+"_"+a.get("exon_number"))
+            exon_id = a.get("exon_id")
+            if exon_id is None and "exon_number" in a and ("gene_name" in a or "transcript_id" in a):
+                exon_id = a.get("gene_name", a.get("transcript_id", "")+"_"+a.get("exon_number", ""))
             if exon_id is None:
                 continue
 

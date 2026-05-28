@@ -2218,10 +2218,9 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             # Get the start / end value when graph is updated
             genome_position = genome + "_position"
             nodes_with_position = [node for node in new_data.values() if genome_position in node]
-            if len(nodes_with_position) > 1:
+            if len(nodes_with_position) > 0:
                 min_node = min(nodes_with_position, key=lambda x: x[genome_position])
                 max_node = max(nodes_with_position, key=lambda x: x[genome_position])
-
                 max_node_size = max_node.get("size", None)
                 start_value = min_node.get(genome_position, None)
                 end_value = max_node.get(genome_position) + max_node_size
