@@ -377,83 +377,102 @@ def filter_outliers(counts, factor = 1.5):
 #It returns the nodes_data
 def get_nodes_data_from_record(result):
     nodes_data = {}
+
     for record in result:
 
-        node_name = record["m"]["name"]
+        node = dict(record["m"])
+        node_name = node["name"]
+
+        annotations = [
+            dict(a)
+            for a in record["annotations"]
+            if a is not None
+        ]
+
+
+        features = list({
+            a.get("feature")
+            for a in annotations
+            if a.get("feature") is not None
+        })
+
+        gene_names = list({
+            a.get("gene_name")
+            for a in annotations
+            if a.get("gene_name") is not None
+        })
 
         #Transcripts
-        transcripts = []
-        seen_transcripts = set()
-        for transcript in record["transcripts"]:
-            transcript_id = transcript["transcript_id"]
+        transcripts_map = {}
+
+        for a in annotations:
+
+            feature = (a.get("feature") or "").lower()
+            if feature not in ["mrna", "transcript"]:
+                continue
+
+            transcript_id = a.get("transcript_id")
+
             if transcript_id is None:
                 continue
 
-            if transcript_id in seen_transcripts:
-                continue
-
-            seen_transcripts.add(transcript_id)
-
-            transcripts.append({
-                "transcript_id": transcript_id,
-                "start": transcript["start"],
-                "end": transcript["end"]
-            })
+            if transcript_id not in transcripts_map:
+                transcripts_map[transcript_id] = {
+                    "transcript_id": transcript_id,
+                    "gene_name": a.get("gene_name"),
+                    "start": a.get("start"),
+                    "end": a.get("end"),
+                    "exons": []
+                }
 
         #Exons
         exons_map = {}
-
-        for exon in record["exons"]:
-            exon_id = exon["exon_id"]
-
+        for a in annotations:
+            feature = (a.get("feature") or "").lower()
+            if feature != "exon":
+                continue
+            exon_id = a.get("exon_id", a.get("gene_name")+"_"+a.get("exon_number"))
             if exon_id is None:
                 continue
 
-            transcript_id = exon["transcript_id"]
-
+            transcript_id = a.get("transcript_id")
             if exon_id not in exons_map:
                 exons_map[exon_id] = {
                     "exon_id": exon_id,
-                    "start": exon["start"],
-                    "end": exon["end"],
-                    "transcript_ids": set()
+                    "start": a.get("start"),
+                    "end": a.get("end"),
+                    "transcript_ids": []
                 }
 
-            if transcript_id is not None:
-                exons_map[exon_id]["transcript_ids"].add(transcript_id)
+            if transcript_id is not None and transcript_id not in exons_map[exon_id]["transcript_ids"]:
+                exons_map[exon_id]["transcript_ids"].append(transcript_id)
+        exons = list(exons_map.values())
 
-        # conversion
-        exons = []
-        for exon_id, exon_data in exons_map.items():
-            exon_data["transcript_ids"] = list(exon_data["transcript_ids"])
-            exons.append(exon_data)
+        #Links exons and transcripts
+        for exon in exons:
+            for transcript_id in exon["transcript_ids"]:
+                if transcript_id in transcripts_map:
+                    transcripts_map[transcript_id]["exons"].append({
+                        "exon_id": exon["exon_id"],
+                        "start": exon["start"],
+                        "end": exon["end"]
+                    })
 
-        # nodes_data
+        transcripts = list(transcripts_map.values())
 
         nodes_data[node_name] = (
-                dict(record["m"])
-                | {
-                    "sequence": record["sequence"]
-                }
-                | {
-                    "genes_names": list(set(
-                        a for a in record["annotations"]
-                        if a is not None
-                    ))
-                }
-                | {
-                    "features": list(set(
-                        f for f in record["features"]
-                        if f is not None
-                    ))
-                }
-                | {
-                    "transcripts": transcripts,
-                    "exons": exons
-                }
+            node
+            | {
+                "sequence": record["sequence"],
+                "genes_names": gene_names,
+                "features": features,
+                "transcripts": transcripts,
+                "exons": exons,
+            }
         )
 
     return nodes_data
+
 
 # This function take a region (chromosome, start and stop) of a given haplotype (search_genome)
 # and it returns all the nodes in this region and the other related regions :
@@ -500,38 +519,16 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
     #                 """
 
     query_annotations = f"""
-                        WITH DISTINCT m
-                        OPTIONAL MATCH (m)-[]->(a:Annotation)
-                        OPTIONAL MATCH (m)-[]->(t:Annotation)
-                        WHERE t.feature IN ["mrna", "transcript"]
-                        OPTIONAL MATCH (m)-[]->(e:Annotation)
-                        WHERE e.feature = "exon"
-                        OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
-                        
-                        WITH m, s,
-                             collect(DISTINCT a.gene_name) AS annotations,
-                             collect(DISTINCT a.feature) AS features,
-                             collect(DISTINCT {{
-                                 transcript_id: t.transcript_id,
-                                 start: t.start,
-                                 end: t.end
-                             }}) AS transcripts,
-                             collect(DISTINCT {{
-                                 transcript_id: e.transcript_id,
-                                 exon_id: e.exon_id,
-                                 start: e.start,
-                                 end: e.end
-                             }}) AS exons
-                        
-                        RETURN
-                            m,
-                            substring(s.sequence, 0, {max_sequence}) AS sequence,
-                            annotations,
-                            features,
-                            transcripts,
-                            exons
-                        LIMIT {LIMIT + 1}
-                        """
+                            WITH DISTINCT m
+                            OPTIONAL MATCH (m)-[]->(a:Annotation)
+                            OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
+                            RETURN
+                                m,
+                                substring(s.sequence, 0, {max_sequence}) AS sequence,
+                                collect(DISTINCT a) AS annotations
+                            
+                            LIMIT {LIMIT + 1}
+                            """
 
     with driver.session() as session:
 

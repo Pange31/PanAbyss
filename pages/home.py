@@ -1816,17 +1816,15 @@ def build_annotations(nodes_data):
         # get transcripts
         for transcript in node_data.get("transcripts", []):
 
-            transcript_id = transcript["transcript_id"].upper()
-
+            transcript_id = transcript.get("transcript_id")
             if transcript_id is None:
                 continue
+            transcript_id = transcript_id.upper()
 
             if transcript_id not in region_transcripts:
-
-                transcript_gene = None
-
-                if "genes_names" in node_data and len(node_data["genes_names"]) > 0:
-                    transcript_gene = sorted(list(node_data["genes_names"]))[0].upper()
+                transcript_gene = transcript.get("gene_name")
+                if transcript_gene is not None:
+                    transcript_gene = transcript_gene.upper()
 
                 region_transcripts[transcript_id] = {
                     "start": transcript["start"],
@@ -1844,10 +1842,10 @@ def build_annotations(nodes_data):
         # get exons
         for exon in node_data.get("exons", []):
 
-            exon_id = exon.get("exon_id").upper()
-
+            exon_id = exon.get("exon_id")
             if exon_id is None:
                 continue
+            exon_id = exon_id.upper()
             transcript_ids = exon.get("transcript_ids", [])
 
             for transcript_id in transcript_ids:
@@ -1868,13 +1866,9 @@ def build_annotations(nodes_data):
     for transcript_id, transcript_data in region_transcripts.items():
 
         exons = transcript_data.get("exons", [])
-
         unique_exons = {}
-
         for exon in exons:
-
             exon_id = exon.get("exon_id")
-
             if exon_id is None:
                 continue
 
@@ -1891,7 +1885,6 @@ def build_annotations(nodes_data):
         exons.sort(key=lambda x: (x["start"], x["end"], x["exon_id"]))
 
         exon_ids = [e["exon_id"] for e in exons]
-
         transcript_data["exon_chain"] = " - ".join(exon_ids)
         transcript_data["exons"] = exon_ids
 
@@ -1926,15 +1919,12 @@ def build_annotations(nodes_data):
             )
         )
 
-
     annotations_html = html.Div([
-
         html.Div([
             html.B("Genes: "),
             html.Span(genes_html)
         ],
         style={"marginBottom": "10px"})
-
     ])
 
     return annotations_html
@@ -2223,6 +2213,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                     new_data, return_metadata = get_nodes_by_region(
                         genome, chromosome=chromosome, start=0, end=end, min_node_size=size_slider_val,
                         max_nodes_number=max_nodes_from_db)
+
 
             # Get the start / end value when graph is updated
             genome_position = genome + "_position"
