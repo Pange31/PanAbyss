@@ -446,8 +446,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
 
         df["mean_pos"] = df.apply(mean_position, axis=1)
         x_min, x_max_data = df["mean_pos"].min(), df["mean_pos"].max()
-        df["x"] = ((df["mean_pos"] - x_min) /
-                   (x_max_data - x_min + 1e-6)) * x_max
+        df["x"] = ((df["mean_pos"] - x_min) / max(1,(x_max_data - x_min))) * x_max
 
 
 
@@ -457,11 +456,9 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         min_x = df["mean_pos"].min()
         max_x = df["mean_pos"].max()
 
-        df["x_mean"] = ((df["mean_pos"] - min_x)/ (max_x - min_x)) * X_SPAN - X_SPAN / 2
-
+        df["x_mean"] = ((df["mean_pos"] - min_x)/ (max(1,max_x - min_x))) * X_SPAN - X_SPAN / 2
         df = df.sort_values("x_mean").reset_index(drop=True)
-        df["x"] = 0.0
-
+        #df["x"] = 0.0
         for n in range(len(df)):
             if n == 0:
                 df.at[n, "x"] = df.at[n, "x_mean"]
@@ -481,13 +478,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         df["y"] = 0.0
 
         mask = df["flow"] < FLOW_CENTER
-
-        df.loc[mask, "y"] = (
-                Y_MIN
-                + (Y_MAX - Y_MIN)
-                * (df.loc[mask, "flow"] / FLOW_CENTER) ** ALPHA
-        )
-
+        df.loc[mask, "y"] = Y_MIN + (Y_MAX - Y_MIN) * (df.loc[mask, "flow"] / FLOW_CENTER) ** ALPHA
 
         #df.loc[df.index % 2 == 0, "y"] *= -1
 
@@ -2235,6 +2226,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
                                               max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale)
+
             home_data_storage["current_size"] = size_slider_val
             if triggered_id == "search-button":
                 zoom_shared_storage_out = {}
@@ -2294,6 +2286,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
                                               max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale)
+
             if len(elements) == 0 and nodes_count > 0:
                 message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
         defined_color = 0
