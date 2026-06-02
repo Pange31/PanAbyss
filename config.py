@@ -18,6 +18,7 @@ from neo4j.exceptions import ServiceUnavailable
 import logging
 import threading
 
+
 logger = logging.getLogger("panabyss_logger")
 
 DEFAULT_DB_LOAD_GFA_BATCH_SIZE = 2000000
@@ -49,6 +50,9 @@ DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS = 5
 #-1 to desactivate the functionnality
 DEFAULT_GWAS_MAX_RUNNING_JOBS = 0
 
+#Defult PHYLO conf
+DEFAULT_PHYLO_BLOCK_TREE_RECOMPUTATION = False
+
 CONF_FILE = os.path.abspath("./conf.json")
 OLD_CONF_FILE = os.path.abspath("./db_conf.json")
 INSTALL_CONF_FILE = os.path.abspath("./install/conf/conf.json")
@@ -76,7 +80,8 @@ DEFAULT_ADDITIONS = {
     "max_gwas_store":DEFAULT_MAX_GWAS_STORE,
     "gwas_annotations_windows_size":DEFAULT_GWAS_ANNOTATIONS_WINDOWS_SIZE,
     "gwas_annotations_max_attempts":DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS,
-    "gwas_max_running_jobs":DEFAULT_GWAS_MAX_RUNNING_JOBS
+    "gwas_max_running_jobs":DEFAULT_GWAS_MAX_RUNNING_JOBS,
+    "phylo_tree_block_recomputation":DEFAULT_PHYLO_BLOCK_TREE_RECOMPUTATION
 }
 
 #Function to retrocompatibility with old conf file
@@ -166,6 +171,7 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
     GWAS_ANNOTATIONS_MAX_ATTEMPTS = int(conf.get("gwas_annotations_max_attempts",DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS))
     GWAS_MAX_RUNNING_JOBS = int(
         conf.get("gwas_max_running_jobs", DEFAULT_GWAS_MAX_RUNNING_JOBS))
+    PHYLO_BLOCK_TREE_RECOMPUTATION = conf.get("phylo_block_tree_recomputation", DEFAULT_PHYLO_BLOCK_TREE_RECOMPUTATION)
     if LOG_LEVEL_PARAM in log_levels:
         LOG_LEVEL= "logging."+LOG_LEVEL_PARAM
     else:
@@ -185,7 +191,8 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
             "MAX_NODES_TO_VISUALIZE":MAX_NODES_TO_VISUALIZE, "MAX_NODES_FROM_DB":MAX_NODES_FROM_DB, "READ_BUFFER_SIZE":READ_BUFFER_SIZE,
             "MAX_GWAS_STORE":MAX_GWAS_STORE, "MAX_GWAS_RUNNING_INACTIVITY_HOURS":MAX_GWAS_RUNNING_INACTIVITY_HOURS,
             "MAX_GWAS_REGIONS":MAX_GWAS_REGIONS, "GWAS_ANNOTATIONS_WINDOWS_SIZE":GWAS_ANNOTATIONS_WINDOWS_SIZE,
-            "GWAS_ANNOTATIONS_MAX_ATTEMPTS":GWAS_ANNOTATIONS_MAX_ATTEMPTS, "GWAS_MAX_RUNNING_JOBS":GWAS_MAX_RUNNING_JOBS}
+            "GWAS_ANNOTATIONS_MAX_ATTEMPTS":GWAS_ANNOTATIONS_MAX_ATTEMPTS, "GWAS_MAX_RUNNING_JOBS":GWAS_MAX_RUNNING_JOBS,
+            "PHYLO_BLOCK_TREE_RECOMPUTATION":PHYLO_BLOCK_TREE_RECOMPUTATION}
 
 
 CONF = get_conf()
@@ -259,6 +266,12 @@ def get_gwas_conf():
         return CONF["MAX_GWAS_STORE"], CONF["MAX_GWAS_RUNNING_INACTIVITY_HOURS"], CONF["MAX_GWAS_REGIONS"], CONF["GWAS_ANNOTATIONS_WINDOWS_SIZE"], CONF["GWAS_ANNOTATIONS_MAX_ATTEMPTS"], CONF["GWAS_MAX_RUNNING_JOBS"]
     else :
         return DEFAULT_MAX_GWAS_STORE, DEFAULT_MAX_GWAS_RUNNING_INACTIVITY_HOURS, DEFAULT_MAX_GWAS_REGIONS, DEFAULT_GWAS_ANNOTATIONS_WINDOWS_SIZE, DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS, DEFAULT_GWAS_MAX_RUNNING_JOBS
+
+def get_phylo_conf():
+    if CONF:
+        return CONF["PHYLO_BLOCK_TREE_RECOMPUTATION"]
+    else:
+        return DEFAULT_PHYLO_BLOCK_TREE_RECOMPUTATION
 
 #Authorization is set to True for local installation of PanAbyss
 #or if the mode admin is set to True

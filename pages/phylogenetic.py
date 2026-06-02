@@ -9,9 +9,12 @@ Created on Wed Jul  2 13:52:04 2025
 import dash_cytoscape as cyto
 from dash import Dash, html,callback, dcc
 import logging
+from config import *
 
 
 logger = logging.getLogger("panabyss_logger")
+
+PHYLO_BLOCK_TREE_RECOMPUTATION = get_phylo_conf()
 
 stylesheet = [
     {
@@ -156,7 +159,11 @@ def layout():
                         title="This will compute a new tree even it already exist.",
                         id="btn-force-compute-tree",
                         n_clicks=0,
-                        style={"marginTop": "10px", "marginRight": "20px"}
+                        style={
+                            "marginTop": "10px",
+                            "marginRight": "20px",
+                            "display": "none" if PHYLO_BLOCK_TREE_RECOMPUTATION else "inline-block",
+                        }
                     ),
                     html.Button(
                         "Save tree",

@@ -488,13 +488,21 @@ def save_tree(n_clicks, phylo_data):
     Output("download-tree", "data", allow_duplicate=True),
     Input('btn-save-global-tree', 'n_clicks'),
     State("phylogenetic-page-store", "data"),
+    State('method-dropdown', 'value'),
+    State("phylogenetic_chromosomes_dropdown", 'value'),
     prevent_initial_call=True
 )
-def save_global_tree(n_clicks, phylo_data):
+def save_global_tree(n_clicks, phylo_data, method, chromosome):
     if not n_clicks:
         raise PreventUpdate
     if not phylo_data or "newick_global" not in phylo_data or not phylo_data["newick_global"]:
-        return "No data to save", None
+        global_newick = get_existing_global_tree(method=method,  chromosome=chromosome)
+        if global_newick:
+            if not phylo_data:
+                phylo_data = {}
+            phylo_data["newick_global"] = global_newick
+        else:
+            return "No data to save", None
 
     newick_content = phylo_data["newick_global"]
     if not SERVER_MODE:

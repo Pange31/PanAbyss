@@ -720,6 +720,8 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                     # logger.info(query_genome)
                     result = session.run(query_genome, start=start, end=end)
                     nodes_data = get_nodes_data_from_record(result)
+                    if nodes_data:
+                        logger.debug(f"Nodes number: {len(nodes_data)}")
 
                     # for record in result:
                     #     nodes_data[record["m"]["name"]] = dict(record["m"]) | {"sequence": record["sequence"]} | {
