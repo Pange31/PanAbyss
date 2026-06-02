@@ -697,6 +697,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True, min_nod
                             logger.debug("Too much nodes into the region, no zoom level found.")
 
                 if flow is None or (flow is not None and flow >= 0) or len(valid_individuals_exceptions) > 0:
+                    logger.debug(f"Getting {region_nodes_number} nodes from the region.")
                     # Step 7 : Get the nodes and annotations for each genomes
                     if flow is not None and flow > 0:
                         # The search will be filtered by flow
@@ -817,7 +818,8 @@ def get_nodes_by_feature(genome, chromosome, feature=None, value=None, min_node_
     elif feature.lower() == "exon":
         key_id = "exon_id"
         key_name = "exon_id"
-
+    start = None
+    stop = None
     with driver.session() as session:
         genome_position = genome + "_position"
         # Step 1 : find nodes with gene annotation
@@ -828,21 +830,26 @@ def get_nodes_by_feature(genome, chromosome, feature=None, value=None, min_node_
                     MATCH (a:Annotation {{chromosome:"{chromosome}", feature:"{feature}"}})<-[]-(n:Node)
                     WHERE n[$genome_position] IS NOT NULL
                       AND (a.{key_id} = $value OR a.{key_name} = $value OR a.{key_id} = $value_lower OR a.{key_name} = $value_lower)
-                    RETURN DISTINCT n
-                    ORDER BY n[$genome_position] ASC
+                    RETURN 
+                    min(n[$genome_position]) AS start,
+                    max(n[$genome_position] + n.size) AS stop,
+                    count(distinct(n)) AS nodes_number
                     """
             result = session.run(query, value=value, value_lower=value_lower, genome_position=genome_position)
-            # logger.debug(query)
-            noeuds_annotes = [record["n"] for record in result]
-            if len(noeuds_annotes) > 0 and genome_position in noeuds_annotes[0] and genome_position in \
-                    noeuds_annotes[-1]:
-                start = noeuds_annotes[0][genome_position]
-                stop = noeuds_annotes[-1][genome_position] + noeuds_annotes[-1]["size"]
-                logger.debug(f"start : {start} - stop : {stop} - nodes number : {len(noeuds_annotes)}")
+
+            record = result.single()
+            if record is not None and record.get("start") is not None and record.get("stop") is not None:
+                start = int(record["start"])
+                stop = int(record["stop"])
+                nodes_number = record.get("nodes_number")
+                nodes_number = int(nodes_number) if nodes_number is not None else 0
+
+            if start and stop :
+                logger.debug(f"start : {start} - stop : {stop} - nodes number : {nodes_number}")
                 nodes_data, return_metadata = get_nodes_by_region(genome, chromosome, start, stop,
                                                                   min_node_size=min_node_size, max_nodes_number=max_nodes_number)
             else:
-                logger.debug(f"No nodes found {len(noeuds_annotes)}.")
+                logger.debug(f"No nodes found.")
                 return_metadata = {"return_code": "NO_DATA", "flow": None, "nodes_number": 0}
         else:
             return_metadata = {"return_code": "NO_DATA", "flow": None, "nodes_number": 0}
