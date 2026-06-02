@@ -1238,12 +1238,6 @@ def layout(data=None, initial_size_limit=10):
                 html.Div([
 
                     html.Div([
-                        html.Div(
-                            id='size-output',
-                            children='Min node size : 10',
-                            style={'whiteSpace': 'nowrap'}
-                        ),
-
                         html.Div([
                             html.H4(
                                 "Layout",
@@ -2002,7 +1996,6 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         home_data_storage["genome_zoom"] = None
         home_data_storage["zoom"] = False
         triggered_id = ctx.triggered_id
-        logger.debug(f"{triggered_id} update")
         max_nodes_to_visualize = MAX_NODES_TO_VISUALIZE
         if global_parameters and "max_nodes_to_visualize" in global_parameters:
             max_nodes_to_visualize = global_parameters["max_nodes_to_visualize"]
@@ -2014,11 +2007,10 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             node_shape_as_circle = True
         if home_data_storage is None:
             home_data_storage = {}
+        size_slider_val = DEFAULT_SIZE_VALUE
         if size_slider is None :
             if home_data_storage is not None and 'slider_value' in home_data_storage:
                 size_slider_val = home_data_storage['slider_value']
-            else:
-                size_slider_val = DEFAULT_SIZE_VALUE
         else:
             home_data_storage['slider_value'] = size_slider
             size_slider_val = size_slider
@@ -2036,6 +2028,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         else:
             if "current_size" in  home_data_storage :
                 logger.debug(f"Min node size {size_slider_val} - old value {home_data_storage['current_size']}.")
+            else:
+                logger.debug(f"min node size : {size_slider_val}")
         if "search_return_metadata" in home_data_storage and home_data_storage["search_return_metadata"] is not None :
             return_metadata = home_data_storage["search_return_metadata"]
             home_data_storage["search_return_metadata"] = None
@@ -2179,7 +2173,12 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             or new_request:
             new_data = {}
             #Delete local phylo graph if exists
-            logger.debug(f"Getting data from database from {start_value} to {end_value} on chr {chromosome} for genome{genome}")
+            if start_value and end_value:
+                logger.debug(f"Getting data from database from {start_value} to {end_value} on chr {chromosome} for genome {genome}")
+            else:
+                if feature_name and feature_value:
+                    logger.debug(
+                        f"Getting data from database for {feature_name} {feature_value} for genome {genome}")
             if phylo_data is not None and "newick_region" in phylo_data:
                 phylo_data["newick_region"] = None
             if sequences_data is not None :
@@ -2278,7 +2277,6 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             end_value = home_data_storage.get("end",None)
             feature_name = home_data_storage.get("feature_name", "")
             feature_value = home_data_storage.get("feature_value", "")
-            logger.debug(f"min node size : {size_slider_val}")
             elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(data_storage_nodes, genome, selected_genomes, size_slider_val, all_genomes,
                                               all_chromosomes, specifics_genomes_list,
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
