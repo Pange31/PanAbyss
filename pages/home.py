@@ -1667,7 +1667,10 @@ def display_element_data(node_data, edge_data):
     # -------------------------
     elif triggered_id == 'graph' and "prop_id" in ctx.triggered[0] and ctx.triggered[0]['prop_id'] == 'graph.tapNodeData' and node_data:
         exon_spans = []
-        for exon in node_data.get("exons", []):
+        for exon in sorted(
+                node_data.get("exons", []),
+                key=lambda e: e.get("exon_id") or ""
+        ):
             exon_id = exon.get("exon_id")
             if exon_id is None:
                 continue
