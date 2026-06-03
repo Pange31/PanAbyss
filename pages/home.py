@@ -1688,9 +1688,11 @@ def display_element_data(node_data, edge_data):
                     style={
                         "marginRight": "6px",
                         "textDecoration": "underline",
-                        "cursor": "pointer"
+                        "cursor": "pointer",
+                        "fontSize": "12px"
                     }
                 )
+
             )
         return html.Div([
             html.B(
@@ -1712,15 +1714,33 @@ def display_element_data(node_data, edge_data):
                 html.Span(f"• Features : {', '.join(node_data.get('features', []))}")
             ]),
             #Exon with tooltip
+            # html.Div([
+            #     html.Span("• Exons : "),
+            #     html.Span(exon_spans)
+            # ]),
             html.Div([
                 html.Span("• Exons : "),
-                html.Span(exon_spans)
+                html.Div(
+                    exon_spans,
+                    style={
+                        "display": "flex",
+                        "flexWrap": "wrap",
+                        "gap": "6px",
+                        "marginTop": "4px"
+                    }
+                )
             ]),
             html.Br(),
             html.Div([
                 html.B("Sequence (first 1000 bp only):")
             ]),
-            html.Pre(node_data.get("sequence"))
+            html.Pre(
+                node_data.get("sequence"),
+                style={
+                    "whiteSpace": "pre-wrap",
+                    "overflowWrap": "break-word"
+                }
+            )
         ])
 
     return "Click on a node or link to display data."
@@ -1881,7 +1901,7 @@ def build_annotations(nodes_data):
 
     for gene in genes_list:
         transcripts_for_gene = genes_to_transcripts.get(gene, [])
-        tooltip_lines = []
+        tooltip_lines = ["transcript_id (start - end) exon_id"]
         for tid in transcripts_for_gene:
             t = region_transcripts.get(tid)
 
