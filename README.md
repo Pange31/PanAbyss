@@ -168,8 +168,9 @@ The parameter file is named `./conf.json`. It contains the following parameters:
 - `"max_gwas_regions"`: set the maximum regions to visualize in shared regions discovery. Set to 0 (or not set) for no limit.
 - `"gwas_annotations_windows_size"`: set the size of windows for annotations search in shared regions discovery.
 - `"gwas_annotations_max_attempts"`: set the number of attempts to search annotations before or after in shared region discovery. The total size of the region is gwas_annotations_windows_size x gwas_annotations_max_attempts.
-- `"gwas_max_running_jobs"`: set the limit of running gwas jobs. Set to 0 = not limited, set to -1 = deactivate tth functionnality.
+- `"gwas_max_running_jobs"`: set the limit of running gwas jobs. Set to 0 = not limited, set to -1 = deactivate the functionality.
 - `"phylo_block_tree_recomputation"`: if set to true then it won't be possible to recompute a globale tree (for server purpose).
+- `"viz_filter_by_flow"`: if set to true then, in case of too wide region, the algorithm will try to reduce nodes number by filtering by flow (try to keep the near core pangenome). Default is true but it is time consuming.
 
 ## Contacts
 *F Graziani, M Zytnicki*
