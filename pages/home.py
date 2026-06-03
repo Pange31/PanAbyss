@@ -306,7 +306,111 @@ This function compress a graph by removing
 linear internal nodes, while allowing orientation inversions
 across genomes.
 """
-def graph_compression(df, flow_min = 0):
+def graph_compression(df, flow_min=0):
+
+    genome_position_cols = [c for c in df.columns if c.endswith("_position")]
+
+
+    # PRECOMPUTE
+    flow_map = df.set_index("name")["flow"].to_dict()
+
+    position_data = {
+        col: df[["name", col]].dropna().sort_values(col)
+        for col in genome_position_cols
+    }
+
+
+    # INIT GRAPH
+    nodes = df["name"].tolist()
+
+    predecessors = {n: set() for n in nodes}
+    successors = {n: set() for n in nodes}
+
+    invalid_nodes = set()
+
+
+    # STEP 1: BUILD GRAPH
+    for col, sub in position_data.items():
+
+        ordered_nodes = sub["name"].tolist()
+
+        for i in range(len(ordered_nodes) - 1):
+
+            u = ordered_nodes[i]
+            v = ordered_nodes[i + 1]
+
+            if u not in invalid_nodes:
+                su = successors[u]
+                su.add(v)
+                if len(su) > 2:
+                    invalid_nodes.add(u)
+
+            if v not in invalid_nodes:
+                pv = predecessors[v]
+                pv.add(u)
+                if len(pv) > 2:
+                    invalid_nodes.add(v)
+
+
+    # STEP 2: REMOVE INVALID NODES
+    for n in invalid_nodes:
+        predecessors.pop(n, None)
+        successors.pop(n, None)
+
+    # rebuild node set AFTER pruning
+    valid_nodes = set(predecessors.keys())
+
+    # STEP 3: FIND NODES TO REMOVE
+    nodes_to_remove = set()
+
+    for node in valid_nodes:
+
+        preds = predecessors[node]
+        succs = successors[node]
+
+        curr_flow = flow_map.get(node, 0)
+
+        if curr_flow < flow_min:
+            continue
+
+        # early skip (important speed win)
+        if not preds or not succs:
+            continue
+
+        if len(preds) > 2 or len(succs) > 2:
+            continue
+
+        # CASE 1: simple chain
+        if len(preds) == 1 and len(succs) == 1:
+
+            pred = next(iter(preds))
+
+            if len(successors[pred]) == 1:
+                nodes_to_remove.add(node)
+
+        # CASE 2: symmetric structure
+        elif len(preds) == 2 and len(succs) == 2:
+
+            neighbors = preds | succs
+
+            if len(neighbors) == 2:
+
+                n1, n2 = tuple(neighbors)
+
+                n1_neighbors = successors.get(n1, set()) | predecessors.get(n1, set())
+                n2_neighbors = successors.get(n2, set()) | predecessors.get(n2, set())
+
+                if len(n1_neighbors) == 2 and len(n2_neighbors) == 2:
+                    nodes_to_remove.add(node)
+
+
+    # STEP 4: MERGE RESULT
+    df_compacted = merge_node_data(df, nodes_to_remove, predecessors)
+
+    return df_compacted
+
+
+def graph_compression_old(df, flow_min = 0):
 
     genome_position_cols = [c for c in df.columns if c.endswith("_position")]
 
@@ -401,7 +505,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                            exons=False, exons_color=DEFAULT_EXONS_COLOR, colored_edges_size=5,
                            compression=False, min_flow_compression_value=0, max_nodes_to_visualize=MAX_NODES_TO_VISUALIZE,
                            nodes_size_scale=1):
-    logger.debug(f"Compute elements with ref genome {ref_genome}")
+    logger.debug(f"Compute elements with ref genome {ref_genome} node min size : {size_min}")
 
     legend_nodes_size_dict = {
         "size_min": "1",
@@ -414,7 +518,10 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         else:
             position_field = "mean_pos"
         df = records_to_dataframe(data)
+        n_rows = len(df)
+        logger.debug(f"Nb rows before filter : {n_rows}")
         df = df[df["size"] >= size_min].copy()
+        n_rows = len(df)
         if df.empty:
             return [], 0, legend_nodes_size_dict
         #If compression is set to true then it will compress the graph
@@ -422,7 +529,10 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         #has only one outgoing node, are removed
         if compression:
             df = graph_compression(df, min_flow_compression_value)
-
+        n_rows = len(df)
+        logger.debug(f"Nb rows after filter and compression : {n_rows}")
+        if n_rows > max_nodes_to_visualize:
+            return {}, n_rows, legend_nodes_size_dict
 
         df = df[df["genomes"].apply(lambda g: any(
             x in selected_genomes for x in g))].copy()
@@ -534,8 +644,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
             }
 
             nodes.append(data_nodes)
-            if len(nodes) > max_nodes_to_visualize:
-                return {}, len(nodes), legend_nodes_size_dict
+
 
 
         edges = []
@@ -1172,17 +1281,31 @@ def layout(data=None, initial_size_limit=10):
                         'width': '100%',
                     }),
                     html.Div([
-                        html.Label(
-                            "Haplotypes to visualize :",
-                            title="Nodes containing only unselected haplotypes won't be displayed.",
-                            style={'marginBottom': '5px'}
-                        ),
+                        html.Div([
+                            html.Label(
+                                "Haplotypes to visualize :",
+                                title="Nodes containing only unselected haplotypes won't be displayed.",
+                                style={'marginBottom': '5px'}
+                            ),
+
+                            html.Button(
+                                "Select all",
+                                id="select_all_genomes",
+                                n_clicks=0,
+                                style={"marginLeft": "10px", "marginRight": "5px"}
+                            ),
+
+                            html.Button(
+                                "Unselect all",
+                                id="unselect_all_genomes",
+                                n_clicks=0
+                            ),
+                        ], style={"display": "flex", "alignItems": "center"}),
 
                         dcc.Checklist(
                             id="genome_selector",
                             options=[{"label": g, "value": g} for g in all_genomes],
                             value=all_genomes,
-
                             labelStyle={
                                 "margin": "0px",
                                 "padding": "0px",
@@ -1193,7 +1316,6 @@ def layout(data=None, initial_size_limit=10):
                                 "gap": "4px",
                                 "whiteSpace": "nowrap",
                             },
-
                             style={
                                 "display": "grid",
                                 "gridTemplateColumns": f"repeat(auto-fit, minmax({min_item_width}px, max-content))",
@@ -1643,6 +1765,32 @@ def toggle_legend(n_clicks, current_style):
     return current_style
 
 
+#Callback to selected all / unselect all genomes
+@app.callback(
+    Output("genome_selector", "value"),
+    Input("select_all_genomes", "n_clicks"),
+    Input("unselect_all_genomes", "n_clicks"),
+    State("genome_selector", "options"),
+    prevent_initial_call=True
+)
+def update_genome_selection(n_select, n_unselect, options):
+    ctx = dash.callback_context
+
+    if not ctx.triggered:
+        return dash.no_update
+
+    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    all_values = [opt["value"] for opt in options]
+
+    if button_id == "select_all_genomes":
+        return all_values
+
+    elif button_id == "unselect_all_genomes":
+        return []
+
+    return dash.no_update
+
 # Callback to get nodes or link info when clicking on it
 @app.callback(
     Output('node-info', 'children'),
@@ -1692,7 +1840,7 @@ def display_element_data(node_data, edge_data):
                         "marginRight": "6px",
                         "textDecoration": "underline",
                         "cursor": "pointer",
-                        "fontSize": "12px"
+                        "fontSize": "14px"
                     }
                 )
 
@@ -2020,6 +2168,13 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         home_data_storage["genome_zoom"] = None
         home_data_storage["zoom"] = False
         triggered_id = ctx.triggered_id
+        if (triggered_id == "search-button" and n_clicks > 0
+                and ((start is None or start == "") or (end is None or end == ""))
+                and (feature_value is None or feature_value == "")):
+            return (no_update, no_update, no_update, f"❌ You must set start / end or feature value.", no_update, no_update,
+                    no_update, no_update, no_update, no_update, no_update,
+                    no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update)
+
         max_nodes_to_visualize = MAX_NODES_TO_VISUALIZE
         if global_parameters and "max_nodes_to_visualize" in global_parameters:
             max_nodes_to_visualize = global_parameters["max_nodes_to_visualize"]
@@ -2215,18 +2370,18 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                     home_data_storage["genome_zoom"] = alt_genome
                 new_data, return_metadata = get_nodes_by_region(
                         genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor, min_node_size=size_slider_val,
-                        max_nodes_number=max_nodes_from_db)
+                        max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
                 #data_storage_nodes = new_data
                 logger.debug("len new_data : " + str(len(new_data)))
             else:
                 if (feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "") and chromosome is not None:
                         new_data,return_metadata = get_nodes_by_feature(
                             genome, chromosome=chromosome, feature= feature_name, value=feature_value, min_node_size=size_slider_val,
-                            max_nodes_number=max_nodes_from_db)
+                            max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
                 else:
                     new_data, return_metadata = get_nodes_by_region(
                         genome, chromosome=chromosome, start=0, end=end, min_node_size=size_slider_val,
-                        max_nodes_number=max_nodes_from_db)
+                        max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
 
 
             # Get the start / end value when graph is updated

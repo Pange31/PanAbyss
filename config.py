@@ -53,6 +53,10 @@ DEFAULT_GWAS_MAX_RUNNING_JOBS = 0
 #Defult PHYLO conf
 DEFAULT_PHYLO_BLOCK_TREE_RECOMPUTATION = False
 
+
+#Default conf for visualization
+DEFAULT_VIZ_FILTER_BY_FLOW = False
+
 CONF_FILE = os.path.abspath("./conf.json")
 OLD_CONF_FILE = os.path.abspath("./db_conf.json")
 INSTALL_CONF_FILE = os.path.abspath("./install/conf/conf.json")
@@ -81,7 +85,8 @@ DEFAULT_ADDITIONS = {
     "gwas_annotations_windows_size":DEFAULT_GWAS_ANNOTATIONS_WINDOWS_SIZE,
     "gwas_annotations_max_attempts":DEFAULT_GWAS_ANNOTATIONS_MAX_ATTEMPTS,
     "gwas_max_running_jobs":DEFAULT_GWAS_MAX_RUNNING_JOBS,
-    "phylo_tree_block_recomputation":DEFAULT_PHYLO_BLOCK_TREE_RECOMPUTATION
+    "phylo_tree_block_recomputation":DEFAULT_PHYLO_BLOCK_TREE_RECOMPUTATION,
+    "viz_filter_by_flow":DEFAULT_VIZ_FILTER_BY_FLOW
 }
 
 #Function to retrocompatibility with old conf file
@@ -172,6 +177,7 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
     GWAS_MAX_RUNNING_JOBS = int(
         conf.get("gwas_max_running_jobs", DEFAULT_GWAS_MAX_RUNNING_JOBS))
     PHYLO_BLOCK_TREE_RECOMPUTATION = conf.get("phylo_block_tree_recomputation", DEFAULT_PHYLO_BLOCK_TREE_RECOMPUTATION)
+    VIZ_FILTER_BY_FLOW = conf.get("viz_filter_by_flow", DEFAULT_VIZ_FILTER_BY_FLOW)
     if LOG_LEVEL_PARAM in log_levels:
         LOG_LEVEL= "logging."+LOG_LEVEL_PARAM
     else:
@@ -192,7 +198,7 @@ def get_conf(log_levels=["INFO", "DEBUG", "WARNING","ERROR", "CRITICAL", "NOTSET
             "MAX_GWAS_STORE":MAX_GWAS_STORE, "MAX_GWAS_RUNNING_INACTIVITY_HOURS":MAX_GWAS_RUNNING_INACTIVITY_HOURS,
             "MAX_GWAS_REGIONS":MAX_GWAS_REGIONS, "GWAS_ANNOTATIONS_WINDOWS_SIZE":GWAS_ANNOTATIONS_WINDOWS_SIZE,
             "GWAS_ANNOTATIONS_MAX_ATTEMPTS":GWAS_ANNOTATIONS_MAX_ATTEMPTS, "GWAS_MAX_RUNNING_JOBS":GWAS_MAX_RUNNING_JOBS,
-            "PHYLO_BLOCK_TREE_RECOMPUTATION":PHYLO_BLOCK_TREE_RECOMPUTATION}
+            "PHYLO_BLOCK_TREE_RECOMPUTATION":PHYLO_BLOCK_TREE_RECOMPUTATION, "VIZ_FILTER_BY_FLOW":VIZ_FILTER_BY_FLOW}
 
 
 CONF = get_conf()
@@ -272,6 +278,12 @@ def get_phylo_conf():
         return CONF["PHYLO_BLOCK_TREE_RECOMPUTATION"]
     else:
         return DEFAULT_PHYLO_BLOCK_TREE_RECOMPUTATION
+
+def get_viz_conf():
+    if CONF:
+        return CONF["VIZ_FILTER_BY_FLOW"]
+    else:
+        return DEFAULT_VIZ_FILTER_BY_FLOW
 
 #Authorization is set to True for local installation of PanAbyss
 #or if the mode admin is set to True
