@@ -1226,6 +1226,7 @@ def layout(data=None, initial_size_limit=10):
                         step=1,
                         marks={i: str(i) for i in range(0, size_max + 1, int(size_max/10))},
                         value=DEFAULT_SIZE_VALUE,
+                        updatemode="mouseup",
                         tooltip={"placement": "bottom",
                                  "always_visible": False},
                     ),
@@ -2010,10 +2011,10 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         size_slider_val = DEFAULT_SIZE_VALUE
         if size_slider is None :
             if home_data_storage is not None and 'slider_value' in home_data_storage:
-                size_slider_val = home_data_storage['slider_value']
+                size_slider_val = home_data_storage["slider_value"]
         else:
-            home_data_storage['slider_value'] = size_slider
             size_slider_val = size_slider
+            home_data_storage["slider_value"] = size_slider
         #Checks if min node size has been decreased : if so it is required to get data from database
         if size_slider_val is not None and "current_size" in home_data_storage and home_data_storage["current_size"] > size_slider_val:
             logger.debug(f"Min node size has been set to {size_slider_val} and is lower than old value {home_data_storage['current_size']} - nodes will be updated from database.")
