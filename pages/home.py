@@ -2046,19 +2046,23 @@ def build_annotations(nodes_data):
                 gene,
                 title=tooltip_text,
                 style={
-                    "marginRight": "6px",
                     "textDecoration": "underline",
-                    "cursor": "pointer"
+                    "cursor": "pointer",
+                    "whiteSpace": "nowrap"
                 }
             )
         )
 
     annotations_html = html.Div([
-        html.Div([
-            html.B("Genes: "),
-            html.Span(genes_html)
-        ],
-        style={"marginBottom": "10px"})
+        html.B("Genes: "),
+        html.Div(
+            genes_html,
+            style={
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "6px"
+            }
+        )
     ])
 
     return annotations_html
