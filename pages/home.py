@@ -319,7 +319,6 @@ def graph_compression(df, flow_min=0):
         for col in genome_position_cols
     }
 
-
     # INIT GRAPH
     nodes = df["name"].tolist()
 
@@ -2270,6 +2269,9 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             if len(zoom_shared_storage_out) ==0:
                 zoom_shared_storage_out["start"] = home_data_storage["start"]
                 zoom_shared_storage_out["end"] = home_data_storage["end"]
+                if data_storage_nodes :
+                    zoom_shared_storage_out["nodes_data"]= data_storage_nodes
+
             position_field = genome + "_position"
             selected_positions =set()
 
@@ -2304,6 +2306,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 end_value = int(home_data_storage["end"]) + 1000
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
+                home_data_storage["min_node_size"] = size_slider_val
             else:
                 raise PreventUpdate
         if triggered_id == "btn-reset-zoom":
@@ -2311,7 +2314,6 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 logger.debug(f"reset zoom to {zoom_shared_storage_out['start']} - {zoom_shared_storage_out['end']}")
                 start_value = zoom_shared_storage_out["start"]
                 end_value = zoom_shared_storage_out["end"]
-                zoom_shared_storage_out = {}
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
             else:
@@ -2353,7 +2355,14 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             new_data = {}
             #Delete local phylo graph if exists
             if start_value and end_value:
-                logger.debug(f"Getting data from database from {start_value} to {end_value} on chr {chromosome} for genome {genome}")
+                if (triggered_id == "btn-reset-zoom"
+                        and "nodes_data" in zoom_shared_storage_out
+                        and len(zoom_shared_storage_out["nodes_data"]) > 0
+                        and home_data_storage.get("min_node_size",0) == size_slider_val):
+                    logger.debug(
+                        f"Retrieve {len(zoom_shared_storage_out['nodes_data'])} nodes before zoom.")
+                else:
+                    logger.debug(f"Getting data from database from {start_value} to {end_value} on chr {chromosome} for genome {genome}")
             else:
                 if feature_name and feature_value:
                     logger.debug(
@@ -2368,9 +2377,18 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                     use_anchor = False
                     home_data_storage["zoom"] = True
                     home_data_storage["genome_zoom"] = alt_genome
-                new_data, return_metadata = get_nodes_by_region(
-                        genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor, min_node_size=size_slider_val,
-                        max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
+                if (triggered_id == "btn-reset-zoom"
+                        and "nodes_data" in zoom_shared_storage_out
+                        and len(zoom_shared_storage_out["nodes_data"]) > 0
+                        and home_data_storage.get("min_node_size",0) == size_slider_val):
+                    new_data = zoom_shared_storage_out["nodes_data"]
+                    return_metadata["return_code"] = "OK"
+                    return_metadata['nodes_number'] = len(new_data)
+                else:
+                    new_data, return_metadata = get_nodes_by_region(
+                            genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor, min_node_size=size_slider_val,
+                            max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
+
                 #data_storage_nodes = new_data
                 logger.debug("len new_data : " + str(len(new_data)))
             else:
@@ -2383,6 +2401,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                         genome, chromosome=chromosome, start=0, end=end, min_node_size=size_slider_val,
                         max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
 
+            if triggered_id in ["btn-reset-zoom", "search-button"]:
+                zoom_shared_storage_out = {}
 
             # Get the start / end value when graph is updated
             genome_position = genome + "_position"
