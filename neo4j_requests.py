@@ -521,7 +521,6 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
     query_annotations = f"""
                             MATCH (m:Node) WHERE id(m) in $ids
                             OPTIONAL MATCH (m)-[]->(a:Annotation)
-                            WHERE a.feature in ["gene", "transcript", "mrna", "exon"]
                             OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
                             RETURN
                                 m,
