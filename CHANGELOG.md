@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Option for launch.sh script to generate csv import files from gfa files without GUI
 - Add filter on find region discovery page
 - Add a parameter to block or limit shared region discovery (for server purpose)
+- Add a script for systemd configuration.
 
 ### Changed
 - Gradient color and node size reference in the legend
