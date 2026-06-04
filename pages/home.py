@@ -238,67 +238,140 @@ def get_color_palette(n):
 def merge_node_data(df, nodes_to_remove, predecessors):
 
     df = df.copy()
-    for n in nodes_to_remove:
-        if n not in predecessors:
-            continue  # No predecessor, cannot merge
 
-        pred_node = list(predecessors[n])[0]
-        visited_nodes = set([n, pred_node])
-        #Get the first predecessor not removed
+    # Fast lookup
+    name_to_idx = dict(zip(df["name"], df.index))
+    name_to_row = df.set_index("name").to_dict("index")
+
+    for n in nodes_to_remove:
+
+        if n not in predecessors:
+            continue
+
+        pred_list = list(predecessors[n])
+
+        if not pred_list:
+            continue
+
+        pred_node = pred_list[0]
+
+        visited_nodes = {n, pred_node}
+
+        # Find first predecessor not removed
         while pred_node in nodes_to_remove and pred_node in predecessors:
-            pred_node = list(predecessors[pred_node])[0]
-            if (pred_node in visited_nodes and len(list(predecessors[pred_node])) > 1):
-                pred_node = list(predecessors[pred_node])[1]
-            if (pred_node in visited_nodes) :
+            preds = list(predecessors.get(pred_node, []))
+            if not preds:
                 pred_node = None
                 break
-            visited_nodes.add(pred_node)
 
-            if pred_node is None:
+            pred_node = preds[0]
+
+            if pred_node in visited_nodes and len(preds) > 1:
+                pred_node = preds[1]
+
+            if pred_node in visited_nodes:
+                pred_node = None
                 break
+
+            visited_nodes.add(pred_node)
 
         if pred_node is None:
             continue
 
-        idx = df.loc[df['name'] == pred_node].index[0]
-        # Update size
-        df.loc[df['name'] == pred_node, 'size'] += df.loc[df['name'] == n, 'size'].values[0]
+        if pred_node not in name_to_idx:
+            continue
 
-        # add features
-        f1 = df.loc[df['name'] == n, 'features'].iloc[0]
-        f2 = df.loc[df['name'] == pred_node, 'features'].iloc[0]
+        if n not in name_to_row:
+            continue
 
-        features = list(set((f1 if isinstance(f1, list) else []) + (f2 if isinstance(f2, list) else [])))
-        df.at[idx, 'features'] = features
+        idx_pred = name_to_idx[pred_node]
 
-        # add exons
-        e1 = df.loc[df['name'] == n, 'exons'].iloc[0]
-        e2 = df.loc[df['name'] == pred_node, 'exons'].iloc[0]
-        #exons = list(set((e1 if isinstance(e1, list) else []) + (e2 if isinstance(e2, list) else [])))
-        combined_exons = (
-                (e1 if isinstance(e1, list) else []) +
-                (e2 if isinstance(e2, list) else [])
+        # Node being merged (never modified)
+        row_n = name_to_row[n]
+
+        # SIZE
+        size_n = row_n.get("size", 0) or 0
+        size_pred = df.at[idx_pred, "size"]
+        df.at[idx_pred, "size"] = size_pred + size_n
+
+
+        # FEATURES
+        f1 = row_n.get("features")
+        f1 = f1 if isinstance(f1, list) else []
+
+        f2 = df.at[idx_pred, "features"]
+        f2 = f2 if isinstance(f2, list) else []
+
+        df.at[idx_pred, "features"] = list(set(f1 + f2))
+
+
+        # EXONS
+
+        e1 = row_n.get("exons")
+        e1 = e1 if isinstance(e1, list) else []
+
+        e2 = df.at[idx_pred, "exons"]
+        e2 = e2 if isinstance(e2, list) else []
+
+        combined = e1 + e2
+
+        seen_exons = set()
+        merged_exons = []
+
+        for exon in combined:
+
+            if not isinstance(exon, dict):
+                continue
+
+            exon_id = exon.get("exon_id")
+
+            if exon_id not in seen_exons:
+                seen_exons.add(exon_id)
+                merged_exons.append(exon)
+
+        df.at[idx_pred, "exons"] = merged_exons
+
+
+        # GENES
+
+        g1 = row_n.get("genes_names")
+        g1 = g1 if isinstance(g1, list) else []
+
+        g2 = df.at[idx_pred, "genes_names"]
+        g2 = g2 if isinstance(g2, list) else []
+
+        df.at[idx_pred, "genes_names"] = list(set(g1 + g2))
+
+        # GENOMES
+
+        if "genomes" in df.columns:
+
+            genomes_n = row_n.get("genomes")
+            genomes_n = genomes_n if isinstance(genomes_n, list) else []
+
+            genomes_pred = df.at[idx_pred, "genomes"]
+            genomes_pred = genomes_pred if isinstance(genomes_pred, list) else []
+
+            df.at[idx_pred, "genomes"] = list(
+                set(genomes_n + genomes_pred)
+            )
+
+    # Remove compacted nodes
+    df_compacted = df[~df["name"].isin(nodes_to_remove)].copy()
+
+    # Normalize list columns
+    list_cols = ["genomes", "features", "genes_names", "exons"]
+    for col in list_cols:
+        if col not in df_compacted.columns:
+            continue
+
+        df_compacted[col] = df_compacted[col].apply(
+            lambda x: x if isinstance(x, list)
+            else ([] if pd.isna(x) else [x])
         )
 
-        seen_exon_ids = set()
-        exons = []
-        for exon in combined_exons:
-            exon_id = exon.get("exon_id")
-            if exon_id not in seen_exon_ids:
-                seen_exon_ids.add(exon_id)
-                exons.append(exon)
-        df.at[idx, 'exons'] = exons
-
-        # Concatenate annotations
-        a1 = df.loc[df['name'] == n, 'genes_names'].iloc[0]
-        a2 = df.loc[df['name'] == pred_node, 'genes_names'].iloc[0]
-        genes_names = list(set((a1 if isinstance(a1, list) else []) + (a2 if isinstance(a2, list) else [])))
-        df.at[idx, 'genes_names'] = genes_names
-
-    # Remove the compacted nodes
-    df_compacted = df[~df['name'].isin(nodes_to_remove)].copy()
-
     return df_compacted
+
 
 
 """
@@ -310,8 +383,6 @@ def graph_compression(df, flow_min=0):
 
     genome_position_cols = [c for c in df.columns if c.endswith("_position")]
 
-
-    # PRECOMPUTE
     flow_map = df.set_index("name")["flow"].to_dict()
 
     position_data = {
@@ -319,7 +390,6 @@ def graph_compression(df, flow_min=0):
         for col in genome_position_cols
     }
 
-    # INIT GRAPH
     nodes = df["name"].tolist()
 
     predecessors = {n: set() for n in nodes}
@@ -327,8 +397,7 @@ def graph_compression(df, flow_min=0):
 
     invalid_nodes = set()
 
-
-    # STEP 1: BUILD GRAPH
+    # STEP 1: BUILD GRAPH (UNCHANGED)
     for col, sub in position_data.items():
 
         ordered_nodes = sub["name"].tolist()
@@ -339,59 +408,52 @@ def graph_compression(df, flow_min=0):
             v = ordered_nodes[i + 1]
 
             if u not in invalid_nodes:
-                su = successors[u]
-                su.add(v)
-                if len(su) > 2:
+                successors[u].add(v)
+                if len(successors[u]) > 2:
                     invalid_nodes.add(u)
 
             if v not in invalid_nodes:
-                pv = predecessors[v]
-                pv.add(u)
-                if len(pv) > 2:
+                predecessors[v].add(u)
+                if len(predecessors[v]) > 2:
                     invalid_nodes.add(v)
 
+    # STEP 2: REMOVE INVALID NODES ONLY
 
-    # STEP 2: REMOVE INVALID NODES
     for n in invalid_nodes:
         predecessors.pop(n, None)
         successors.pop(n, None)
 
-    # rebuild node set AFTER pruning
-    valid_nodes = set(predecessors.keys())
+    valid_nodes = set(predecessors.keys()) | set(successors.keys())
 
-    # STEP 3: FIND NODES TO REMOVE
+    # STEP 3: DETECTION
     nodes_to_remove = set()
 
     for node in valid_nodes:
 
-        preds = predecessors[node]
-        succs = successors[node]
+        preds = predecessors.get(node, set())
+        succs = successors.get(node, set())
 
         curr_flow = flow_map.get(node, 0)
 
         if curr_flow < flow_min:
             continue
 
-        # early skip (important speed win)
         if not preds or not succs:
             continue
 
         if len(preds) > 2 or len(succs) > 2:
             continue
 
-        # CASE 1: simple chain
+        # CASE 1: chain
         if len(preds) == 1 and len(succs) == 1:
-
             pred = next(iter(preds))
-
-            if len(successors[pred]) == 1:
+            # IMPORTANT FIX: safe access
+            if len(successors.get(pred, set())) == 1:
                 nodes_to_remove.add(node)
 
-        # CASE 2: symmetric structure
+        # CASE 2: symmetric
         elif len(preds) == 2 and len(succs) == 2:
-
             neighbors = preds | succs
-
             if len(neighbors) == 2:
 
                 n1, n2 = tuple(neighbors)
@@ -402,101 +464,12 @@ def graph_compression(df, flow_min=0):
                 if len(n1_neighbors) == 2 and len(n2_neighbors) == 2:
                     nodes_to_remove.add(node)
 
-
-    # STEP 4: MERGE RESULT
+    # STEP 4: CLEAN ONLY FOR MERGE
     df_compacted = merge_node_data(df, nodes_to_remove, predecessors)
 
     return df_compacted
 
 
-def graph_compression_old(df, flow_min = 0):
-
-    genome_position_cols = [c for c in df.columns if c.endswith("_position")]
-
-    # Predecessors and successors (directed graph)
-    predecessors = {n: set() for n in df["name"]}
-    successors = {n: set() for n in df["name"]}
-
-    # Nodes with more than one successor / predecessor (or two in case of reverse nodes)
-    invalid_nodes = set()
-
-    # ------------------------------------------------------------------
-    # Step 1: Build the directed graph genome by genome
-    # ------------------------------------------------------------------
-    for genome_position in genome_position_cols:
-        # Keep only nodes existing in this genome
-        sub = df[["name", genome_position]].dropna(subset=[genome_position])
-        sub = sub.sort_values(by=genome_position)
-        ordered_nodes = sub["name"].tolist()
-
-        # Connect consecutive nodes
-        for u, v in zip(ordered_nodes[:-1], ordered_nodes[1:]):
-            if u not in invalid_nodes:
-                successors[u].add(v)
-                if len(successors[u]) > 2:
-                    invalid_nodes.add(u)
-
-            if v not in invalid_nodes:
-                predecessors[v].add(u)
-                if len(predecessors[v]) > 2:
-                    invalid_nodes.add(v)
-
-    # ------------------------------------------------------------------
-    # Step 2: Remove invalid nodes from the graph
-    # ------------------------------------------------------------------
-    for n in invalid_nodes:
-        predecessors.pop(n, None)
-        successors.pop(n, None)
-
-    # ------------------------------------------------------------------
-    # Step 3: Identify removable nodes
-    # ------------------------------------------------------------------
-    nodes_to_remove = set()
-    all_nodes = set(predecessors.keys()) | set(successors.keys())
-
-    for node in all_nodes:
-        preds = predecessors.get(node, set())
-        succs = successors.get(node, set())
-
-        #checks the flow of previous node, it must be equal to current node
-        #this is due to different start coordinates on the different haplotypes
-        curr_flow = df.loc[df['name'] == node, 'flow'].iloc[0]
-
-        if curr_flow < flow_min:
-            continue
-
-        for pred in preds:
-            pred_flow = df.loc[df['name'] == pred, 'flow'].iloc[0]
-            if pred_flow != curr_flow:
-                continue
-            continue
-        # Node must be locally linear
-        if len(preds) > 2 or len(succs) > 2 or len(preds) == 0 or len(succs) == 0:
-            continue
-
-        #Node is compressed if there is only one predecessor and one successor
-        #and if the predecessor has only one successor
-        if len(preds) == 1 and len(succs) == 1:
-            if len(successors.get(list(preds)[0],[])) == 1:
-                nodes_to_remove.add(node)
-        else:
-            #Checks if node is traversed in both direction
-            #Node is compressed if it has only two neighbors
-            #and their neighbors have only two neighbors too
-            if len(preds) == 2 and len(succs) == 2:
-                neighbors = preds | succs
-                if len(neighbors) == 2:
-                    pred_neighbors = successors.get(list(neighbors)[0],set()) | predecessors.get(list(neighbors)[0],set())
-                    succ_neighbors = successors.get(list(neighbors)[1], set()) | predecessors.get(list(neighbors)[1], set())
-                    if len(pred_neighbors) == 2 and len(succ_neighbors) == 2:
-                        nodes_to_remove.add(node)
-
-    # ------------------------------------------------------------------
-    # Step 4: Remove nodes from the dataframe
-    # ------------------------------------------------------------------
-    df_compacted = merge_node_data(df, nodes_to_remove, predecessors)
-
-    return df_compacted
 
 def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_genomes, all_chromosomes,
                            specifics_genomes=None, color_genomes=[], x_max=1000, y_max=1000, labels=True,
@@ -533,8 +506,13 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         if n_rows > max_nodes_to_visualize:
             return {}, n_rows, legend_nodes_size_dict
 
-        df = df[df["genomes"].apply(lambda g: any(
-            x in selected_genomes for x in g))].copy()
+        selected_set = set(selected_genomes)
+
+        df = df[df["genomes"].apply(
+            lambda g: bool(set(g) & selected_set)
+            if isinstance(g, (list, set, tuple))
+            else False
+        )].copy()
         #logger.debug(f"Compute elements - dataframe")
         def mean_position(row):
             positions = [row.get(f"{g}_node")
