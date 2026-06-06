@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add filter on find region discovery page
 - Add a parameter to block or limit shared region discovery (for server purpose)
 - Add a script for systemd configuration.
+- Add a cache system.
 
 ### Changed
 - Gradient color and node size reference in the legend
