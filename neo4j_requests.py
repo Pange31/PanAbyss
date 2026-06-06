@@ -800,7 +800,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
 #   - WIDE
 #   - NO_DATA
 def get_nodes_by_feature(genome, chromosome, feature=None, value=None,
-                         min_node_size=None, max_nodes_number=None, selected_genomes=None):
+                         min_node_size=None, max_nodes_number=None, selected_genomes=None,use_anchor=True):
     return_code = "OK"
     driver = get_driver()
     if driver is None:
@@ -850,7 +850,7 @@ def get_nodes_by_feature(genome, chromosome, feature=None, value=None,
                 logger.debug(f"start : {start} - stop : {stop} - nodes number : {nodes_number}")
                 nodes_data, return_metadata = get_nodes_by_region(genome, chromosome, start, stop,
                                                                   min_node_size=min_node_size, max_nodes_number=max_nodes_number,
-                                                                  selected_genomes=selected_genomes)
+                                                                  selected_genomes=selected_genomes, use_anchor=use_anchor)
             else:
                 logger.debug(f"No nodes found.")
                 return_metadata = {"return_code": "NO_DATA", "flow": None, "nodes_number": 0}
