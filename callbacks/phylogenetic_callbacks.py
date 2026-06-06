@@ -11,7 +11,8 @@ import dash
 from dash import html, Input, Output, callback, State, callback_context, dcc, ctx, exceptions, no_update
 from dash.exceptions import PreventUpdate
 
-
+from app import *
+from cache_manager import *
 
 import os
 import sys
@@ -385,7 +386,7 @@ def color_children(edgeData):
     Output("phylogenetic-message", "children", allow_duplicate=True),
     Output("phylogenetic-page-store", "data", allow_duplicate=True),
     Output("phylo-local-tree-job-status", "data"),
-    Output('shared_storage_nodes', 'data',allow_duplicate=True),
+    #Output('shared_storage_nodes', 'data',allow_duplicate=True),
     Input('btn-plot-region', 'n_clicks'),
     State('shared_storage_nodes', 'data'),
     State("phylogenetic-page-store", "data"),
@@ -400,6 +401,8 @@ def plot_region(n_clicks, stored_data,
     if not n_clicks:
         raise exceptions.PreventUpdate
 
+
+
     ctx = dash.callback_context
     if ctx.triggered_id == "btn-plot-region" and n_clicks == 0:
         raise PreventUpdate
@@ -409,18 +412,26 @@ def plot_region(n_clicks, stored_data,
     if "weight_by_size" in weighted_checkbox_value:
         weighted = True
     phylo_local_data = {"status": "done"}
-    if not stored_data:
+
+    if "nodes_cache_id" not in stored_data:
+        raise PreventUpdate
+    nodes_cache_id = stored_data["nodes_cache_id"]
+    cached = get_session_cache(nodes_cache_id)
+    min_node_size = cached.get("min_node_size", 10)
+    nodes = cached.get("nodes", {})
+
+    if not stored_data or len(nodes) == 0:
         phylo_local_data = {"status": "done"}
         return html.Div(html.P([
         "❌ No data to compute tree. Select a region to visualise on the ",
         dcc.Link("home page", href="/", style={'color': 'blue', 'textDecoration': 'underline'}),
         " or on the ",
         dcc.Link("gwas page", href="/gwas", style={'color': 'blue', 'textDecoration': 'underline'})
-        ], style=error_style)), phylo_data, phylo_local_data, nodes
+        ], style=error_style)), phylo_data, phylo_local_data
 
     try:
         # Step 1: Check if all nodes are in the region (since min node size can be set greater than 1)
-        if "current_size" not in home_data_storage or home_data_storage["current_size"] > 1:
+        if min_node_size > 1:
             # Get all the nodes from the region
             max_nodes_from_db = MAX_NODES_FROM_DB
             if global_parameters and "max_nodes_from_db" in global_parameters:
@@ -437,11 +448,16 @@ def plot_region(n_clicks, stored_data,
             logger.debug(f"Phylo tree construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
             nodes, return_metadata = get_nodes_by_region(
                 genome, chromosome=chromosome, start=start, end=end, use_anchor=use_anchor, max_nodes_number=max_nodes_from_db)
+            cached["min_node_size"] = 1
+            cached["nodes"] = nodes
+            nodes_cache.set(nodes_cache_id, cached, expire=8 * 3600)
             logger.debug(f"Number of nodes in the region: {len(nodes)}")
             stored_data = nodes
+        else:
+            logger.debug("Min node size : 1 => constructing local tree")
 
         # Step 2: compute tree of the region
-        newick_str = compute_phylo_tree_from_nodes(stored_data, weighted=weighted)
+        newick_str = compute_phylo_tree_from_nodes(nodes, weighted=weighted)
         if phylo_data is None:
             phylo_data = {"newick_region":newick_str}
         else:
@@ -449,12 +465,12 @@ def plot_region(n_clicks, stored_data,
 
         # Step 3: draw tree
         phylo_local_data = {"status": "done"}
-        return "", phylo_data, phylo_local_data, nodes
+        return "", phylo_data, phylo_local_data
 
     except Exception as e:
         logger.error(f"Error while computing tree : {e}")
         phylo_local_data = {"status": "done"}
-        return html.Div(f"❌ Error while computing tree : {e}", style=error_style), phylo_data, phylo_local_data, nodes
+        return html.Div(f"❌ Error while computing tree : {e}", style=error_style), phylo_data, phylo_local_data
 
 
 

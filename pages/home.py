@@ -19,6 +19,7 @@ import json
 import math
 
 from app import *
+from cache_manager import *
 
 import os
 from io import BytesIO
@@ -952,7 +953,6 @@ def layout(data=None, initial_size_limit=10):
     size_max = 500
 
     return html.Div([
-        dcc.Store(id='zoom_shared_storage_nodes', storage_type='memory'),
         dcc.Store(id='update_graph_command_storage', storage_type='memory'),
         html.Div([
             html.H2("PANABYSS"),
@@ -2072,7 +2072,7 @@ def build_annotations(nodes_data):
 @app.callback(
     Output("graph", "elements"),
     Output("nb-noeuds", 'children'),
-    Output('shared_storage_nodes', 'data', allow_duplicate=True),
+    #Output('shared_storage_nodes', 'data', allow_duplicate=True),
     Output('search-message', 'children'),
     Output('annotations-info', 'children'),
     Output('graph', 'stylesheet'),
@@ -2136,9 +2136,14 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                  show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size, nodes_size_scale,
                  graph_compression_value, min_flow_compression, nodes_names_value, global_parameters):
     if genome is not None and chromosome is not None:
+        if "nodes_cache_id" not in data_storage_nodes:
+            raise PreventUpdate
+        nodes_cache_id = data_storage_nodes["nodes_cache_id"]
+        cached = get_session_cache(nodes_cache_id)
         ctx = dash.callback_context
         return_metadata = {"return_code":"", "flow":None, "nodes_number":0, "removed_genomes":None}
         message = ""
+        nodes = {}
         start_value = None
         end_value = None
         new_request = False
@@ -2174,8 +2179,10 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         else:
             size_slider_val = size_slider
             home_data_storage["slider_value"] = size_slider
+        home_data_storage["current_size"] = size_slider_val
+        home_data_storage["min_node_size"] = size_slider_val
         #Checks if min node size has been decreased : if so it is required to get data from database
-        if size_slider_val is not None and "current_size" in home_data_storage and home_data_storage["current_size"] > size_slider_val:
+        if size_slider_val is not None and "current_size" in home_data_storage and home_data_storage["current_size"] > size_slider_val and cached["min_node_size"] > size_slider_val:
             logger.debug(f"Min node size has been set to {size_slider_val} and is lower than old value {home_data_storage['current_size']} - nodes will be updated from database.")
             new_request = True
             if "start" in home_data_storage :
@@ -2242,44 +2249,49 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         nodes_names = 'nodes_names' in nodes_names_value
         # zoom on selected nodes
         zoom_shared_storage_out = zoom_shared_storage or {}
+
         if triggered_id == "btn-zoom":
             selected_nodes_name = set()
             if selected_nodes_data is not None and len(selected_nodes_data) > 0:
                 selected_nodes_name = set([node['name'] for node in selected_nodes_data])
             else:
                 raise PreventUpdate
-            if len(zoom_shared_storage_out) ==0:
+            #Check if it is the first zoom to store it
+
+            if zoom_shared_storage_out or len(zoom_shared_storage_out) == 0:
+                cached["zoom"] = cached["nodes"]
+            if "nodes" in cached:
+                nodes = cached["nodes"]
+
                 zoom_shared_storage_out["start"] = home_data_storage["start"]
                 zoom_shared_storage_out["end"] = home_data_storage["end"]
-                if data_storage_nodes :
-                    zoom_shared_storage_out["nodes_data"]= data_storage_nodes
 
-            position_field = genome + "_position"
-            selected_positions =set()
-
-            for n in data_storage_nodes:
-                node = data_storage_nodes[n]
-                if node["name"] in selected_nodes_name and position_field in node :
-                    selected_positions.add(node[position_field])
-                if alt_genome is None or alt_genome == "":
-                    if node["name"] in selected_nodes_name:
-                        alt_genome = node["genomes"][0]
-            if len(selected_positions) == 0 and alt_genome != "":
-                #Try to switch to another reference genome
-                genome = alt_genome
                 position_field = genome + "_position"
-                for n in data_storage_nodes:
-                    node = data_storage_nodes[n]
+                selected_positions =set()
+
+                for n in nodes:
+                    node = nodes[n]
                     if node["name"] in selected_nodes_name and position_field in node :
                         selected_positions.add(node[position_field])
-            if len(selected_positions) > 0:
-                start_value = min(selected_positions)
-                home_data_storage["start"] = start_value
-                end_value = max(selected_positions)
-                home_data_storage["end"] = end_value
-                logger.debug(f"Zoom - start : {start_value} - end : {end_value}")
-            else:
-                logger.debug(f"No position found in the selected nodes for the reference genome {genome}")
+                    if alt_genome is None or alt_genome == "":
+                        if node["name"] in selected_nodes_name:
+                            alt_genome = node["genomes"][0]
+                if len(selected_positions) == 0 and alt_genome != "":
+                    #Try to switch to another reference genome
+                    genome = alt_genome
+                    position_field = genome + "_position"
+                    for n in nodes:
+                        node = nodes[n]
+                        if node["name"] in selected_nodes_name and position_field in node :
+                            selected_positions.add(node[position_field])
+                if len(selected_positions) > 0:
+                    start_value = min(selected_positions)
+                    home_data_storage["start"] = start_value
+                    end_value = max(selected_positions)
+                    home_data_storage["end"] = end_value
+                    logger.debug(f"Zoom - start : {start_value} - end : {end_value}")
+                else:
+                    logger.debug(f"No position found in the selected nodes for the reference genome {genome}")
 
         if triggered_id == "btn-zoom-out":
             if "start" in home_data_storage and home_data_storage["start"] is not None \
@@ -2328,21 +2340,21 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             exons = True
         all_genomes = data_storage["genomes"]
         all_chromosomes = data_storage["chromosomes"]
-
         #Checks if it is required to request database
         if (triggered_id== "search-button" and n_clicks > 0)  \
             or triggered_id in ["btn-zoom", "btn-reset-zoom", "btn-zoom-out"] \
             or (triggered_id == "update_graph_command_storage" and update_graph_command_storage is not None) \
             or new_request:
             new_data = {}
+
             #Delete local phylo graph if exists
             if start_value and end_value:
                 if (triggered_id == "btn-reset-zoom"
-                        and "nodes_data" in zoom_shared_storage_out
-                        and len(zoom_shared_storage_out["nodes_data"]) > 0
-                        and home_data_storage.get("min_node_size",0) == size_slider_val):
+                    and "zoom" in cached
+                    and len(cached["zoom"]) > 0
+                    and home_data_storage.get("min_node_size",0) == size_slider_val):
                     logger.debug(
-                        f"Retrieve {len(zoom_shared_storage_out['nodes_data'])} nodes before zoom.")
+                        f"Retrieve {len(cached['zoom'])} nodes before zoom.")
                 else:
                     logger.debug(f"Getting data from database from {start_value} to {end_value} on chr {chromosome} for genome {genome}")
             else:
@@ -2360,10 +2372,10 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                     home_data_storage["zoom"] = True
                     home_data_storage["genome_zoom"] = alt_genome
                 if (triggered_id == "btn-reset-zoom"
-                        and "nodes_data" in zoom_shared_storage_out
-                        and len(zoom_shared_storage_out["nodes_data"]) > 0
-                        and home_data_storage.get("min_node_size",0) == size_slider_val):
-                    new_data = zoom_shared_storage_out["nodes_data"]
+                    and "zoom" in cached
+                    and len(cached["zoom"]) > 0
+                    and home_data_storage.get("min_node_size",0) == size_slider_val):
+                    new_data = cached["zoom"]
                     return_metadata["return_code"] = "OK"
                     return_metadata['nodes_number'] = len(new_data)
                 else:
@@ -2383,8 +2395,13 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                         genome, chromosome=chromosome, start=0, end=end, min_node_size=size_slider_val,
                         max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
 
-            if triggered_id in ["btn-reset-zoom", "search-button"]:
-                zoom_shared_storage_out = {}
+
+
+            if triggered_id in ["btn-reset-zoom", "search-button"] and nodes_cache_id in zoom_shared_storage_out:
+                cached["zoom"] = {}
+            cached["min_node_size"] = size_slider_val
+            cached["nodes"] = new_data
+            nodes_cache.set(nodes_cache_id, cached, expire=8 * 3600)
 
             # Get the start / end value when graph is updated
             genome_position = genome + "_position"
@@ -2398,7 +2415,10 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
                 logger.debug(f"start value : {start_value} - end value : {end_value}")
-            data_storage_nodes = new_data
+            #data_storage_nodes = new_data
+
+            nodes = new_data
+
             elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(new_data, genome, selected_genomes, size_slider_val, all_genomes,
                                               all_chromosomes, specifics_genomes_list,
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
@@ -2406,8 +2426,6 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
                                               max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale)
-
-            home_data_storage["current_size"] = size_slider_val
             if triggered_id == "search-button":
                 zoom_shared_storage_out = {}
                 message = html.Div("❌ Error.", style=warning_style)
@@ -2458,7 +2476,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             end_value = home_data_storage.get("end",None)
             feature_name = home_data_storage.get("feature_name", "")
             feature_value = home_data_storage.get("feature_value", "")
-            elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(data_storage_nodes, genome, selected_genomes, size_slider_val, all_genomes,
+            nodes = cached.get("nodes", {})
+            elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(nodes, genome, selected_genomes, size_slider_val, all_genomes,
                                               all_chromosomes, specifics_genomes_list,
                                               color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
@@ -2468,6 +2487,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
 
             if len(elements) == 0 and nodes_count > 0:
                 message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
+
         defined_color = 0
         if color_genomes is not None:
             for c in color_genomes:
@@ -2477,8 +2497,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         count = len(elements)
 
         annotations = ""
-        if data_storage_nodes != None and len(data_storage_nodes) > 0:
-            annotations = build_annotations(data_storage_nodes)
+        if nodes != None and len(nodes) > 0:
+            annotations = build_annotations(nodes)
         #default layout is fcose
         layout = {
             'name': 'fcose',
@@ -2501,11 +2521,11 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                               }
         #displayed region construction:
         displayed_div = get_displayed_div(start_value, end_value, feature_name, feature_value)
-        return (elements,f"{nodes_count} displayed nodes", data_storage_nodes, message, annotations, stylesheet,
+        return (elements,f"{nodes_count} displayed nodes", message, annotations, stylesheet,
                 layout, home_data_storage, [], [], zoom_shared_storage_out,
                 None, None, feature_name, "", displayed_div, phylo_data, sequences_data, legend_nodes_size_dict)
     else:
-        return ([], "", no_update, f"❌ No data loaded, first load a gfa into DB management page.", "", no_update,
+        return ([], "", f"❌ No data loaded, first load a gfa into DB management page.", "", no_update,
                 no_update, no_update, [], [], no_update,
                 None, None, feature_name, "", "", no_update, no_update, no_update)
 

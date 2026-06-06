@@ -12,7 +12,8 @@ from Bio.Seq import Seq
 from app import *
 from neo4j_requests import *
 import io
-
+from app import *
+from cache_manager import *
 
 MAX_NODES_FROM_DB = get_max_nodes_from_db()
 
@@ -74,7 +75,7 @@ def load_sequences_on_page_load(sequences_dic):
 @app.callback(
     Output('sequences-page-store', 'data', allow_duplicate=True),
     Output("sequences-message", "children", allow_duplicate=True),
-    Output('shared_storage_nodes', 'data',allow_duplicate=True),
+    #Output('shared_storage_nodes', 'data',allow_duplicate=True),
     Input('get-sequences-btn', 'n_clicks'),
     State('shared_storage_nodes', 'data'),
     State('home-page-store', 'data'),
@@ -85,17 +86,23 @@ def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters)
     ctx = dash.callback_context
     if ctx.triggered_id == "get-sequences-btn" and n_clicks == 0:
         raise PreventUpdate
-    nodes = no_update
-    if not nodes_data:
+
+    if "nodes_cache_id" not in nodes_data:
+        raise PreventUpdate
+    nodes_cache_id = nodes_data["nodes_cache_id"]
+    cached = get_session_cache(nodes_cache_id)
+    min_node_size = cached.get("min_node_size", 10)
+    nodes_data = cached.get("nodes", {})
+    if not nodes_data or len(nodes_data) == 0:
         return {}, html.Div(html.P([
         "❌ No data to compute sequences. Select a region to visualise on the ",
         dcc.Link("home page", href="/", style={'color': 'blue', 'textDecoration': 'underline'}),
         " or on the ",
         dcc.Link("Shared regions discovery page", href="/gwas", style={'color': 'blue', 'textDecoration': 'underline'})
-        ], style=error_style)), nodes
+        ], style=error_style))
     else:
         # Step 1: Check if all nodes are in the region (since min node size can be set greater than 1)
-        if "current_size" not in home_data_storage or home_data_storage["current_size"] > 1:
+        if min_node_size > 1:
             # Get all the nodes from the region
             max_nodes_from_db = MAX_NODES_FROM_DB
             if global_parameters and "max_nodes_from_db" in global_parameters:
@@ -109,10 +116,12 @@ def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters)
             start = home_data_storage.get("start", None)
             end = home_data_storage.get("end", None)
             logger.debug(f"Sequences construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
-            nodes, return_metadata = get_nodes_by_region(
+            nodes_data, return_metadata = get_nodes_by_region(
                 genome, chromosome=chromosome, start=start, end=end, use_anchor=use_anchor)
-            logger.debug(f"Number of nodes in the region: {len(nodes)}")
-            nodes_data = nodes
+            logger.debug(f"Number of nodes in the region: {len(nodes_data)}")
+            cached["min_node_size"] = 1
+            cached["nodes"] = nodes_data
+            nodes_cache.set(nodes_cache_id, cached, expire=8 * 3600)
 
         sequences = []
         genomes_nodes_dic = {}
@@ -145,7 +154,7 @@ def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters)
                 else:
                     sequence += sequences_list[sorted_names_by_genome[g]["names"][i]]
             sequences_dic[g] = str(sequence)
-        return sequences_dic, "", nodes
+        return sequences_dic, ""
 
 
 @app.callback(

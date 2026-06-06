@@ -6,6 +6,7 @@ Created on Wed Jul  2 12:06:35 2025
 @author: fgraziani
 """
 import time
+import uuid
 
 from dash import Dash, dcc, html, Input, Output, State, ctx,no_update, exceptions
 import dash_bootstrap_components as dbc
@@ -28,6 +29,7 @@ import pages.phylo_management as phylo_management
 from urllib.parse import urlencode
 from pathlib import Path
 import json
+
 
 
 from neo4j_requests import *
@@ -92,7 +94,8 @@ app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id="init_done", data=False),
     dcc.Store(id='global_parameters', data={}, storage_type='local'),
-    dcc.Store(id='shared_storage_nodes', data={}, storage_type='memory'),
+    dcc.Store(id='shared_storage_nodes', storage_type='session'),
+    dcc.Store(id='zoom_shared_storage_nodes', data={}, storage_type='session'),
     dcc.Store(id='shared_storage', data={'genomes':[], 'chromosomes':[]}, storage_type='session'),
     dcc.Store(id="home-page-store", storage_type='session'),
     dcc.Store(id="home-page-legend-store", data={}, storage_type="memory"),
@@ -188,11 +191,17 @@ import callbacks.phylo_management_callbacks
 
 @app.callback(
     Output('shared_storage', 'data'),
+    Output("shared_storage_nodes", "data"),
     Input('url', 'pathname'),
     State('shared_storage', 'data'),
+    State("shared_storage_nodes", "data"),
     prevent_initial_call=False,
 )
-def init_data(pathname,shared_storage):
+def init_data(pathname,shared_storage, shared_storage_nodes):
+    if shared_storage_nodes is None:
+        shared_storage_nodes = {"nodes_cache_id": str(uuid.uuid4())}
+        print(f"shared storage node : {shared_storage_nodes}")
+
     if (shared_storage is None or "genomes" not in shared_storage or len(shared_storage["genomes"]) == 0
         or "chromosomes" not in shared_storage or len(shared_storage["chromosomes"]) == 0):
         update_storage = {
@@ -203,7 +212,7 @@ def init_data(pathname,shared_storage):
         if update_storage["genomes"] is not None and len(update_storage["genomes"]) > 0 :
             logger.debug(f"Data : {update_storage}")
         shared_storage.update(update_storage)
-    return shared_storage
+    return shared_storage, shared_storage_nodes
 
 #callback to display toast
 @app.callback(

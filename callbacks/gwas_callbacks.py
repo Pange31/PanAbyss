@@ -22,6 +22,9 @@ import io
 import logging
 import plotly.graph_objects as go
 
+from app import *
+from cache_manager import *
+
 logger = logging.getLogger("panabyss_logger")
 
 EXPORT_DIR = "./export/gwas/"
@@ -621,7 +624,7 @@ def handle_cancel_click(n_clicks, gwas_data):
 #Callback to load the graph of the selected region
 @app.callback(
     Output('selected-region-output', 'children', allow_duplicate=True),
-    Output('shared_storage_nodes', 'data',allow_duplicate=True),
+    #Output('shared_storage_nodes', 'data',allow_duplicate=True),
     Output("url", "pathname",allow_duplicate=True),
     Output("home-page-store", "data", allow_duplicate=True),
     #Output("load_spinner_zone", "children", allow_duplicate=True),
@@ -640,7 +643,11 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data):
     if home_page_data is None:
         home_page_data = {}
     if not selected_rows:
-        return no_update, data, redirect, home_page_data, redirect
+        return no_update, redirect, home_page_data, redirect
+
+    nodes_cache_id = data["nodes_cache_id"]
+    cached = get_session_cache(nodes_cache_id)
+
     logger.debug(table_data[selected_rows[0]])
     row = table_data[selected_rows[0]]
     logger.debug("selected row to plot : " +str(row))
@@ -651,6 +658,12 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data):
     logger.debug("search region genome " +str(genome) + " chromosome " + str(chromosome) + " start " + str(start) + " stop " + str(stop))
     try:
         nodes, return_metadata = get_nodes_by_region(genome, str(chromosome), start, stop)
+
+        cached["zoom"] = {}
+        cached["min_node_size"] = 1
+        cached["nodes"] = nodes
+        nodes_cache.set(nodes_cache_id, cached, expire=8 * 3600)
+
         home_page_data["selected_genome"]=genome
         home_page_data["selected_chromosome"]=chromosome
         home_page_data["start"]=start
@@ -661,9 +674,9 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data):
         redirect = "/"
         return html.Div([
             html.P(f"Found nodes into the region : {len(nodes)}")
-        ]), nodes,redirect,home_page_data,redirect
+        ]),redirect,home_page_data,redirect
     except Exception as e:
-        return f"Erreur : {e}", data,redirect,home_page_data,redirect
+        return f"Erreur : {e}",redirect,home_page_data,redirect
     
 #Update data when navigating or when the process is terminated
 @app.callback(
