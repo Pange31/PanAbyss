@@ -713,27 +713,25 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     virtual_flow = len(all_genomes)
             label = ""
             label_color = "black"
-            if labels and (not genes_color or len(genes_color) == 0):
-
-                first_label = True
-
-                for a in dic["annotations"]:
-                    if first_label:
-                        label += str(a)
-                        first_label = False
-                    else:
-                        label += ", " + str(a)
-
-            elif genes_color and len(genes_color) > 0:
-                first_label = True
-                for a in dic["annotations"]:
-                    if a.lower() in genes_color:
+            if labels :
+                if not genes_color or len(genes_color) == 0:
+                    first_label = True
+                    for a in dic["annotations"]:
                         if first_label:
                             label += str(a)
-                        else :
+                            first_label = False
+                        else:
                             label += ", " + str(a)
-                        label_color = genes_color[a.lower()]
-                        break
+                else :
+                    first_label = True
+                    for a in dic["annotations"]:
+                        if a.lower() in genes_color:
+                            if first_label:
+                                label += str(a)
+                            else :
+                                label += ", " + str(a)
+                            label_color = genes_color[a.lower()]
+                            break
 
             if dic["SV"]:
                 line_style = "dashed"
@@ -2427,7 +2425,9 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             or (triggered_id == "update_graph_command_storage" and update_graph_command_storage is not None) \
             or new_request:
             new_data = {}
-
+            if triggered_id == "search-button":
+                #New search => reset genes color
+                genes_color = {}
             #Delete local phylo graph if exists
             if start_value and end_value:
                 if (triggered_id == "btn-reset-zoom"
