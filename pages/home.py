@@ -485,14 +485,13 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                            min_shared_genome=100, tolerance=0, color_shared_regions=DEFAULT_SHARED_REGION_COLOR,
                            exons=False, exons_color=DEFAULT_EXONS_COLOR, colored_edges_size=5,
                            compression=False, min_flow_compression_value=0, max_nodes_to_visualize=MAX_NODES_TO_VISUALIZE,
-                           nodes_size_scale=1):
+                           nodes_size_scale=1, genes_color=None):
     logger.debug(f"Compute elements with ref genome {ref_genome} node min size : {size_min}")
 
     legend_nodes_size_dict = {
         "size_min": "1",
         "size_max": ""
     }
-
     if data != None and len(data) > 0:
         if ref_genome is not None and ref_genome != "":
             position_field = ref_genome+"_position"
@@ -607,6 +606,12 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     node_style="exon"
             node_color = flow_to_rgb(row['flow'],node_style,exons_color)
 
+            # if genes_color:
+            #     genes = row.get("genes_names") or []
+            #     for gene in genes:
+            #         if gene.lower() in genes_color:
+            #             node_color = genes_color[gene.lower()]
+            #             break
 
             data_nodes = {
                 'data': {
@@ -707,7 +712,8 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     link_color = color_shared_regions
                     virtual_flow = len(all_genomes)
             label = ""
-            if labels:
+            label_color = "black"
+            if labels and (not genes_color or len(genes_color) == 0):
 
                 first_label = True
 
@@ -717,6 +723,18 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                         first_label = False
                     else:
                         label += ", " + str(a)
+
+            elif genes_color and len(genes_color) > 0:
+                first_label = True
+                for a in dic["annotations"]:
+                    if a.lower() in genes_color:
+                        if first_label:
+                            label += str(a)
+                        else :
+                            label += ", " + str(a)
+                        label_color = genes_color[a.lower()]
+                        break
+
             if dic["SV"]:
                 line_style = "dashed"
             else:
@@ -744,7 +762,9 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     'line-style':line_style,
                     'target-arrow-color': link_color,
                     'label': label,
+                    'color': label_color,
                     'text-rotation': 'autorotate',
+                    'text-margin-y': -20,
                     'width': (virtual_flow+int(0.2*len(all_genomes)))/len(all_genomes)*MAX_EDGE_WIDTH
                 }
             })
@@ -1631,7 +1651,8 @@ def layout(data=None, initial_size_limit=10):
                 html.Div(html.Label("Annotations in the region:", title="Compiles all annotations for the displayed nodes.", style={
                          'marginBottom': '5px'})),
                 html.Div(html.H4(id='annotations-info',
-                         style={'margin': '10px'}))
+                         style={'margin': '10px'})),
+                html.Div(id="gene-color-picker-container")
             ], style={'flex': '1', 'padding': '20px', 'border': '1px solid #ccc', 'marginLeft': '20px', 'minWidth': '300px',
                       'boxSizing': 'border-box', 'display': 'flex', 'flexDirection': 'column'})
         ], style={
@@ -1942,7 +1963,7 @@ def update_legend_size(legend_data):
     )
 
 #This function build annotations to display for the global region
-def build_annotations(nodes_data):
+def build_annotations(nodes_data, genes_color=None):
     genes_set = set()
     genes_to_transcripts = {}
 
@@ -2049,27 +2070,78 @@ def build_annotations(nodes_data):
             )
         tooltip_text = "\n".join(tooltip_lines) if tooltip_lines else "No transcripts"
 
+    #     genes_html.append(
+    #         html.Span(
+    #             gene,
+    #             title=tooltip_text,
+    #             style={
+    #                 "textDecoration": "underline",
+    #                 "cursor": "pointer",
+    #                 "whiteSpace": "nowrap"
+    #             }
+    #         )
+    #     )
+
         genes_html.append(
-            html.Span(
-                gene,
-                title=tooltip_text,
+            html.Div(
+                [
+                    dbc.Input(
+                        id={'type': 'gene-color', 'gene': gene},
+                        type='color',
+                        value=genes_color.get(gene.lower(), "#000000") if genes_color else "#000000",
+                        style={
+                            'width': '22px',
+                            'height': '22px',
+                            'minWidth': '22px',
+                            'padding': '0',
+                            'border': 'none',
+                            'borderRadius': '5px',
+                            'overflow': 'hidden',
+                            'cursor': 'pointer'
+                        }
+                    ),
+                    html.Span(
+                        gene,
+                        title=tooltip_text,
+                        style={
+                            "marginLeft": "5px",
+                            "fontSize": "12px",
+                            "whiteSpace": "nowrap",
+                            "textDecoration": "underline",
+                            "cursor": "pointer"
+                        }
+                    )
+                ],
                 style={
-                    "textDecoration": "underline",
-                    "cursor": "pointer",
-                    "whiteSpace": "nowrap"
+                    'display': 'flex',
+                    'alignItems': 'center',
+                    'padding': '1px 2px',
+                    "marginBottom": "5px"
                 }
             )
         )
 
+    # annotations_html = html.Div([
+    #     html.B("Genes: "),
+    #     html.Div(
+    #         genes_html,
+    #         style={
+    #             "display": "flex",
+    #             "flexWrap": "wrap",
+    #             "gap": "6px"
+    #         }
+    #     )
+    # ])
     annotations_html = html.Div([
         html.B("Genes: "),
         html.Div(
             genes_html,
             style={
-                "display": "flex",
-                "flexWrap": "wrap",
-                "gap": "6px"
-            }
+                'display': 'flex',
+                'flexWrap': 'wrap',
+                'gap': '2px 6px'
+            },
+            id='gene-color-picker-container'
         )
     ])
 
@@ -2134,6 +2206,8 @@ def build_annotations(nodes_data):
     State('min-flow', 'value'),
     State('nodes-names', 'value'),
     State('global_parameters', 'data'),
+    State({"type": "gene-color", "gene": ALL}, "value"),
+    State({"type": "gene-color", "gene": ALL}, "id"),
     prevent_initial_call=True
 )
 def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes, show_labels, 
@@ -2142,7 +2216,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                  feature_name, feature_value, genome, chromosome, data_storage, data_storage_nodes,
                  min_shared_genome, tolerance, shared_regions_link_color, zoom_shared_storage, 
                  show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size, nodes_size_scale,
-                 graph_compression_value, min_flow_compression, nodes_names_value, global_parameters):
+                 graph_compression_value, min_flow_compression, nodes_names_value, global_parameters,
+                 genes_color_values, genes_color_ids):
     if genome is not None and chromosome is not None:
         if "nodes_cache_id" not in data_storage_nodes:
             raise PreventUpdate
@@ -2152,6 +2227,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         return_metadata = {"return_code":"", "flow":None, "nodes_number":0, "removed_genomes":None}
         message = ""
         nodes = {}
+        genes_color = {}
         start_value = None
         end_value = None
         new_request = False
@@ -2165,7 +2241,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         if (triggered_id == "search-button" and n_clicks > 0
                 and ((start is None or start == "") or (end is None or end == ""))
                 and (feature_value is None or feature_value == "")):
-            return (no_update, no_update, no_update, f"❌ You must set start / end or feature value.", no_update, no_update,
+            return (no_update, no_update, f"❌ You must set start / end or feature value.", no_update, no_update,
                     no_update, no_update, no_update, no_update, no_update,
                     no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update)
 
@@ -2242,6 +2318,12 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             home_data_storage["color_genomes"] = color_genomes
         if specifics_genomes is not None:
             home_data_storage["specifics_genomes"] = specifics_genomes
+
+        for value, id_dict in zip(genes_color_values, genes_color_ids):
+            gene = id_dict["gene"]
+            if value and value.lower() != "#000000":
+                genes_color[gene.lower()] = value
+
         compression = 'graph_compression' in graph_compression_value
         min_flow_compression_value = 0
         if compression:
@@ -2320,15 +2402,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             else:
                 logger.debug(f"No zoom, can't reset zoom")
                 raise PreventUpdate
-                if ("feature_name" in home_data_storage and home_data_storage["feature_name"] is not None and home_data_storage["feature_name"] != ""
-                    and "feature_value" in home_data_storage and home_data_storage["feature_value"] is not None and home_data_storage["feature_value"] != ""):
-                    feature_name = home_data_storage["feature_name"]
-                    feature_value = home_data_storage["feature_value"]
-                    logger.debug(f"No zoom, display {feature_name} {feature_value}")
-                elif "start" in home_data_storage and "end" in home_data_storage:
-                    start_value = home_data_storage["start"]
-                    end_value = home_data_storage["end"]
-                    logger.debug(f"No zoom, display region {start_value} - {end_value}")
+
 
 
         logger.debug("update graph : " + str(ctx.triggered[0]['prop_id']))
@@ -2432,7 +2506,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
-                                              max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale)
+                                              max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale,
+                                              genes_color=genes_color)
             home_data_storage["current_size"] = size_slider_val
             home_data_storage["min_node_size"] = size_slider_val
             if triggered_id == "search-button":
@@ -2492,7 +2567,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               tolerance=tolerance, color_shared_regions=shared_regions_link_color,
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
-                                              max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale)
+                                              max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale,
+                                              genes_color=genes_color)
 
             if len(elements) == 0 and nodes_count > 0:
                 message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
@@ -2507,7 +2583,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
 
         annotations = ""
         if nodes != None and len(nodes) > 0:
-            annotations = build_annotations(nodes)
+            annotations = build_annotations(nodes, genes_color)
         #default layout is fcose
         layout = {
             'name': 'fcose',
@@ -2712,46 +2788,6 @@ def update_parameters_on_page_load(pathname,data,
         end_input, feature_name, feature_value, shared_regions_link_color,
         selected_shared_genomes, update_graph_command_storage)
 
-
-
-# Algorithm cytoscape choice
-# @app.callback(
-#     Output('graph', 'layout'),
-#     Input('layout-dropdown', 'value')
-# )
-# def toggle_layout(layout_choice):
-#     if layout_choice:
-#         match(layout_choice):
-#             case "dagre":
-#                 return {
-#                     'name': 'dagre',
-#                     'rankDir': "RL",
-#                     'nodeDimensionsIncludeLabels': True
-#                 }
-#             case "preset":
-#                 return {
-#                     'name': 'dagre',
-#                     'rankDir': "RL",
-#                     'nodeDimensionsIncludeLabels': True
-#                 }
-#
-#     #Default layout is fcose
-#     return {
-#         'name': 'fcose',
-#         'maxIterations': 100000,
-#         'maxSimulationTime': 5000,
-#         # 'nodeRepulsion': 10000,
-#         # 'gravity': 0.1,
-#         # 'gravityRangeCompound': 1.5,
-#         # 'idealEdgeLength': 100,
-#         # 'componentSpacing': 100,
-#         # 'nodeDimensionsIncludeLabels': True,
-#         # 'edgeElasticity': 0.1,
-#         # 'nestingFactor': 0.8,
-#         # 'tile': True,
-#         'quality': "proof",
-#         'fit': True
-#     }
 
 
 ######## download graph callbacks ###############
