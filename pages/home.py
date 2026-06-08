@@ -2187,8 +2187,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         else:
             size_slider_val = size_slider
             home_data_storage["slider_value"] = size_slider
-        home_data_storage["current_size"] = size_slider_val
-        home_data_storage["min_node_size"] = size_slider_val
+
         #Checks if min node size has been decreased : if so it is required to get data from database
         if size_slider_val is not None and "current_size" in home_data_storage and home_data_storage["current_size"] > size_slider_val and cached["min_node_size"] > size_slider_val:
             logger.debug(f"Min node size has been set to {size_slider_val} and is lower than old value {home_data_storage['current_size']} - nodes will be updated from database.")
@@ -2205,6 +2204,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 logger.debug(f"Min node size {size_slider_val} - old value {home_data_storage['current_size']}.")
             else:
                 logger.debug(f"min node size : {size_slider_val}")
+
         if "search_return_metadata" in home_data_storage and home_data_storage["search_return_metadata"] is not None :
             return_metadata = home_data_storage["search_return_metadata"]
             home_data_storage["search_return_metadata"] = None
@@ -2433,6 +2433,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
                                               max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale)
+            home_data_storage["current_size"] = size_slider_val
+            home_data_storage["min_node_size"] = size_slider_val
             if triggered_id == "search-button":
                 zoom_shared_storage_out = {}
                 message = html.Div("❌ Error.", style=warning_style)
