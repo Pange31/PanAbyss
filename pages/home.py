@@ -380,9 +380,17 @@ This function compress a graph by removing
 linear internal nodes, while allowing orientation inversions
 across genomes.
 """
-def graph_compression(df, flow_min=0):
+def graph_compression(df, flow_min=0, selected_genomes=None):
 
     genome_position_cols = [c for c in df.columns if c.endswith("_position")]
+    if selected_genomes is not None:
+        selected_position_cols = {
+            f"{g}_position" for g in selected_genomes
+        }
+        genome_position_cols = [
+            c for c in genome_position_cols
+            if c in selected_position_cols
+        ]
 
     flow_map = df.set_index("name")["flow"].to_dict()
 
@@ -501,7 +509,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         #Nodes with a single predecessor and a single successor, and for which the predecessor
         #has only one outgoing node, are removed
         if compression:
-            df = graph_compression(df, min_flow_compression_value)
+            df = graph_compression(df, min_flow_compression_value, selected_genomes)
         n_rows = len(df)
         logger.debug(f"Nb rows after filter and compression : {n_rows}")
         if n_rows > max_nodes_to_visualize:
@@ -2388,7 +2396,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 if (feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "") and chromosome is not None:
                         new_data,return_metadata = get_nodes_by_feature(
                             genome, chromosome=chromosome, feature= feature_name, value=feature_value, min_node_size=size_slider_val,
-                            max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
+                            max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes, use_anchor=False)
                 else:
                     new_data, return_metadata = get_nodes_by_region(
                         genome, chromosome=chromosome, start=0, end=end, min_node_size=size_slider_val,
