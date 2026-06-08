@@ -670,6 +670,8 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data):
         home_page_data["end"]=stop
         home_page_data["gene_name"] = ""
         home_page_data["gene_id"] = ""
+        home_page_data["feature_value"] = ""
+        home_page_data["feature_name"] = ""
         home_page_data["search_return_metadata"] = return_metadata
         redirect = "/"
         return html.Div([
