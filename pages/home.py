@@ -2318,7 +2318,11 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             home_data_storage["specifics_genomes"] = specifics_genomes
 
         for value, id_dict in zip(genes_color_values, genes_color_ids):
+            if not isinstance(id_dict, dict):
+                continue
             gene = id_dict["gene"]
+            if not gene:
+                continue
             if value and value.lower() != "#000000":
                 genes_color[gene.lower()] = value
 
