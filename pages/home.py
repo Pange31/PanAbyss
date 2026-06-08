@@ -2249,8 +2249,9 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         nodes_names = 'nodes_names' in nodes_names_value
         # zoom on selected nodes
         zoom_shared_storage_out = zoom_shared_storage or {}
-
+        zoom_ranges = {}
         if triggered_id == "btn-zoom":
+            #In case of zoom => get the selected nodes to prepare a new request
             selected_nodes_name = set()
             if selected_nodes_data is not None and len(selected_nodes_data) > 0:
                 selected_nodes_name = set([node['name'] for node in selected_nodes_data])
@@ -2258,19 +2259,17 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 raise PreventUpdate
             #Check if it is the first zoom to store it
 
-            if zoom_shared_storage_out or len(zoom_shared_storage_out) == 0:
-                cached["zoom"] = cached["nodes"]
             if "nodes" in cached:
                 nodes = cached["nodes"]
-
+                if zoom_shared_storage_out or len(zoom_shared_storage_out) == 0:
+                    #First zoom => store the old data to retrieve them when reset zoom
+                    cached["zoom"] = cached["nodes"]
                 zoom_shared_storage_out["start"] = home_data_storage["start"]
                 zoom_shared_storage_out["end"] = home_data_storage["end"]
 
                 position_field = genome + "_position"
                 selected_positions =set()
-
-                for n in nodes:
-                    node = nodes[n]
+                for k,node in nodes.items():
                     if node["name"] in selected_nodes_name and position_field in node :
                         selected_positions.add(node[position_field])
                     if alt_genome is None or alt_genome == "":

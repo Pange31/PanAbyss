@@ -316,7 +316,7 @@ def get_anchor(genome, chromosome, position, before=True, use_anchor=True, windo
 # min_node_size will be used is set to get only nodes with a size greater than this value
 # flow will be used is set to get only nodes with a flow greater than this value
 # valid_individuals_exceptions : if not None this list is used to filter haplotypes : haplotypes not in this list will be used
-def construct_base_query(ranges, chromosome, min_node_size=None, flow=None, valid_individuals_exceptions=None):
+def construct_base_query(ranges, chromosome, min_node_size=None, flow=None, valid_individuals_exceptions=None, LIMIT = None):
     subqueries = []
 
     for g in ranges:
@@ -336,6 +336,8 @@ def construct_base_query(ranges, chromosome, min_node_size=None, flow=None, vali
               AND m.`{position_field}` <= {ranges[g]['stop']}
             RETURN id(m) as g_ids
             """
+            if LIMIT:
+                subquery += f" LIMIT {LIMIT+1}"
 
             subqueries.append(subquery)
 
@@ -621,7 +623,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
             # construct the base query to find all genomes between the start / stop position
 
             query_genome = construct_base_query(ranges, chromosome, min_node_size=min_node_size,
-                                                flow=None) + f"""
+                                                flow=None, LIMIT=LIMIT) + f"""
                 WITH collect(DISTINCT g_ids) AS ids
                 WITH ids, size(ids) AS total
                 RETURN ids[..{LIMIT+1}] AS ids
@@ -690,7 +692,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
                     while zoom and flow >= 0:
 
                         query_genome = construct_base_query(ranges, chromosome, min_node_size=min_node_size,
-                                                            flow=flow) + f"""
+                                                            flow=flow, LIMIT=LIMIT) + f"""
                                                             WITH DISTINCT g_ids
                                                             LIMIT {LIMIT + 1}
                                                             RETURN count(g_ids) AS nodes_number
@@ -732,11 +734,12 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
                         return_metadata["flow"] = flow
                         return_metadata["return_code"] = "ZOOM"
                         query_genome = construct_base_query(ranges, chromosome, min_node_size=min_node_size,
-                                                            flow=flow)
+                                                            flow=flow, LIMIT=LIMIT)
                     else:
                         query_genome = construct_base_query(ranges, chromosome, min_node_size=min_node_size,
                                                             flow=None,
-                                                            valid_individuals_exceptions=valid_individuals_exceptions)
+                                                            valid_individuals_exceptions=valid_individuals_exceptions,
+                                                            LIMIT=LIMIT)
                         return_metadata["flow"]: 0
                         return_metadata["removed_genomes"] = valid_individuals_exceptions
                         return_metadata["return_code"] = "FILTER"
