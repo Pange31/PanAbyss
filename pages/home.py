@@ -379,8 +379,9 @@ def merge_node_data(df, nodes_to_remove, predecessors):
 This function compress a graph by removing
 linear internal nodes, while allowing orientation inversions
 across genomes.
+If nodes have been selected, only these nodes will be compacted
 """
-def graph_compression(df, flow_min=0, selected_genomes=None):
+def graph_compression(df, flow_min=0, selected_genomes=None, selected_nodes_name=None):
 
     genome_position_cols = [c for c in df.columns if c.endswith("_position")]
     if selected_genomes is not None:
@@ -437,7 +438,13 @@ def graph_compression(df, flow_min=0, selected_genomes=None):
     # STEP 3: DETECTION
     nodes_to_remove = set()
 
-    for node in valid_nodes:
+    # if selected nodes only these nodes will be compacted
+    if selected_nodes_name is not None and len(selected_nodes_name) > 1:
+        candidate_nodes = valid_nodes & selected_nodes_name
+    else:
+        candidate_nodes = valid_nodes
+
+    for node in candidate_nodes:
 
         preds = predecessors.get(node, set())
         succs = successors.get(node, set())
@@ -485,7 +492,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                            min_shared_genome=100, tolerance=0, color_shared_regions=DEFAULT_SHARED_REGION_COLOR,
                            exons=False, exons_color=DEFAULT_EXONS_COLOR, colored_edges_size=5,
                            compression=False, min_flow_compression_value=0, max_nodes_to_visualize=MAX_NODES_TO_VISUALIZE,
-                           nodes_size_scale=1, genes_color=None):
+                           nodes_size_scale=1, genes_color=None, selected_nodes_name=None):
     logger.debug(f"Compute elements with ref genome {ref_genome} node min size : {size_min}")
 
     legend_nodes_size_dict = {
@@ -507,8 +514,10 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         #If compression is set to true then it will compress the graph
         #Nodes with a single predecessor and a single successor, and for which the predecessor
         #has only one outgoing node, are removed
-        if compression:
-            df = graph_compression(df, min_flow_compression_value, selected_genomes)
+        if compression or (selected_nodes_name and len(selected_nodes_name) > 1):
+            if compression :
+                selected_nodes_name = None
+            df = graph_compression(df, min_flow_compression_value, selected_genomes, selected_nodes_name)
         n_rows = len(df)
         logger.debug(f"Nb rows after filter and compression : {n_rows}")
         if n_rows > max_nodes_to_visualize:
@@ -710,7 +719,8 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                 intersect = set_specifics_genomes.intersection(set_genomes)
                 if len(intersect) >= min_required_shared and len(dic["genomes"]) - len(intersect) <= max_allowed_extra:
                     link_color = color_shared_regions
-                    virtual_flow = len(all_genomes)
+                    virtual_flow = len(selected_genomes)
+            print(f"virtual flow: {virtual_flow} width : {((virtual_flow+int(0.2*len(selected_genomes)))/len(selected_genomes))*MAX_EDGE_WIDTH}")
             label = ""
             label_color = "black"
             if labels :
@@ -760,10 +770,12 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     'line-style':line_style,
                     'target-arrow-color': link_color,
                     'label': label,
+                    'font-size': '20px',
                     'color': label_color,
                     'text-rotation': 'autorotate',
                     'text-margin-y': -20,
-                    'width': (virtual_flow+int(0.2*len(all_genomes)))/len(all_genomes)*MAX_EDGE_WIDTH
+                    #'width': (virtual_flow+int(0.2*len(selected_genomes)))/len(selected_genomes)*MAX_EDGE_WIDTH
+                    'width':((virtual_flow+int(0.2*len(selected_genomes)))/len(selected_genomes))*MAX_EDGE_WIDTH
                 }
             })
             if len(colored_genomes) > 0:
@@ -2342,12 +2354,12 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         # zoom on selected nodes
         zoom_shared_storage_out = zoom_shared_storage or {}
         zoom_ranges = {}
+        selected_nodes_name = set()
+        if selected_nodes_data is not None and len(selected_nodes_data) > 0:
+            selected_nodes_name = set([node['name'] for node in selected_nodes_data])
         if triggered_id == "btn-zoom":
             #In case of zoom => get the selected nodes to prepare a new request
-            selected_nodes_name = set()
-            if selected_nodes_data is not None and len(selected_nodes_data) > 0:
-                selected_nodes_name = set([node['name'] for node in selected_nodes_data])
-            else:
+            if not selected_nodes_name or len (selected_nodes_name) == 0:
                 raise PreventUpdate
             #Check if it is the first zoom to store it
 
@@ -2511,7 +2523,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
                                               max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale,
-                                              genes_color=genes_color)
+                                              genes_color=genes_color, selected_nodes_name=None)
             home_data_storage["current_size"] = size_slider_val
             home_data_storage["min_node_size"] = size_slider_val
             if triggered_id == "search-button":
@@ -2572,7 +2584,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                                               exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
                                               compression = compression, min_flow_compression_value = min_flow_compression_value,
                                               max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale,
-                                              genes_color=genes_color)
+                                              genes_color=genes_color, selected_nodes_name=selected_nodes_name)
 
             if len(elements) == 0 and nodes_count > 0:
                 message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
