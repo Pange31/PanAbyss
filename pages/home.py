@@ -720,7 +720,6 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                 if len(intersect) >= min_required_shared and len(dic["genomes"]) - len(intersect) <= max_allowed_extra:
                     link_color = color_shared_regions
                     virtual_flow = len(selected_genomes)
-            print(f"virtual flow: {virtual_flow} width : {((virtual_flow+int(0.2*len(selected_genomes)))/len(selected_genomes))*MAX_EDGE_WIDTH}")
             label = ""
             label_color = "black"
             if labels :
@@ -774,7 +773,6 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     'color': label_color,
                     'text-rotation': 'autorotate',
                     'text-margin-y': -20,
-                    #'width': (virtual_flow+int(0.2*len(selected_genomes)))/len(selected_genomes)*MAX_EDGE_WIDTH
                     'width':((virtual_flow+int(0.2*len(selected_genomes)))/len(selected_genomes))*MAX_EDGE_WIDTH
                 }
             })
