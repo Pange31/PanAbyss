@@ -67,7 +67,8 @@ def remove_directories():
 def import_dump():
     logger.info("📂 Importing dump...")
     prepare_data_directories_in_container()
-    subprocess.run([
+
+    docker_cmd = [
         "docker", "run", "--rm",
         #f"--cpus={MAX_CPU}",
         #f"--memory={MAX_MEM}",
@@ -75,26 +76,37 @@ def import_dump():
         #"-e", f"JAVA_OPTS=-Xmx{MAX_MEM} -Xms1g",
         #"-e", f"NEO4J_dbms.memory.heap.max_size={MAX_MEM}",
         "-v", f"{IMPORT_DIR}:/import",
-        "-v", f"{NEO4J_BASE_DIR}/data:/data",
-        "-u", f"{os.getuid()}:{os.getgid()}",
+        "-v", f"{NEO4J_BASE_DIR}/data:/data"
+    ]
+    # Linux/macOS :
+    if hasattr(os, "getuid") and hasattr(os, "getgid"):
+        docker_cmd.extend(["-u", f"{os.getuid()}:{os.getgid()}"])
+
+    docker_cmd.extend([
         DOCKER_IMAGE,
         "neo4j-admin", "database", "load", "neo4j",
         "--from-path=/import", "--overwrite-destination=true"
-    ], check=True)
-
+    ])
+    subprocess.run(docker_cmd, check=True)
 
 @require_authorization
 def import_csv():
     READ_BUFFER_SIZE = get_conf_read_buffer_size()
     logger.info(f"📂 Importing CSV - data dir : {NEO4J_BASE_DIR}/data with read buffer size :  {READ_BUFFER_SIZE}...")
     prepare_data_directories_in_container()
-    subprocess.run([
+
+    docker_cmd = [
         "docker", "run", "--rm",
         #f"--cpus={MAX_CPU}",
         "-v", f"{NEO4J_BASE_DIR}/data:/data",
         "-v", f"{IMPORT_DIR}:/import",
-        "-e", f"NEO4J_AUTH={NEO4J_AUTH}",
-        "-u", f"{os.getuid()}:{os.getgid()}",
+        "-e", f"NEO4J_AUTH={NEO4J_AUTH}"
+    ]
+    # Linux/macOS :
+    if hasattr(os, "getuid") and hasattr(os, "getgid"):
+        docker_cmd.extend(["-u", f"{os.getuid()}:{os.getgid()}"])
+
+    docker_cmd.extend([
         DOCKER_IMAGE,
         "neo4j-admin", "database", "import", "full",
         "--verbose",
@@ -103,7 +115,10 @@ def import_csv():
         "--nodes=Sequence=/import/sequences.csv",
         "--nodes=Node=/import/nodes.csv",
         "--relationships=/import/relations.csv"
-    ], check=True)
+    ])
+    subprocess.run(docker_cmd, check=True)
+
+
 
 
 def start_container():
@@ -134,7 +149,7 @@ def start_container():
             BOLT_PORT = int(conf["bolt_port"])
             NEO4J_AUTH = conf["login"]+"/"+conf["password"]
             logger.info("🚀 Starting Neo4j container...")
-            subprocess.run([
+            docker_cmd = [
                 "docker", "run", "-d",
                 "--name", container_name,
                 "-e", f"NEO4J_AUTH={NEO4J_AUTH}",
@@ -142,8 +157,13 @@ def start_container():
                 "-e", "NEO4J_apoc_export_file_enabled=true",
                 "-e", "NEO4J_apoc_import_file_enabled=true",
                 "-e", "NEO4J_apoc_import_file_use__neo4j__config=true",
-                "-e", "NEO4J_PLUGINS=[\"apoc\"]",
-                "-u", f"{os.getuid()}:{os.getgid()}",
+                "-e", "NEO4J_PLUGINS=[\"apoc\"]"
+            ]
+            # Linux/macOS :
+            if hasattr(os, "getuid") and hasattr(os, "getgid"):
+                docker_cmd.extend(["-u", f"{os.getuid()}:{os.getgid()}"])
+
+            docker_cmd.extend([
                 "-p", f"{HTTP_PORT}:7474",
                 "-p", f"{BOLT_PORT}:7687",
                 "-v", f"{NEO4J_BASE_DIR}/data:/data",
@@ -152,7 +172,8 @@ def start_container():
                 "-v", f"{NEO4J_BASE_DIR}/import:/import",
                 "-v", f"{NEO4J_BASE_DIR}/plugins:/plugins",
                 DOCKER_IMAGE
-            ], check=True)
+            ])
+            subprocess.run(docker_cmd, check=True)
 
             time.sleep(10)
             logger.info(f"✅ Neo4j {container_name} is ready!")
@@ -357,7 +378,7 @@ def dump_db(container_name, docker_image=DOCKER_IMAGE):
     stop_container(container_name)
 
     try:
-        subprocess.run([
+        docker_cmd = [
             "docker", "run", "--rm",
             #f"--cpus={MAX_CPU}",
             #f"--memory={MAX_MEM}",
@@ -365,12 +386,21 @@ def dump_db(container_name, docker_image=DOCKER_IMAGE):
             #"-e", f"JAVA_OPTS=-Xmx{MAX_MEM} -Xms1g",
             #"-e", f"NEO4J_dbms.memory.heap.max_size={MAX_MEM}",
             "-v", f"{NEO4J_BASE_DIR}/data:/data",
-            "-v", f"{IMPORT_DIR}:/import",
-            "-u", f"{os.getuid()}:{os.getgid()}",
+            "-v", f"{IMPORT_DIR}:/import"
+        ]
+        # Linux/macOS :
+        if hasattr(os, "getuid") and hasattr(os, "getgid"):
+            docker_cmd.extend(["-u", f"{os.getuid()}:{os.getgid()}"])
+
+        docker_cmd.extend([
             DOCKER_IMAGE,
             "neo4j-admin", "database", "dump", "neo4j",
             f"--to-path=/import"
-        ], check=True)
+        ])
+        subprocess.run(docker_cmd, check=True)
+
+
+
 
         logger.info(f"✅ Dump successfully created at: {os.path.join(IMPORT_DIR, 'neo4j.dump')}")
         start_container()
