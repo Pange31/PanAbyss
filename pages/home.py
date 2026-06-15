@@ -1026,6 +1026,8 @@ def layout(data=None, initial_size_limit=10):
                         "Colored edges size: set the edge size for colored haplotypes."),
                     html.Li(
                         "Graph compression: when a min node size is set greater than 0, this will compact the linear parts of the graph (i.e. nodes connected to exactly 2 nodes will be compacted. It is possible to set the minimal percentage of individuals for compressing a node (for instance to compress only the core nodes)."),
+                    html.Li(
+                        "Graph compression: when selecting node and clicking on update graph, the selected nodes will be compacted if they have only one predecessor and one successor."),
                     html.Li("Search shared paths : if the box is checked, the display is modified to allow the selection of haplotypes for which you want to view shared links. This display can be configured:"),
                     html.Ul([
                         html.Li(
