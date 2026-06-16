@@ -866,9 +866,6 @@ def handle_cancel_db_creation_click(n_clicks, data):
         return no_update
     logger.info(f"Deleting import data : {IMPORT_FOLDER} directory.")
     try:
-        if os.path.exists(IMPORT_FOLDER):
-            shutil.rmtree(IMPORT_FOLDER)
-            os.makedirs(IMPORT_FOLDER)
         data["db_creation_message"] = (f"✅ DB creation cancelled. Warning : Depending on when the operation was stopped, "
                                        f"some data may have been created in the database. In this case, a full data reset may be required.")
         data["db_creation_message_style"] = success_style
