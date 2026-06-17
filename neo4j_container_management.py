@@ -28,6 +28,7 @@ CONF_FILE = os.path.abspath("./conf.json")
 DOCKER_COMPOSE_CONF_PATH = os.path.abspath("./docker-compose.yml")
 IMPORT_DIR = os.path.abspath("./data/import")
 DUMP_FILE = os.path.join(IMPORT_DIR, "neo4j.dump")
+NEO4J_LOGS_DIR = os.path.abspath("./data/logs")
 
 
 #MAX_MEM = "24g"
@@ -119,6 +120,48 @@ def import_csv():
     subprocess.run(docker_cmd, check=True)
 
 
+#This function allow to create the database on a cluster from csv import files
+@require_authorization
+def import_csv_cluster():
+    READ_BUFFER_SIZE = get_conf_read_buffer_size()
+    data_dir = os.path.join(NEO4J_BASE_DIR, "data")
+    neo4j_db_dir = os.path.join(data_dir, "databases", "neo4j")
+
+    logger.info("🛠️ Preparing host directories for Apptainer...")
+
+    os.makedirs(neo4j_db_dir, exist_ok=True)
+    os.makedirs(IMPORT_DIR, exist_ok=True)
+    os.makedirs(NEO4J_LOGS_DIR, exist_ok=True)
+    logger.info("🛠️ Directories ready on host filesystem.")
+
+    logger.info(f"📂 Importing CSV - data dir : {NEO4J_BASE_DIR}/data with read buffer size :  {READ_BUFFER_SIZE}...")
+
+    apptainer_cmd = [
+        "apptainer", "exec",
+
+        "--bind", f"{NEO4J_BASE_DIR}/data:/data",
+        "--bind", f"{IMPORT_DIR}:/import",
+        "--bind", f"{NEO4J_BASE_DIR}/logs:/var/lib/neo4j/logs",
+        f"docker://{DOCKER_IMAGE}",
+
+        "neo4j-admin", "database", "import", "full",
+        "--verbose",
+        f"--read-buffer-size={READ_BUFFER_SIZE}",
+        "--nodes=Sequence=/import/sequences.csv",
+        "--nodes=Node=/import/nodes.csv",
+        "--relationships=/import/relations.csv"
+    ]
+
+    result = subprocess.run(
+        apptainer_cmd,
+        text=True,
+        capture_output=True
+    )
+
+    logger.info("STDOUT:\n", result.stdout)
+    logger.info("STDERR:\n", result.stderr)
+    logger.info(f"Database created. To used it, import the data/data directory in the local installation.")
+    result.check_returncode()
 
 
 def start_container():

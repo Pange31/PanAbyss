@@ -143,6 +143,12 @@ For very large pangenomes or when working on a machine with limited RAM, this pr
   - Run: ```./launch.sh --generate_csv_import```. This command generates the Neo4j import files inside ```./data/import```
   - The generated files can then be copied into the local machine's ```./data/import``` directory
   - After that, the database can be created locally **without selecting a GFA file**, and the application can be used normally.
+Another way to load large pangenome is to generate directly the database on the cluster. This is quite similar to the previous procedure:
+  - Download PanAbyss on the remote machine
+  - Place the .gfa file(s) into ```./data/gfa```. In case of multiple gfa, a ```chromosomes_file.csv``` must be created in the same directory with in first column the gfa file name (filename) and in second column the chromosome name associated to the gfa (chromosome).
+  - Run: ```./launch.sh --create_database```. This command generates the Neo4j database inside ```./data/data```
+  - The generated repository can then be copied into the local machine's ```./data/data``` directory
+  - After that, the database can be used on the local machine but it is required to create stats and create indexes in the database management page before using PanAbyss.
 
 ## Parameters file
 

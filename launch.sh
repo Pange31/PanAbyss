@@ -8,6 +8,9 @@ case "${1:-}" in
     --generate_csv_import)
         GENERATE_CSV_IMPORT=1
         ;;
+    --create_database)
+        CREATE_DATABASE=1
+        ;;
     --help|-h)
         echo ""
         echo "PanAbyss launcher"
@@ -15,6 +18,7 @@ case "${1:-}" in
         echo "Usage:"
         echo "  ./start.sh [PORT]"
         echo "  ./start.sh --generate_csv_import"
+        echo "  ./start.sh --load_csv_import"
         echo "  ./start.sh --help"
         echo ""
         echo "Options:"
@@ -139,7 +143,18 @@ if [ "$GENERATE_CSV_IMPORT" -eq 1 ]; then
     exit $?
 fi
 
+# --- Special mode: create database ---
+if [ "${CREATE_DATABASE:-0}" -eq 1 ]; then
+    echo "WARNING: This step requires Apptainer to be loaded."
+    bash ./scripts/generate_csv_import_file.sh || exit $?
 
+    python3 - << 'EOF'
+from neo4j_container_management import import_csv_cluster
+import_csv_cluster()
+EOF
+    status=$?
+    exit "$status"
+fi
     
 # --- Launch application ---
 echo "Launching PanAbyss on port $DASH_PORT..."
