@@ -102,7 +102,7 @@ def get_scoped_driver(max_retries=10, retry_delay=3):
                 auth=AUTH,
                 max_connection_lifetime=3600,
                 liveness_check_timeout=10,
-                max_connection_pool_size=20,   # 🔥 plus petit conseillé par job
+                max_connection_pool_size=20,
                 connection_acquisition_timeout=30,
             )
 
@@ -110,7 +110,7 @@ def get_scoped_driver(max_retries=10, retry_delay=3):
             with driver.session() as session:
                 session.run("RETURN 1").consume()
 
-            logger.info(f"✅ Scoped Neo4j driver ready (attempt {attempt})")
+            logger.debug(f"✅ Scoped Neo4j driver ready (attempt {attempt})")
             return driver
 
         except Exception as e:
