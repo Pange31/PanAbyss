@@ -456,16 +456,25 @@ def plot_region(n_clicks, stored_data,
         else:
             logger.debug("Min node size : 1 => constructing local tree")
 
-        # Step 2: compute tree of the region
-        newick_str = compute_phylo_tree_from_nodes(nodes, weighted=weighted)
-        if phylo_data is None:
-            phylo_data = {"newick_region":newick_str}
-        else:
-            phylo_data["newick_region"] = newick_str
+        if nodes and len(nodes) > 0:
+            # Step 2: compute tree of the region
+            newick_str = compute_phylo_tree_from_nodes(nodes, weighted=weighted)
+            if phylo_data is None:
+                phylo_data = {"newick_region":newick_str}
+            else:
+                phylo_data["newick_region"] = newick_str
 
-        # Step 3: draw tree
-        phylo_local_data = {"status": "done"}
-        return "", phylo_data, phylo_local_data
+            # Step 3: draw tree
+            phylo_local_data = {"status": "done"}
+            return "", phylo_data, phylo_local_data
+        else:
+            phylo_local_data = {"status": "done"}
+            return html.Div(html.P([
+                "❌ Too much nodes to compute tree. Increase Limit nodes number from database in About Page or Select a smaller region to visualise on the ",
+                dcc.Link("home page", href="/", style={'color': 'blue', 'textDecoration': 'underline'}),
+                " or on the ",
+                dcc.Link("gwas page", href="/gwas", style={'color': 'blue', 'textDecoration': 'underline'})
+            ], style=error_style)), phylo_data, phylo_local_data
 
     except Exception as e:
         logger.error(f"Error while computing tree : {e}")
