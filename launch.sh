@@ -3,14 +3,24 @@
 # --- Parameters ---
 DASH_PORT=8050
 GENERATE_CSV_IMPORT=0
+CREATE_DATABASE=0
+DATABASE_NAME=""
 
 case "${1:-}" in
     --generate_csv_import)
         GENERATE_CSV_IMPORT=1
         ;;
     --create_database)
-        CREATE_DATABASE=1
-        ;;
+      CREATE_DATABASE=1
+      if [ -z "${2:-}" ]; then
+          echo "Error: database name is required."
+          echo ""
+          echo "Usage:"
+          echo "  ./start.sh --create_database <database_name>"
+          exit 1
+      fi
+      DATABASE_NAME="DB_1.0.0_$2"
+      ;;
     --help|-h)
         echo ""
         echo "PanAbyss launcher"
@@ -18,7 +28,7 @@ case "${1:-}" in
         echo "Usage:"
         echo "  ./start.sh [PORT]"
         echo "  ./start.sh --generate_csv_import"
-        echo "  ./start.sh --load_csv_import"
+        echo "  ./start.sh --create_database <database_name>"
         echo "  ./start.sh --help"
         echo ""
         echo "Options:"
@@ -26,27 +36,30 @@ case "${1:-}" in
         echo "      Launch Dash application on specified port"
         echo "      Default: 8050"
         echo ""
+        echo "  --create_database <database_name>"
+        echo "      Create a Neo4j database named <database_name>"
+        echo ""
         echo "  --generate_csv_import"
         echo "      Convert all .gfa files from:"
         echo "          ./data/gfa/"
         echo "      into CSV import files in:"
         echo "          ./data/import/"
         echo ""
-		echo "      If multiple .gfa files are present in ./data/gfa/,"
-		echo "      a file named:"
-		echo "          ./data/gfa/chromosomes_file.csv"
-		echo "      must also be present."
-		echo ""
-		echo "      Supported separators:"
-		echo "          comma (,)"
-		echo "          semicolon (;)"
-		echo "          tab"
-		echo ""
-		echo "      Expected structure:"
-		echo ""
-		echo "          filename,chromosome"
-		echo "          chr1.gfa,chr1"
-		echo "          chr2.gfa,chr2"
+        echo "      If multiple .gfa files are present in ./data/gfa/,"
+        echo "      a file named:"
+        echo "          ./data/gfa/chromosomes_file.csv"
+        echo "      must also be present."
+        echo ""
+        echo "      Supported separators:"
+        echo "          comma (,)"
+        echo "          semicolon (;)"
+        echo "          tab"
+        echo ""
+        echo "      Expected structure:"
+        echo ""
+        echo "          filename,chromosome"
+        echo "          chr1.gfa,chr1"
+        echo "          chr2.gfa,chr2"
         echo ""
         echo "  --help, -h"
         echo "      Show this help message"
@@ -137,6 +150,7 @@ else
 	fi
 fi
 
+
 # --- Special mode: generate CSV import from GFA files ---
 if [ "$GENERATE_CSV_IMPORT" -eq 1 ]; then
     bash ./scripts/generate_csv_import_file.sh
@@ -146,16 +160,17 @@ fi
 # --- Special mode: create database ---
 if [ "${CREATE_DATABASE:-0}" -eq 1 ]; then
     echo "WARNING: This step requires Apptainer to be loaded."
+
     bash ./scripts/generate_csv_import_file.sh || exit $?
 
-    python3 - << 'EOF'
-from neo4j_container_management import import_csv_cluster
-import_csv_cluster()
+    python3 - << EOF
+from neo4j_container_management import create_db
+create_db("${DATABASE_NAME}", docker=False)
 EOF
-    status=$?
-    exit "$status"
+
+    exit $?
 fi
-    
+
 # --- Launch application ---
 echo "Launching PanAbyss on port $DASH_PORT..."
 python index.py --port $DASH_PORT

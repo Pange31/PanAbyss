@@ -146,9 +146,11 @@ For very large pangenomes or when working on a machine with limited RAM, this pr
 Another way to load large pangenome is to generate directly the database on the cluster. This is quite similar to the previous procedure:
   - Download PanAbyss on the remote machine
   - Place the .gfa file(s) into ```./data/gfa```. In case of multiple gfa, a ```chromosomes_file.csv``` must be created in the same directory with in first column the gfa file name (filename) and in second column the chromosome name associated to the gfa (chromosome).
-  - Run: ```./launch.sh --create_database```. This command generates the Neo4j database inside ```./data/data```
-  - The generated repository can then be copied into the local machine's ```./data/data``` directory
-  - After that, the database can be used on the local machine but it is required to create stats and create indexes in the database management page before using PanAbyss.
+  - Run: ```./launch.sh --create_database <database_name>```. This command generates the Neo4j database inside ```./data/data```
+  - Then two possibility :
+    - the database can be used directly with a virtual linux desktop (open on demand services)
+    - the generated repository can be copied into the local machine's ```./data/data``` directory and the ```./conf.json``` copied in the local machine. After that, the database can be used on the local machine.
+    - for both options it is required to create stats and create indexes in the database management page before using PanAbyss.
 
 ## Parameters file
 
@@ -177,6 +179,7 @@ The parameter file is named `./conf.json`. It contains the following parameters:
 - `"gwas_max_running_jobs"`: set the limit of running gwas jobs. Set to 0 = not limited, set to -1 = deactivate the functionality.
 - `"phylo_block_tree_recomputation"`: if set to true then it won't be possible to recompute a globale tree (for server purpose).
 - `"viz_filter_by_flow"`: if set to true then, in case of too wide region, the algorithm will try to reduce nodes number by filtering by flow (try to keep the near core pangenome). Default is true but it is time consuming.
+- `"docker`: default is `true`, to use PanAbyss on a HPC set this value to `false` to use Apptainer.
 
 ## Contacts
 *F Graziani, M Zytnicki*

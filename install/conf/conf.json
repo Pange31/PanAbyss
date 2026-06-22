@@ -19,5 +19,6 @@
   "gwas_annotations_max_attempts":5,
   "gwas_max_running_jobs":0,
   "phylo_block_tree_recomputation": false,
-  "viz_filter_by_flow" : true
+  "viz_filter_by_flow" : true,
+  "docker": true
 }

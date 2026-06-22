@@ -532,8 +532,9 @@ def confirm_delete_data(n_clicks, data):
             with open(CONF_FILE, "r") as f:
                 conf = json.load(f)
                 container_name = conf.get("container_name", "")
+                docker = conf.get("docker", True)
                 if container_name is not None and container_name != "" :
-                    remove_container(container_name)
+                    remove_container(container_name, docker=docker)
             for key in keys_to_remove:
                 conf.pop(key, None)
             with open(CONF_FILE, "w") as f:
