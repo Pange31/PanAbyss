@@ -16,7 +16,7 @@ case "${1:-}" in
           echo "Error: database name is required."
           echo ""
           echo "Usage:"
-          echo "  ./start.sh --create_database <database_name>"
+          echo "  ./launch.sh --create_database <database_name>"
           exit 1
       fi
       DATABASE_NAME="DB_1.0.0_$2"
@@ -26,10 +26,10 @@ case "${1:-}" in
         echo "PanAbyss launcher"
         echo ""
         echo "Usage:"
-        echo "  ./start.sh [PORT]"
-        echo "  ./start.sh --generate_csv_import"
-        echo "  ./start.sh --create_database <database_name>"
-        echo "  ./start.sh --help"
+        echo "  ./launch.sh [PORT]"
+        echo "  ./launch.sh --generate_csv_import"
+        echo "  ./launch.sh --create_database <database_name>"
+        echo "  ./launch.sh --help"
         echo ""
         echo "Options:"
         echo "  PORT"
