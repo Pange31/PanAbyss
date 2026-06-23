@@ -200,7 +200,6 @@ import callbacks.phylo_management_callbacks
 def init_data(pathname,shared_storage, shared_storage_nodes):
     if shared_storage_nodes is None:
         shared_storage_nodes = {"nodes_cache_id": str(uuid.uuid4())}
-        print(f"shared storage node : {shared_storage_nodes}")
 
     if (shared_storage is None or "genomes" not in shared_storage or len(shared_storage["genomes"]) == 0
         or "chromosomes" not in shared_storage or len(shared_storage["chromosomes"]) == 0):
