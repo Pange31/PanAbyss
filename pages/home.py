@@ -700,7 +700,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     edges_dict[edge_key]["SV"] = True
 
         #logger.debug(f"Compute elements - specific color")
-        # Specific colors for a selected set of genomes
+        # Color the links shared by a set of selected genomes to detect shared paths
         colored_genomes = {}
         for g, c in zip(all_genomes, color_genomes):
             if c != '#000000':
@@ -709,6 +709,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
             link_color = 'gray'
             flow = dic["flow"]
             virtual_flow = flow
+            width = ((virtual_flow + int(0.2 * len(selected_genomes))) / len(selected_genomes)) * MAX_EDGE_WIDTH
             if specifics_genomes is not None and len(specifics_genomes) > 0:
                 min_required_shared = max(
                     ceil(min_shared_genome * len(specifics_genomes) / 100), 1)
@@ -720,6 +721,9 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                 if len(intersect) >= min_required_shared and len(dic["genomes"]) - len(intersect) <= max_allowed_extra:
                     link_color = color_shared_regions
                     virtual_flow = len(selected_genomes)
+                    normal_width = ((virtual_flow + int(0.2 * len(selected_genomes))) / len(selected_genomes)) * MAX_EDGE_WIDTH
+                    width = max(colored_edges_size, normal_width)
+
             label = ""
             label_color = "black"
             if labels :
@@ -773,7 +777,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     'color': label_color,
                     'text-rotation': 'autorotate',
                     'text-margin-y': -20,
-                    'width':((virtual_flow+int(0.2*len(selected_genomes)))/len(selected_genomes))*MAX_EDGE_WIDTH
+                    'width':width
                 }
             })
             if len(colored_genomes) > 0:
@@ -1447,10 +1451,10 @@ def layout(data=None, initial_size_limit=10):
                             dcc.Slider(
                                 id='colored-edge-size-slider',
                                 min=1,
-                                max=20,
+                                max=30,
                                 step=1,
                                 value=5,
-                                marks={i: str(i) for i in range(0, 25, 5)}
+                                marks={i: str(i) for i in range(0, 35, 5)}
                             )
                         ], style={
                             'display': 'flex',
