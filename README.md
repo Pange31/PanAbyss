@@ -146,7 +146,7 @@ For very large pangenomes or when working on a machine with limited RAM, this pr
 Another way to load large pangenome is to generate directly the database on the cluster. This is quite similar to the previous procedure:
   - Download PanAbyss on the remote machine
   - Place the .gfa file(s) into ```./data/gfa```. In case of multiple gfa, a ```chromosomes_file.csv``` must be created in the same directory with in first column the gfa file name (filename) and in second column the chromosome name associated to the gfa (chromosome).
-  - Run: ```./launch.sh --create_database <database_name>```. This command generates the Neo4j database inside ```./data/data```
+  - Run: ```./launch.sh --create_database <database_name>```. This command generates the Neo4j database inside ```./data/data```. In case of sufficient resources, it is possible to increase batch_size for example to 10 000 000 with the option ```--batch_size 10000000```.
   - Then two possibility :
     - the database can be used directly with a virtual linux desktop (open on demand services)
     - the generated repository can be copied into the local machine's ```./data/data``` directory and the ```./conf.json``` copied in the local machine. After that, the database can be used on the local machine.
