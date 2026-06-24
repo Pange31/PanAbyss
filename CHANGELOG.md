@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add a script for systemd configuration.
 - Add a cache system.
 - Add selection / coloration of genes label.
+- Add the possibility to create import files or database on a cluster with apptainer
 
 ### Changed
 - Gradient color and node size reference in the legend
