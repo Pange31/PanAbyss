@@ -255,8 +255,7 @@ def start_container():
             "--env", f"NEO4J_server_bolt_listen__address=0.0.0.0:{BOLT_PORT}",
             "--env", f"NEO4J_server_bolt_advertised__address=localhost:{BOLT_PORT}",
 
-            #"--bind", f"{NEO4J_BASE_DIR}/data:/var/lib/neo4j/data",
-            "--bind", f"{NEO4J_BASE_DIR}/data:/data",
+            "--bind", f"{NEO4J_BASE_DIR}/data:/var/lib/neo4j/data",
             "--bind", f"{NEO4J_BASE_DIR}/logs:/var/lib/neo4j/logs",
             "--bind", f"{NEO4J_BASE_DIR}/conf:/conf",
             "--bind", f"{NEO4J_BASE_DIR}/import:/import",
