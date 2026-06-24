@@ -117,7 +117,7 @@ def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters)
             end = home_data_storage.get("end", None)
             logger.debug(f"Sequences construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
             nodes_data, return_metadata = get_nodes_by_region(
-                genome, chromosome=chromosome, start=start, end=end, use_anchor=use_anchor)
+                genome, chromosome=chromosome, start=start, end=end, use_anchor=use_anchor, max_nodes_number=max_nodes_from_db)
             logger.debug(f"Number of nodes in the region: {len(nodes_data)}")
             cached["min_node_size"] = 1
             cached["nodes"] = nodes_data

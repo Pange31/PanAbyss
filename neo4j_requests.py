@@ -352,7 +352,7 @@ def construct_base_query(ranges, chromosome, min_node_size=None, flow=None, vali
 #This function filter the outliers in number of nodes to avoid limit threshold
 #counts: dict[individu] = nodes numbers
 #factor: sensitivity(1.5 = standard, 3 = less filter)
-def filter_outliers(counts, factor = 1.5):
+def filter_outliers(counts, factor = 1.5, max_nodes_number=MAX_NODES_NUMBER):
     filter_list = []
     if counts and len(counts) > 0:
         values = np.array(list(counts.values()))
@@ -366,7 +366,7 @@ def filter_outliers(counts, factor = 1.5):
 
 
         for k, v in counts.items():
-            if v > upper_limit or v > MAX_NODES_NUMBER:
+            if v > upper_limit or v > max_nodes_number:
                 filter_list.append(k)
 
 
@@ -549,7 +549,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
         # Step 1 : find the anchors of the region
         genome_position = genome + "_position"
         logger.info("Look for region : " + str(start) + " - " + str(stop) + " - chromosome " + str(
-            chromosome) + " - genome : " + str(genome))
+            chromosome) + " - genome : " + str(genome) + " - Use anchor : " + str(use_anchor))
 
         anchor_start, core_genome_start = get_anchor(genome, chromosome, start, before=True,
                                                      use_anchor=use_anchor)
@@ -672,7 +672,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
                 #median_value = statistics.median(counts.values())
                 individuals_exceptions = []
                 valid_individuals_exceptions = []
-                individuals_exceptions = filter_outliers(counts)
+                individuals_exceptions = filter_outliers(counts, max_nodes_number=LIMIT)
                 # for g in counts:
                 #     if counts[g] > LIMIT and counts[g] > 10 * median_value:
                 #         individuals_exceptions.append(g)

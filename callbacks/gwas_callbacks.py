@@ -633,18 +633,22 @@ def handle_cancel_click(n_clicks, gwas_data):
     State('shared-region-table', 'data'),
     State('shared_storage_nodes', 'data'),
     State('home-page-store', 'data'),
+    State('global_parameters', 'data'),
     running=[
             (Output("spinner-container","style"),{"display": "block", "marginTop": "20px"},{"display": "none", "marginTop": "20px"}),
         ],
     prevent_initial_call=True
 )
-def handle_row_selection(selected_rows, table_data, data, home_page_data):
+def handle_row_selection(selected_rows, table_data, data, home_page_data,
+                         global_parameters):
     redirect = "/gwas"
     if home_page_data is None:
         home_page_data = {}
     if not selected_rows:
         return no_update, redirect, home_page_data, redirect
-
+    max_nodes_from_db = None
+    if global_parameters and "max_nodes_from_db" in global_parameters:
+        max_nodes_from_db = global_parameters["max_nodes_from_db"]
     nodes_cache_id = data["nodes_cache_id"]
     cached = get_session_cache(nodes_cache_id)
 
@@ -657,7 +661,13 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data):
     genome = row['genome']
     logger.debug("search region genome " +str(genome) + " chromosome " + str(chromosome) + " start " + str(start) + " stop " + str(stop))
     try:
-        nodes, return_metadata = get_nodes_by_region(genome, str(chromosome), start, stop)
+        min_node_size = None
+        if home_page_data and ("slider_value" in home_page_data or "current_size" in home_page_data):
+            if "current_size" in home_page_data:
+                min_node_size = home_page_data.get("current_size",1)
+            else:
+                min_node_size = home_page_data.get("slider_value", 1)
+        nodes, return_metadata = get_nodes_by_region(genome, str(chromosome), start, stop,  min_node_size=min_node_size, max_nodes_number=max_nodes_from_db)
 
         cached["zoom"] = {}
         cached["min_node_size"] = 1
