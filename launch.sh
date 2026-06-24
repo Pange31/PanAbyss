@@ -7,85 +7,83 @@ CREATE_DATABASE=0
 DATABASE_NAME=""
 BATCH_SIZE=""
 
-case "${1:-}" in
-    --generate_csv_import)
-        GENERATE_CSV_IMPORT=1
-        ;;
-    --create_database)
-      CREATE_DATABASE=1
-      if [ -z "${2:-}" ]; then
-          echo "Error: database name is required."
-          echo ""
-          echo "Usage:"
-          echo "  ./launch.sh --create_database <database_name>"
-          exit 1
-      fi
-      DATABASE_NAME="DB_1.0.0_$2"
-      ;;
-    --batch_size)
-      if [ -z "${2:-}" ]; then
-          echo "Error: batch size is required after --batch_size"
-          exit 1
-      fi
-      BATCH_SIZE="$2"
-      ;;
-    --help|-h)
-        echo ""
-        echo "PanAbyss launcher"
-        echo ""
-        echo "Usage:"
-        echo "  ./launch.sh [PORT]"
-        echo "  ./launch.sh --generate_csv_import"
-        echo "  ./launch.sh --create_database <database_name>"
-        echo "  ./launch.sh --batch_size <size> --generate_csv_import"
-        echo "  ./launch.sh --batch_size <size> --create_database <database_name>"
-        echo "  ./launch.sh --help"
-        echo ""
-        echo "Options:"
-        echo "  PORT"
-        echo "      Launch Dash application on specified port"
-        echo "      Default: 8050"
-        echo ""
-        echo "  --create_database <database_name>"
-        echo "      Create a Neo4j database named <database_name>"
-        echo ""
-        echo "  --generate_csv_import"
-        echo "      Convert all .gfa files from:"
-        echo "          ./data/gfa/"
-        echo "      into CSV import files in:"
-        echo "          ./data/import/"
-        echo ""
-        echo "      If multiple .gfa files are present in ./data/gfa/,"
-        echo "      a file named:"
-        echo "          ./data/gfa/chromosomes_file.csv"
-        echo "      must also be present."
-        echo ""
-        echo "      Supported separators:"
-        echo "          comma (,)"
-        echo "          semicolon (;)"
-        echo "          tab"
-        echo ""
-        echo "      Expected structure:"
-        echo ""
-        echo "          filename,chromosome"
-        echo "          chr1.gfa,chr1"
-        echo "          chr2.gfa,chr2"
-        echo ""
-        echo "  --batch_size <size>"
-        echo "      Set batch size used for CSV generation from GFA files"
-        echo "      Default: 2000000"
-        echo ""
-        echo "  --help, -h"
-        echo "      Show this help message"
-        echo ""
-        exit 0
-        ;;
-    "")
-        ;;
-    *)
-        DASH_PORT="$1"
-        ;;
-esac
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --generate_csv_import)
+            GENERATE_CSV_IMPORT=1
+            shift
+            ;;
+        --create_database)
+            CREATE_DATABASE=1
+            DATABASE_NAME="DB_1.0.0_$2"
+            shift 2
+            ;;
+        --batch_size)
+            BATCH_SIZE="$2"
+            shift 2
+            ;;
+        --help|-h)
+            echo ""
+            echo "PanAbyss launcher"
+            echo ""
+            echo "Usage:"
+            echo "  ./launch.sh [PORT]"
+            echo "  ./launch.sh --generate_csv_import"
+            echo "  ./launch.sh --create_database <database_name>"
+            echo "  ./launch.sh --batch_size <size> --generate_csv_import"
+            echo "  ./launch.sh --batch_size <size> --create_database <database_name>"
+            echo "  ./launch.sh --help"
+            echo ""
+            echo "Options:"
+            echo "  PORT"
+            echo "      Launch Dash application on specified port"
+            echo "      Default: 8050"
+            echo ""
+            echo "  --create_database <database_name>"
+            echo "      Create a Neo4j database named <database_name>"
+            echo ""
+            echo "  --generate_csv_import"
+            echo "      Convert all .gfa files from:"
+            echo "          ./data/gfa/"
+            echo "      into CSV import files in:"
+            echo "          ./data/import/"
+            echo ""
+            echo "      If multiple .gfa files are present in ./data/gfa/,"
+            echo "      a file named:"
+            echo "          ./data/gfa/chromosomes_file.csv"
+            echo "      must also be present."
+            echo ""
+            echo "      Supported separators:"
+            echo "          comma (,)"
+            echo "          semicolon (;)"
+            echo "          tab"
+            echo ""
+            echo "      Expected structure:"
+            echo ""
+            echo "          filename,chromosome"
+            echo "          chr1.gfa,chr1"
+            echo "          chr2.gfa,chr2"
+            echo ""
+            echo "  --batch_size <size>"
+            echo "      Set batch size used for CSV generation from GFA files"
+            echo "      Default: 2000000"
+            echo ""
+            echo "  --help, -h"
+            echo "      Show this help message"
+            echo ""
+            exit 0
+            ;;
+        *)
+            DASH_PORT="$1"
+            shift
+            ;;
+    esac
+done
+
+echo "GENERATE_CSV_IMPORT=$GENERATE_CSV_IMPORT"
+echo "CREATE_DATABASE=$CREATE_DATABASE"
+echo "DATABASE_NAME=$DATABASE_NAME"
+echo "BATCH_SIZE=$BATCH_SIZE"
 
 ENV_NAME="panabyss"
 ENV_FILE="panabyss.yaml"
