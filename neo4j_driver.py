@@ -14,7 +14,7 @@ _LOCK = threading.Lock()
 
 CONF = None
 
-def get_driver(max_retries=10, retry_delay=3):
+def get_driver(max_retries=5, retry_delay=10):
     global _DRIVER
     global CONF
 
@@ -82,7 +82,7 @@ def reset_driver():
 
 #Create a  Neo4j driver instance (NOT global),
 #intended for heavy jobs / isolated workloads.
-def get_scoped_driver(max_retries=10, retry_delay=3):
+def get_scoped_driver(max_retries=5, retry_delay=10):
     if not CONF:
         conf = get_conf()
     else:
