@@ -2,6 +2,15 @@
 
 set -e
 
+BATCH_SIZE=${1:-2000000}
+
+echo "Using batch size: $BATCH_SIZE"
+
+if ! [[ "$BATCH_SIZE" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: batch size must be an integer"
+    exit 1
+fi
+
 # ------------------------------------------------------------
 # Paths
 # ------------------------------------------------------------
@@ -50,7 +59,7 @@ load_gfa_data_to_csv(
     import_dir=r'''$IMPORT_DIR''',
     chromosome_file="",
     chromosome_prefix=False,
-    batch_size=2000000,
+    batch_size=$BATCH_SIZE,
     start_chromosome=None,
     haplotype=True
 )
@@ -191,7 +200,7 @@ load_gfa_data_to_csv(
     import_dir=r'''$IMPORT_DIR''',
     chromosome_file=r'''$chromosome''',
     chromosome_prefix=False,
-    batch_size=2000000,
+    batch_size=$BATCH_SIZE,
     start_chromosome=None,
     haplotype=True
 )

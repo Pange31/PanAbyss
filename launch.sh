@@ -5,6 +5,7 @@ DASH_PORT=8050
 GENERATE_CSV_IMPORT=0
 CREATE_DATABASE=0
 DATABASE_NAME=""
+BATCH_SIZE=""
 
 case "${1:-}" in
     --generate_csv_import)
@@ -21,6 +22,13 @@ case "${1:-}" in
       fi
       DATABASE_NAME="DB_1.0.0_$2"
       ;;
+    --batch_size)
+      if [ -z "${2:-}" ]; then
+          echo "Error: batch size is required after --batch_size"
+          exit 1
+      fi
+      BATCH_SIZE="$2"
+      ;;
     --help|-h)
         echo ""
         echo "PanAbyss launcher"
@@ -29,6 +37,8 @@ case "${1:-}" in
         echo "  ./launch.sh [PORT]"
         echo "  ./launch.sh --generate_csv_import"
         echo "  ./launch.sh --create_database <database_name>"
+        echo "  ./launch.sh --batch_size <size> --generate_csv_import"
+        echo "  ./launch.sh --batch_size <size> --create_database <database_name>"
         echo "  ./launch.sh --help"
         echo ""
         echo "Options:"
@@ -60,6 +70,10 @@ case "${1:-}" in
         echo "          filename,chromosome"
         echo "          chr1.gfa,chr1"
         echo "          chr2.gfa,chr2"
+        echo ""
+        echo "  --batch_size <size>"
+        echo "      Set batch size used for CSV generation from GFA files"
+        echo "      Default: 2000000"
         echo ""
         echo "  --help, -h"
         echo "      Show this help message"
@@ -153,7 +167,11 @@ fi
 
 # --- Special mode: generate CSV import from GFA files ---
 if [ "$GENERATE_CSV_IMPORT" -eq 1 ]; then
-    bash ./scripts/generate_csv_import_file.sh
+    if [ -n "$BATCH_SIZE" ]; then
+      bash ./scripts/generate_csv_import_file.sh "$BATCH_SIZE"
+    else
+        bash ./scripts/generate_csv_import_file.sh
+    fi
     exit $?
 fi
 
@@ -161,7 +179,11 @@ fi
 if [ "${CREATE_DATABASE:-0}" -eq 1 ]; then
     echo "WARNING: This step requires Apptainer to be loaded."
 
-    bash ./scripts/generate_csv_import_file.sh || exit $?
+    if [ -n "$BATCH_SIZE" ]; then
+        bash ./scripts/generate_csv_import_file.sh "$BATCH_SIZE" || exit $?
+    else
+        bash ./scripts/generate_csv_import_file.sh || exit $?
+    fi
 
     python3 - << EOF
 from neo4j_container_management import create_db
