@@ -1951,39 +1951,33 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
     return nodes_dic
 
 
-
+#Simple annotations are annotations that starts before node start position and end is greater than node start position
 @require_authorization
 def process_annotation_simple_batch(tx, annotations, genome_ref):
-
     query = f"""
-        CALL apoc.periodic.iterate(
-          "
-          UNWIND $annotations AS annot
-          MATCH (n1:Node)
-          WHERE n1.chromosome = annot.chromosome
-            AND n1.`{genome_ref}_position` >= annot.start
-            AND n1.`{genome_ref}_position` <= annot.end
-          MATCH (a1:Annotation {{name: annot.name}})
-          RETURN n1, a1
-          ",
-          "
-          MERGE (n1)-[:annotation_link]->(a1)
-          ",
-          {{
-            batchSize: 1000,
-            parallel: false,
-            params: {{annotations: $annotations}}
-          }}
-        )
-        """
+        UNWIND $annotations AS annot
 
-    #logger.debug(query)
+        MATCH (a1:Annotation {{name: annot.name}})
 
-    tx.run(query, annotations=annotations)
+        MATCH (n1:Node)
+        WHERE n1.chromosome = annot.chromosome
+          AND n1.`{genome_ref}_position` >= annot.start
+          AND n1.`{genome_ref}_position` <= annot.end
 
+        CREATE (n1)-[:annotation_link]->(a1)
+
+        RETURN count(*) AS nb_relations
+    """
+
+    result = tx.run(query, annotations=annotations)
+    nb_relations = result.single()["nb_relations"]
+
+    #logger.debug(f"Simple relations created: {nb_relations}")
+
+
+#Complex annotations are annotations that starts after node start position but max 10000 bp after
 @require_authorization    
 def process_annotation_complex_batch(tx, annotations, genome_ref, annotation_search_limit=10000):
-    
 
     query = f"""
         UNWIND $annotations AS annot
@@ -2008,11 +2002,15 @@ def process_annotation_complex_batch(tx, annotations, genome_ref, annotation_sea
 
                 
     #logger.debug(query)
-    tx.run(query, annotations=annotations)
 
+    result = tx.run(query, annotations=annotations)
+    summary = result.consume()
 
+    #logger.debug("Complex relations created: ", summary.counters.relationships_created)
+    #logger.debug("Complex relations update: ", summary.counters.relationships_created)
     
-    
+#This step will get annotation for nodes greater than 10000 bp and that can starts more than 10000 bp before annotation start
+#This is required for performance
 @require_authorization    
 def process_annotation_last_complex_batch(tx, genome_ref, annotation_search_limit=10000, batch_limit=10000):
 
@@ -2061,7 +2059,7 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
     if driver is None:
         return None
     last_id = -1
-    batch_size = 10000
+    batch_size = 2000
     total_annotations = 0
     WARN = False
     WARN_message = ""
@@ -2103,13 +2101,13 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
         for g in liste_genomes :
             logger.info(f"Linking annotation for genome {g}")
             query = f"""
-                MATCH (a:Annotation) where a.genome_ref = "{g}" return collect(distinct(a.chromosome)) as annotations_chromosomes
+                MATCH (a:Annotation) where a.genome_ref = "{g}"  AND NOT (a)<-[:annotation_link]-() return collect(distinct(a.chromosome)) as annotations_chromosomes
             """
             result = session.run(query)
             for record in result:
                 annotations_chromosomes_set = set(record["annotations_chromosomes"])
             query = f"""
-            MATCH (a:Annotation) where a.genome_ref = "{g}" return min(ID(a)) as min_id, max(ID(a)) as max_id, count(a) as annotations_count
+            MATCH (a:Annotation) where a.genome_ref = "{g}"  AND NOT (a)<-[:annotation_link]-() return min(ID(a)) as min_id, max(ID(a)) as max_id, count(a) as annotations_count
             """
             #logger.debug(query)
             result = session.run(query)
@@ -2130,6 +2128,7 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
             current_id = min_id
             all_genomes.add(g)
             i = 0
+
             with tqdm(total=annotations_count, desc=f"Haplotype {g}") as pbar:
                 while current_id < max_id:
                     i+=1
@@ -2140,6 +2139,7 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
                             """
                             MATCH (a:Annotation)
                             WHERE ID(a) >= $min_id AND ID(a) < $max_id AND a.genome_ref = $genome
+                            AND NOT (a)<-[:annotation_link]-() 
                             RETURN a.name AS name, a.chromosome AS chromosome, a.start AS start, a.end AS end
                             """,
                             min_id=current_id,
@@ -2151,6 +2151,7 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
                             """
                             MATCH (a:Annotation)
                             WHERE ID(a) >= $min_id AND ID(a) < $max_id and a.chromosome = $chromosome AND a.genome_ref = $genome
+                            AND NOT (a)<-[:annotation_link]-() 
                             RETURN a.name AS name, a.chromosome AS chromosome, a.start AS start, a.end AS end
                             """,
                             min_id=current_id,
