@@ -1348,7 +1348,6 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
         set_selected_genomes = set(genomes_list)
         set_ignored_genomes = set(ignored_genomes)
         set_not_selected_genomes = set(all_genomes)-set_selected_genomes-set_ignored_genomes
-
         list_not_selected_genomes = list(set_not_selected_genomes)
         logger.info("finding shared regions for " + str(genomes_list))
         driver = get_scoped_driver()
@@ -1438,9 +1437,9 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                     AND (
                         size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
                         OR (
-                            size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100 + {len(ignored_genomes)}
+                            size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100 + {len(set_ignored_genomes)}
                             AND 
-                            size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) <= {max_not_selected_genomes}
+                            size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) <= (size(n.genomes)-size([g IN n.genomes WHERE g IN {ignored_genomes}])) * {tolerance_percentage}/100
                             )
                         )
                     """
@@ -1496,9 +1495,10 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                     query += f"""
 
                         AND {none_expr}
-
+                            WITH n, size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) AS overlap
+                            WHERE overlap >= {min_deletion_percentage} * {nb_non_selected_genomes} / 100
                         OPTIONAL CALL {{
-                          WITH n
+                            WITH n
                           MATCH (m:Node)-[]->(n)
                           WHERE m.chromosome = "{c}"
                             AND m.flow >= {global_min_flow_deletion}
