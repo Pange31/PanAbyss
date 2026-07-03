@@ -1308,13 +1308,15 @@ def compute_acat(pvals, weights=None, return_log=True):
 
 # Function find_shared_regions : this function is used to get shared regions (positions) between a list of genomes (GWAS)
 # It can be limited to a chromosomes list
-# Usage exemple (cattle white spot) : dic_regions, analyse = find_shared_regions(["HER","SIM"],chromosome="6")
-# genomes_list : list of the genomes for which the function will look for shared regions
+# Usage exemple (cattle white spot): dic_regions, analyse = find_shared_regions(["HER","SIM"],chromosome="6")
+# genomes_list: list of the genomes for which the function will look for shared regions
+# all_genomes: list of all genomes in the pangenome
+# ignored_genomes: list of genomes to ignore. Attention: this is not the not selected genomes but the genomes selected as to ignore.
 # genome_ref will be used to get annotations on this genome
-# chromosomes : list of chromosomes. If defined the function will only look for shared region on these chromosomes
-# node_min_size : the nodes smaller than this value will be ignored (to avoid to look for all snp, if the are required then set this value to 0)
-# nodes_max_gap : this gap is used to gather find regions into a bigger regions if the initial find regions are separated by less than this value (in numer of nodes)
-def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=None,
+# chromosomes: list of chromosomes. If defined the function will only look for shared region on these chromosomes
+# node_min_size: the nodes smaller than this value will be ignored (to avoid to look for all snp, if the are required then set this value to 0)
+# nodes_max_gap: this gap is used to gather find regions into a bigger regions if the initial find regions are separated by less than this value (in numer of nodes)
+def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_ref=None, chromosomes=None,
                         node_min_size=10, node_max_size=0, nodes_max_gap=10000,
                         deletion=False, min_percent_selected_genomes=100, tolerance_percentage=0,
                         min_deletion_percentage=100, job_id=None, results_only_for_ref=False, max_gwas_region=None):
@@ -1323,7 +1325,11 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
         return {}, {}, {}
 
     dic_regions = {}
+    dic_regions_2 = {}
+    analyse = []
     dic_distribution = {}
+    if not ignored_genomes:
+        ignored_genomes = []
     time_0 = time.time()
     if min_percent_selected_genomes > 100:
         min_percent_selected_genomes = 100
@@ -1333,48 +1339,43 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
         min_deletion_percentage = 100
     if node_min_size is None:
         node_min_size = 0
-    logger.debug(
-        "node_min_size : " + str(node_min_size) + " node_max_size : " + str(node_max_size) + " deletion : " + str(
-            deletion) + " min_percent_selected_genomes : " + str(
-            min_percent_selected_genomes) + " tolerance_percentage : " + str(
-            tolerance_percentage) + " min deletion percentage : " + str(min_deletion_percentage))
+    logger.debug(f"""Find shared region with following parameters: node_min_size: {node_min_size} - node_max_size: {node_max_size} 
+        - deletion: {deletion} - min_percent_selected_genomes: {min_percent_selected_genomes} - tolerance_percentage: {tolerance_percentage}
+         - min deletion percentage: {min_deletion_percentage} - selected genomes: {genomes_list} - ignored genomes: {ignored_genomes}
+         """)
     temps_depart = time.time()
     if (len(genomes_list) > 1):
         set_selected_genomes = set(genomes_list)
-        set_not_selected_genomes = set(all_genomes)-set_selected_genomes
+        set_ignored_genomes = set(ignored_genomes)
+        set_not_selected_genomes = set(all_genomes)-set_selected_genomes-set_ignored_genomes
+
+        list_not_selected_genomes = list(set_not_selected_genomes)
         logger.info("finding shared regions for " + str(genomes_list))
         driver = get_scoped_driver()
         if driver is None:
             return None
         with driver.session() as session:
-            query = """
-            MATCH (s:Stats)
-            RETURN s.genomes AS genomes
-            LIMIT 1
-            """
-            result = session.run(query)
-            for record in result:
-                genomes = record["genomes"]
-            nb_genomes = len(genomes)
+            nb_genomes = len(all_genomes)
             nb_regions_total = 0
             nb_associated_genomes = len(genomes_list)
-
+            nb_non_selected_genomes = len(set_not_selected_genomes)
+            nb_ignored_genome = len(set_ignored_genomes)
             # max_flow = nb_associated_genomes / nb_genomes + 0.00000001
             # min_flow = (max_flow-0.00000002) * min_percent_selected_genomes / 100
 
             min_associated_genomes = max(int(min_percent_selected_genomes * nb_associated_genomes / 100), 1)
             min_flow = min_associated_genomes / nb_genomes - 0.00000001
             max_flow = nb_associated_genomes * (1 + tolerance_percentage / 100) / nb_genomes + 0.00000001
+            max_not_selected_genomes = int(nb_associated_genomes * tolerance_percentage / 100)
+            if len(ignored_genomes) > 0:
+                max_flow += len(ignored_genomes)/nb_genomes
 
             logger.debug(
                 f"genomes number : {nb_genomes} - min flow : {min_flow} - max flow : {max_flow} - min associated genomes : {min_associated_genomes}")
             if deletion:
-                min_unselected_genomes = max(1, int((
-                                                                nb_genomes - nb_associated_genomes) * min_deletion_percentage / 100))
-                global_min_flow_deletion = min(min_associated_genomes + min_unselected_genomes,
-                                               nb_genomes) / nb_genomes - 0.00000001
-                min_flow_deletion = min(1, ((
-                                                        nb_genomes - nb_associated_genomes) * min_deletion_percentage / 100) / nb_genomes - 0.00000001)
+                min_unselected_genomes = max(1, int(nb_non_selected_genomes * min_deletion_percentage / 100))
+                global_min_flow_deletion = min(min_associated_genomes + min_unselected_genomes, nb_genomes) / nb_genomes - 0.00000001
+                min_flow_deletion = min(1, (nb_non_selected_genomes * min_deletion_percentage / 100) / nb_genomes - 0.00000001)
                 max_flow_deletion = min(1, (nb_genomes - nb_associated_genomes) / nb_genomes) + 0.00000001
                 logger.debug(
                     f"Look for deletions with parameters : global min flow : {global_min_flow_deletion} - min flow : {min_flow_deletion} - max flow :  {max_flow_deletion}")
@@ -1417,6 +1418,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                     f"(CASE WHEN n.`{genome}_position` IS NOT NULL THEN 1 ELSE 0 END)"
                     for genome in genomes_list
                 )
+                #Filter to reduce the number of nodes for performance issues
                 query = f"""
                     MATCH (n:Node)
                     WHERE n.chromosome = '{c}'
@@ -1429,7 +1431,27 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                 query += f"""
                     WITH n, {genome_count_expr} AS matched_genomes_nb
                     WHERE matched_genomes_nb >= {min_associated_genomes}
-                      AND size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
+                """
+                #Case of genomes to ignore:
+                if len(set_ignored_genomes) > 0:
+                    query += f"""
+                    AND (
+                        size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
+                        OR (
+                            size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100 + {len(ignored_genomes)}
+                            AND 
+                            size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) <= {max_not_selected_genomes}
+                            )
+                        )
+                    """
+                #No genomes to ignore (this has been separate for performance issues in case of no genomes to ignore)
+                else:
+                    query += f"""
+                        AND size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
+                    """
+
+                #Get Annotations
+                query += f"""
                     OPTIONAL MATCH (n)-[]->(a:Annotation)
                     WITH n,
                          [ann IN collect(
@@ -1602,7 +1624,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                 # To do this, we compute the median of deleted nodes for each haplotype
                                 deleted_nodes_dict = {}
                                 gap = []
-                                for hap in genomes:
+                                for hap in all_genomes:
                                     if hap in r["genomes_deleted_nodes"]:
                                         start_deletion = r["nodes"][hap + "_position"] + r["nodes"]["size"]
                                         end_deletion = r["end_deletion_nodes"][hap + "_position"]

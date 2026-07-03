@@ -100,34 +100,38 @@ def layout():
         #     id="genome-list",
         #     options=[],
         #     value=[],
-        #     inline=True
+        #     inline=False,
+        #
+        #     labelStyle={
+        #         "display": "flex",
+        #         "alignItems": "center",
+        #         "gap": "5px",
+        #         "fontSize": "14px",
+        #         "whiteSpace": "nowrap"
+        #     },
+        #
+        #     style={
+        #         "display": "grid",
+        #         #"gridTemplateColumns": "repeat(auto-fit, minmax(120px, 1fr))",
+        #         "gridTemplateColumns": "repeat(auto-fill, 250px)",
+        #         "columnGap": "4px",
+        #         "rowGap": "2px",
+        #         "columnGap": "0px",
+        #         "rowGap": "0px",
+        #         "width": "100%"
+        #     }
         # ),
-        dcc.Checklist(
+
+        html.Div(
             id="genome-list",
-            options=[],
-            value=[],
-            inline=False,
-
-            labelStyle={
-                "display": "flex",
-                "alignItems": "center",
-                "gap": "5px",
-                "fontSize": "14px",
-                "whiteSpace": "nowrap"
-            },
-
             style={
                 "display": "grid",
-                #"gridTemplateColumns": "repeat(auto-fit, minmax(120px, 1fr))",
                 "gridTemplateColumns": "repeat(auto-fill, 250px)",
-                "columnGap": "4px",
-                "rowGap": "2px",
                 "columnGap": "0px",
                 "rowGap": "0px",
-                "width": "100%"
-            }
+                "width": "100%",
+            },
         ),
-
         html.Br(), 
         html.H3("Parameters : "),
 

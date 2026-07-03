@@ -6,7 +6,7 @@ Created on Wed Jul  2 22:03:10 2025
 @author: fgraziani
 """
 
-from dash import html, Output, Input, State, no_update, dcc, ctx, callback_context, exceptions
+from dash import html, Output, Input, State, no_update, dcc, ctx, callback_context, exceptions, ALL, MATCH
 import dash_bootstrap_components as dbc
 
 import os
@@ -33,6 +33,29 @@ NB_POINTS_WEBGL = 1000
 
 MAX_GWAS_STORE, MAX_RUNNING_INACTIVITY_HOURS, MAX_GWAS_REGIONS, GWAS_ANNOTATIONS_WINDOWS_SIZE, GWAS_ANNOTATIONS_MAX_ATTEMPTS, GWAS_MAX_RUNNING_JOBS = get_gwas_conf()
 
+#Symbols and colors for genomes checklist
+SYMBOLS = {
+    "none": "☐",
+    "selected": "✔",
+    "ignored": "✖"
+}
+
+COLORS = {
+    "none": "grey",
+    "selected": "green",
+    "ignored": "red"
+}
+
+STATE_NONE = "none"
+STATE_SELECTED = "selected"
+STATE_IGNORED = "ignored"
+
+CYCLE = {
+    STATE_NONE: STATE_SELECTED,
+    STATE_SELECTED: STATE_IGNORED,
+    STATE_IGNORED: STATE_NONE
+}
+
 def compute_gwas_file_name(selected_genomes_list, min_node_size, max_node_size, selected_hap_percent, tolerance_percent,
                            max_gap, deletion, unselected_hap_percent):
     header = ""
@@ -40,18 +63,117 @@ def compute_gwas_file_name(selected_genomes_list, min_node_size, max_node_size, 
     return header, file_name
 
 
-#populates genomes checkboxes
+
+# Populates genomes list
 @app.callback(
-    Output('genome-list', 'options'),
-    Input('shared_storage', 'data')
+    Output("genome-list", "children"),
+    Output("gwas_ref_genome_dropdown", "options", allow_duplicate=True),
+    Output("gwas_ref_genome_dropdown", "value", allow_duplicate=True),
+    Input("shared_storage", "data"),
+    Input("url", "pathname"),
+    Input("gwas-genome-state-store", "data"),
+    State("gwas_ref_genome_dropdown", "value"),
+    State("parameters-gwas-page-store", "data"),
+    prevent_initial_call=True,
 )
-def update_genome_checkboxes(data):
+def update_genome_list(data, path, gwas_genome_state_store,
+                       current_ref_value, parameters_gwas_page_store):
+    if path != "/gwas":
+        raise exceptions.PreventUpdate
+
     if not data:
-        data  = {}
-    if "genomes" not in data:
-        data['genomes'] = get_genomes()
-    #logger.info("update data : " + str(data))
-    return [{'label': genome, 'value': genome} for genome in data['genomes']]
+        raise exceptions.PreventUpdate
+    genomes = data.get("genomes") or get_genomes()
+    gwas_genome_state_store = gwas_genome_state_store or {}
+
+
+    children = []
+
+    for genome in genomes:
+
+        s = gwas_genome_state_store.get(genome, STATE_NONE)
+
+        symbol = SYMBOLS.get(s, "☐")
+        color = COLORS.get(s, "grey")
+
+        children.append(
+            html.Div(
+                [
+                    html.Span(
+                        symbol,
+                        id={"type": "genome-toggle", "genome": genome},
+                        style={
+                            "cursor": "pointer",
+                            "fontSize": "18px",
+                            "width": "20px",
+                            "textAlign": "center",
+                            "display": "inline-block",
+                            "color": color,
+                            "userSelect": "none",
+                        },
+                    ),
+                    html.Span(genome, style={"fontSize": "14px"}),
+                ],
+                style={
+                    "display": "flex",
+                    "alignItems": "center",
+                    "gap": "6px",
+                    "padding": "2px 4px",
+                    "whiteSpace": "nowrap",
+                },
+            )
+        )
+
+    selected_genomes = [g for g, s in gwas_genome_state_store.items() if s == "selected"]
+    options = []
+
+    if selected_genomes and len(selected_genomes) > 0:
+        options = [{"label": g, "value": g} for g in selected_genomes]
+
+    if parameters_gwas_page_store and "ref_genome" in parameters_gwas_page_store:
+        ref = parameters_gwas_page_store["ref_genome"]
+        if ref in selected_genomes:
+            current_ref_value = ref
+
+    if current_ref_value is None or current_ref_value not in selected_genomes:
+        current_ref_value = selected_genomes[0]
+
+    return children, options, current_ref_value
+
+
+
+    return children
+
+#Callback to toggle genome selection state
+@app.callback(
+    Output("gwas-genome-state-store", "data"),
+    Input({"type": "genome-toggle", "genome": MATCH}, "n_clicks"),
+    State("gwas-genome-state-store", "data"),
+    prevent_initial_call=True,
+)
+def toggle_genome(n_clicks, state):
+
+    if not n_clicks:
+        raise exceptions.PreventUpdate
+
+    genome = ctx.triggered_id["genome"]
+
+    state = dict(state or {})
+
+    current = state.get(genome, STATE_NONE)
+
+    if current not in (STATE_NONE, STATE_SELECTED, STATE_IGNORED):
+        current = STATE_NONE
+
+    # cycle tri-state
+    if current == STATE_NONE:
+        state[genome] = STATE_SELECTED
+    elif current == STATE_SELECTED:
+        state[genome] = STATE_IGNORED
+    else:
+        state[genome] = STATE_NONE
+
+    return state
 
 
 #Populate chromosome droplist
@@ -194,28 +316,6 @@ def build_chromosome_figure(data):
         line_color="black"
     )
 
-    # fig.update_layout(
-    #     title=dict(
-    #         text="Distribution of Shared Regions",
-    #         x=0.5,
-    #         xanchor="center",
-    #         y=0.95,
-    #         yanchor="top"
-    #     ),
-    #     xaxis=dict(
-    #         tickmode="array",
-    #         tickvals=chromosome_centers,
-    #         ticktext=chromosome_labels,
-    #         title="Chromosomes and mean position."
-    #     ),
-    #     yaxis=dict(
-    #         title="Size of the shared region (negative = deletions)",
-    #         range=[y_min - y_pad, y_max + y_pad]
-    #     ),
-    #     showlegend=False,
-    #     plot_bgcolor="white",
-    #     margin=dict(l=40, r=20, t=90, b=40)
-    # )
     fig.update_layout(
         title=dict(
             text="Distribution of Shared Regions",
@@ -272,32 +372,6 @@ def build_chromosome_figure(data):
     )
     return fig
 
-#Callback to get selected genomes and put them in the genome dropdown
-@app.callback(
-    Output("gwas_ref_genome_dropdown", "options", allow_duplicate=True),
-    Output("gwas_ref_genome_dropdown", "value", allow_duplicate=True),
-    Input("genome-list", "value"),
-    State("gwas_ref_genome_dropdown", "value"),
-    State('parameters-gwas-page-store', 'data'),
-    prevent_initial_call=True,
-)
-def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data):
-    if not selected_genomes:
-        return [], None
-
-    options = [{"label": g, "value": g} for g in selected_genomes]
-
-    if parameters_data and "ref_genome" in parameters_data:
-        ref = parameters_data["ref_genome"]
-        if ref in selected_genomes:
-            return options, ref
-
-    if current_value is not None and current_value in selected_genomes:
-        return options, current_value
-
-    return options, selected_genomes[0]
-
-
 
 #Callback triggered by clicking on the launch button
 #This callback is required to set the parameters in the store to allow further navigation
@@ -310,8 +384,7 @@ def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data)
     Output("btn-cancel-find-shared", "disabled", allow_duplicate=True),
     Input('btn-find-shared', 'n_clicks'),
     State("use-cache-checkbox", "value"),
-    State('genome-list', 'value'),
-    State('genome-list', 'options'),
+    State("gwas-genome-state-store", "data"),
     State("parameters-gwas-page-store", "data"),
     State("gwas-min-node-size-int", 'value'),
     State("gwas-max-node-size-int", 'value'),
@@ -325,7 +398,7 @@ def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data)
     State("gwas-page-store", "data"),
     prevent_initial_call=True,
 )
-def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genomes, all_genomes_dict,
+def handle_shared_region_search_click(n_clicks, recompute_chkbx, gwas_genome_state_store,
                                 data, min_node_size, max_node_size,
                                 min_percent_selected, tolerance_percentage, region_gap,
                                 deletion_checkbox, chromosome, ref_genome, deletion_percentage, gwas_data):
@@ -336,7 +409,20 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genome
     if not n_clicks or ctx.triggered_id != "btn-find-shared":
         raise exceptions.PreventUpdate
 
-    all_genomes = [opt["value"] for opt in all_genomes_dict]
+    if not gwas_genome_state_store:
+        gwas_genome_state_store = {}
+
+    selected_genomes = [
+        g for g, s in gwas_genome_state_store.items()
+        if s == "selected"
+    ]
+
+    ignored_genomes = [
+        g for g, s in gwas_genome_state_store.items()
+        if s == "ignored"
+    ]
+
+    all_genomes = data["genomes"] if data and "genomes" in data else get_genomes()
     if min_node_size is None or min_node_size == "" or not isinstance(min_node_size, int):
         min_node_size = 0
     data["min_node_size"] = min_node_size
@@ -380,6 +466,7 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genome
     params = {
         "genomes_list": selected_genomes,
         "all_genomes":all_genomes,
+        "ignored_genomes": ignored_genomes,
         "genome_ref": ref_genome,
         "chromosomes": c,
         "node_min_size": min_node_size,
@@ -457,7 +544,7 @@ def poll_gwas_job(n_intervals, parameters_data, gwas_data, poll_disabled):
         ref_genome = job_params.get("genome_ref", None)
         if ref_genome is None or ref_genome == "":
             ref_genome = selected_genomes[0]
-        analyse_to_plot = analyse[ref_genome]
+        analyse_to_plot = analyse.get(ref_genome, [])
 
         # logger.info("analyse to plot : " + str(analyse_to_plot))
 
@@ -689,12 +776,12 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data,
         ]),redirect,home_page_data,redirect
     except Exception as e:
         return f"Erreur : {e}",redirect,home_page_data,redirect
-    
+
 #Update data when navigating or when the process is terminated
 @app.callback(
     Output('shared-status', 'children',allow_duplicate=True),
     Output('shared-region-table', 'data',allow_duplicate=True),
-    Output("genome-list", "value"),
+    # Output("genome-list", "value"),
     Output("gwas-min-node-size-int", 'value'),
     Output("gwas-max-node-size-int", 'value'),
     Output("gwas-min-percent_selected", 'value'),
@@ -722,7 +809,7 @@ def update_data(path, data, parameters_data):
     #logger.debug(f"#####################################GWAS Update data")
     analyse = []
     len_analyse = 0
-    checkbox = []
+    # checkbox = []
     max_node_size = None
     min_node_size = 10
     min_percent_selected = 100
@@ -782,8 +869,6 @@ def update_data(path, data, parameters_data):
             chromosome_figure = build_chromosome_figure(data["gwas_graph_points"])
             figure_display = {"display": "block"}
     if parameters_data is not None:
-        if "checkboxes" in parameters_data:
-            checkbox = parameters_data["checkboxes"]
         if "min_node_size" in parameters_data:
             min_node_size = parameters_data["min_node_size"]
         if "max_node_size" in parameters_data:
@@ -813,7 +898,7 @@ def update_data(path, data, parameters_data):
             for i, row in enumerate(analyse):
                 row['get_sequence'] = "Get sequence"
 
-    return (message_analyse,analyse, checkbox, min_node_size, max_node_size,
+    return (message_analyse,analyse, min_node_size, max_node_size,
             min_percent_selected,tolerance_percentage,region_gap, deletion_checkbox, deletion_percentage,
             chromosome_figure, figure_display, chromosome, ref_genome,search_button, cancel_button, enable_poll)
 
@@ -827,12 +912,13 @@ def update_data(path, data, parameters_data):
     State('shared-region-table', 'data'),
     State('parameters-gwas-page-store', 'data'),
     State("gwas-page-store", "data"),
+    State("gwas-genome-state-store", "data"),
     running=[
             (Output("spinner-container","style"),{"display": "block", "marginTop": "20px"},{"display": "none", "marginTop": "20px"}),
         ],
     prevent_initial_call=True
 )
-def save_csv(n_clicks, n_clicks_seq, table_data, parameters_data, gwas_data):
+def save_csv(n_clicks, n_clicks_seq, table_data, parameters_data, gwas_data, gwas_genome_state_store):
     #logger.info(f"Callback triggered: n_clicks={n_clicks}, table_data={table_data}")
     if not n_clicks and not n_clicks_seq:
         return (no_update,) * 2
@@ -843,7 +929,21 @@ def save_csv(n_clicks, n_clicks_seq, table_data, parameters_data, gwas_data):
             export_sequences = True
         if not table_data:
             return "No data.",no_update
-        params = parameters_data if parameters_data else {}
+        params = parameters_data.copy() if parameters_data else {}
+        gwas_genome_state_store = gwas_genome_state_store or {}
+        selected_genomes = [
+            g for g, s in gwas_genome_state_store.items()
+            if s == "selected"
+        ]
+
+        ignored_genomes = [
+            g for g, s in gwas_genome_state_store.items()
+            if s == "ignored"
+        ]
+        params = parameters_data.copy() if parameters_data else {}
+
+        params["checkboxes"] = selected_genomes
+        params["ignored_genomes"] = ignored_genomes
         params_str = json.dumps(params)
         df = pd.DataFrame(table_data).drop(columns=['get_sequence'], errors='ignore')
         file_name = "shared_regions_"+datetime.now().strftime("%Y_%m_%d_%H_%M_%S")+".csv"
@@ -897,6 +997,7 @@ def store_file(contents, filename):
     Output("parameters-gwas-page-store", "data", allow_duplicate=True),
     Output("uploaded-file-store", "data", allow_duplicate=True),
     Output("upload-csv-label", "children", allow_duplicate=True),
+    Output("gwas-genome-state-store", "data", allow_duplicate=True),
     Input("run-csv-button", "n_clicks"),
     State("uploaded-file-store", "data"),
     State("gwas-page-store", "data"),
@@ -912,6 +1013,8 @@ def load_csv(n_clicks,file_data, gwas_page_store):
     contents = file_data["contents"]
     if gwas_page_store is None:
         gwas_page_store = {}
+
+    gwas_genome_state = {}
 
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
@@ -940,35 +1043,24 @@ def load_csv(n_clicks,file_data, gwas_page_store):
 
         if params:
             parameters_store = params
+            gwas_genome_state = gwas_genome_state or {}
+
+            for g in params.get("checkboxes", []):
+                gwas_genome_state[g] = "selected"
+
+            for g in params.get("ignored_genomes", []):
+                gwas_genome_state[g] = "ignored"
         else:
             parameters_store = no_update
         logger.info(f"csv file {filename} loaded, {len(analyse)} shared regions found.")
         return (f"{len(analyse)} shared regions found.", analyse,
                 gwas_page_store, parameters_store, None,
-                "📂 Drag & drop or click to select CSV")
+                "📂 Drag & drop or click to select CSV", gwas_genome_state)
 
     except Exception as e:
         logger.info(f"Error while loading file: {e}")
-        return None, None, gwas_page_store, no_update, no_update, no_update
+        return None, None, gwas_page_store, no_update, no_update, no_update, no_update
 
-
-
-
-# @app.callback(
-#     Output('upload-csv', 'style'),
-#     Input('load-csv-button', 'n_clicks'),
-#     prevent_initial_call=True
-# )
-# def show_upload_area(n_clicks):
-#     if not n_clicks:
-#         return no_update
-#     return {
-#         'display': 'block',
-#         'borderWidth': '1px',
-#         'borderStyle': 'dashed',
-#         'padding': '10px',
-#         'marginTop': '10px'
-#     }
 
 
 

@@ -104,6 +104,7 @@ app.layout = html.Div([
     #A bug in dash requires to set memory for gwas-page-store because this storage is used by a background treatment
     #Else it will raise a "Maximum depth" error in the gwas process
     dcc.Store(id="gwas-page-store", storage_type="memory"),
+    dcc.Store(id="gwas-genome-state-store",storage_type="session",data={}),
     dcc.Store(id="parameters-gwas-page-store", data={}, storage_type="memory"),
     dcc.Store(id="phylogenetic-page-store",storage_type="memory"),
     dcc.Store(id="phylo-job-status",storage_type="memory"),
