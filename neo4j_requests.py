@@ -1364,10 +1364,9 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
 
             min_associated_genomes = max(int(min_percent_selected_genomes * nb_associated_genomes / 100), 1)
             min_flow = min_associated_genomes / nb_genomes - 0.00000001
-            max_flow = nb_associated_genomes * (1 + tolerance_percentage / 100) / nb_genomes + 0.00000001
-            max_not_selected_genomes = int(nb_associated_genomes * tolerance_percentage / 100)
-            if len(ignored_genomes) > 0:
-                max_flow += len(ignored_genomes)/nb_genomes
+            #max_flow = nb_associated_genomes * (1 + tolerance_percentage / 100) / nb_genomes + 0.00000001
+            max_flow = (min_associated_genomes + int(tolerance_percentage*nb_non_selected_genomes) + nb_ignored_genome)/nb_genomes + 0.00000001
+            max_not_selected_genomes = int(nb_non_selected_genomes * tolerance_percentage / 100)
 
             logger.debug(
                 f"genomes number : {nb_genomes} - min flow : {min_flow} - max flow : {max_flow} - min associated genomes : {min_associated_genomes}")
@@ -1433,20 +1432,33 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                 """
                 #Case of genomes to ignore:
                 if len(set_ignored_genomes) > 0:
+                    # query += f"""
+                    # AND (
+                    #     size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
+                    #     OR (
+                    #         size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100 + {len(set_ignored_genomes)}
+                    #         AND
+                    #         size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) <= (size(n.genomes)-size([g IN n.genomes WHERE g IN {ignored_genomes}])) * {tolerance_percentage}/100
+                    #         )
+                    #     )
+                    # """
                     query += f"""
                     AND (
-                        size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
+                        size(n.genomes) - matched_genomes_nb <= {max_not_selected_genomes}
                         OR (
-                            size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100 + {len(set_ignored_genomes)}
+                            size(n.genomes) - matched_genomes_nb <= {max_not_selected_genomes + len(set_ignored_genomes)}
                             AND 
-                            size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) <= (size(n.genomes)-size([g IN n.genomes WHERE g IN {ignored_genomes}])) * {tolerance_percentage}/100
+                            size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) <= {max_not_selected_genomes}
                             )
                         )
                     """
                 #No genomes to ignore (this has been separate for performance issues in case of no genomes to ignore)
                 else:
+                    # query += f"""
+                    #     AND size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
+                    # """
                     query += f"""
-                        AND size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
+                        AND size(n.genomes) - matched_genomes_nb <= {max_not_selected_genomes}
                     """
 
                 #Get Annotations
@@ -1488,15 +1500,21 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                         WHERE n.chromosome = "{c}"
                           AND n.flow >= {min_flow_deletion} AND n.flow <= {max_flow_deletion}
                           AND n.size >= {node_min_size}
+                          
                           """
                     if node_max_size > 0:
                         query += f" AND n.size <= {node_max_size}"
-
-                    query += f"""
-
-                        AND {none_expr}
+                    query += f"AND {none_expr}"
+                    if len(set_ignored_genomes) > 0:
+                        query += f"""
                             WITH n, size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) AS overlap
-                            WHERE overlap >= {min_deletion_percentage} * {nb_non_selected_genomes} / 100
+                            WHERE overlap >= {min_deletion_percentage * nb_non_selected_genomes / 100}
+                        """
+                    else:
+                        query += f"""
+                            WITH n
+                        """
+                    query += f"""
                         OPTIONAL CALL {{
                             WITH n
                           MATCH (m:Node)-[]->(n)
