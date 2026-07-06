@@ -135,8 +135,10 @@ def update_genome_list(data, path, gwas_genome_state_store,
         if ref in selected_genomes:
             current_ref_value = ref
 
-    if current_ref_value is None or current_ref_value not in selected_genomes:
+    if selected_genomes and len(selected_genomes) > 0 and (current_ref_value is None or current_ref_value not in selected_genomes):
         current_ref_value = selected_genomes[0]
+    else:
+        current_ref_value = no_update
 
     return children, options, current_ref_value
 
