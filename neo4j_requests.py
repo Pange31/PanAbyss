@@ -618,7 +618,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
             anchor_stop[genome_position]))
 
         # Step 2 : find the region between the 2 anchors
-        if anchor_stop[genome_position] - anchor_start[genome_position] > 0 and len(anchor_start['genomes']) > 0:
+        if anchor_stop[genome_position] - anchor_start[genome_position] >= 0 and len(anchor_start['genomes']) > 0:
             region_nodes_number = 0
             # construct the base query to find all genomes between the start / stop position
 
