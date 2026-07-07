@@ -42,8 +42,10 @@ def layout():
                 html.Li("Algorithm details : The principle is to determine the regions shared between a selection of haplotypes."
                         " There are two types of detection :"),
                     html.Ul([
-                        html.Li("Shared nodes : Here, the objective is to detect the nodes shared by the selected haplotypes."
-                                " Several parameters are involved:"),      
+                        html.Li("""Shared nodes : Here, the objective is to detect the nodes shared by the selected haplotypes.
+                                The detected nodes must contains at least nb of selected haplotypes x Min selected (%) of selected haplotype.
+                                These nodes may contains ignored haplotypes and maximum nb of not selected haplotypes x tolerance (%).
+                                 These parameters are used to detect these nodes:"""),
                             html.Ul([
                                 html.Li("Min node size : a node will be detected only if it's size is superior to this value."),
                                 html.Li("Max node size : a node will be detected only if it's size is inferior to this value. Set to zero or empty for no limitation."),
@@ -53,12 +55,17 @@ def layout():
                                 
                             ]),
                             
-                     html.Li("Deleted nodes: Here, the objective is to detect deletions shared by the selected haplotypes."
-                             " This mode is activated only if 'include deletion' is checked."
-                             " It detects nodes with the minimum of selected haplotypes and minimal size (see parameters) and at least one of the unselected haplotypes."
-                             " If this node is following by a node with all the unselected haplotypes and only these haplotypes, and another following node with the selected haplotypes and almost on more haplotype, then a deletion node will be detected."
-                             " In this case, the size of shared region will be incremented only by the first deleted node, the size of the other nodes will be ignored (but they will be displayed)."
-                             " The following parameters are used :"),      
+                     html.Li("""
+                        The algorithm identifies nodes through which all unselected individuals pass 
+                        (or a proportion of them, depending on the value of the Deletion search parameter). 
+                        The detected node may also contain ignored individuals.
+                        The algorithm then traces back to the preceding node, which must contain the same unselected individuals, 
+                        at least the required number of selected individuals (number of selected individuals × Min selected (%)), 
+                        and optionally ignored individuals.
+                        Finally, it verifies that this node is followed by one and only one subsequent node containing the same haplotypes.
+                        The size of the deletion is computed from the first deleted node and the last node (median of position of
+                        not selected haplotypes). The following parameters are used :
+                        """),
                          html.Ul([
                              html.Li("Min node size : a node will be detected only if it's size is superior to this value"),
                              html.Li("Max node size : a node will be detected only if it's size is inferior to this value. Set to zero or empty for no limitation."),
@@ -73,6 +80,7 @@ def layout():
                  html.Ul([
                      html.Li("General:"),
                          html.Ul([
+                             html.Li("A haplotype can be unselected, selected, or ignored (red cross)."),
                              html.Li("Size of region : this size is used to group nodes separated by less than this value (in bp)."),
                              html.Li("Limit search to chromosom : If a chromosom is selected, it will look for shared region only on this chromosom."),
                              html.Li("Reference haplotype : results will be displayed only for this haplotype, including annotations. If no one is selected then the first annotated haplotype will be displayed."
@@ -95,32 +103,6 @@ def layout():
         # Area of genomes selection
         html.Div(id='genome-checkboxes'),
        html.H3("Select genomes : ", title="Select haplotypes for which you want to find shared regions."),
-
-        # dcc.Checklist(
-        #     id="genome-list",
-        #     options=[],
-        #     value=[],
-        #     inline=False,
-        #
-        #     labelStyle={
-        #         "display": "flex",
-        #         "alignItems": "center",
-        #         "gap": "5px",
-        #         "fontSize": "14px",
-        #         "whiteSpace": "nowrap"
-        #     },
-        #
-        #     style={
-        #         "display": "grid",
-        #         #"gridTemplateColumns": "repeat(auto-fit, minmax(120px, 1fr))",
-        #         "gridTemplateColumns": "repeat(auto-fill, 250px)",
-        #         "columnGap": "4px",
-        #         "rowGap": "2px",
-        #         "columnGap": "0px",
-        #         "rowGap": "0px",
-        #         "width": "100%"
-        #     }
-        # ),
 
         html.Div(
             id="genome-list",

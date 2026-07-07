@@ -1397,6 +1397,7 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                 # First step : find specific nodes.
                 # Specific nodes are nodes with all (or the defined proportion) of selected haplotypes
                 # And none of the selected haplotypes apart from the defined tolerance
+                # There can be ignored haplotypes on the node and some of the non selected haplotype if a tolerance has been set
                 # logger.debug(f"chromosome : {c}")
 
                 # prepare result structure for each chromosome
@@ -1432,16 +1433,6 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                 """
                 #Case of genomes to ignore:
                 if len(set_ignored_genomes) > 0:
-                    # query += f"""
-                    # AND (
-                    #     size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
-                    #     OR (
-                    #         size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100 + {len(set_ignored_genomes)}
-                    #         AND
-                    #         size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) <= (size(n.genomes)-size([g IN n.genomes WHERE g IN {ignored_genomes}])) * {tolerance_percentage}/100
-                    #         )
-                    #     )
-                    # """
                     query += f"""
                     AND (
                         size(n.genomes) - matched_genomes_nb <= {max_not_selected_genomes}
@@ -1454,9 +1445,6 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                     """
                 #No genomes to ignore (this has been separate for performance issues in case of no genomes to ignore)
                 else:
-                    # query += f"""
-                    #     AND size(n.genomes) - matched_genomes_nb <= size(n.genomes) * {tolerance_percentage}/100
-                    # """
                     query += f"""
                         AND size(n.genomes) - matched_genomes_nb <= {max_not_selected_genomes}
                     """
@@ -1481,7 +1469,7 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
 
                 # logger.debug(query)
 
-                # Step 2 : find shared deletion. A shared deletion if a node with
+                # Step 2 : find shared deletion. A shared deletion is a node with
                 # all non-selected haplotypes (or the defined proportion) and
                 # none of the selected haplotypes.
                 # results :
