@@ -1197,7 +1197,10 @@ def compute_gwas_params_hash(params):
     #Sort list of genomes
     if "genomes_list" in params and isinstance(params["genomes_list"], list):
         params["genomes_list"].sort()
-
+    if "all_genomes" in params and isinstance(params["all_genomes"], list):
+        params["all_genomes"].sort()
+    if "ignored_genomes" in params and isinstance(params["ignored_genomes"], list):
+        params["ignored_genomes"].sort()
     normalized = json.dumps(params, sort_keys=True)
     return hashlib.sha256(normalized.encode()).hexdigest()
 
