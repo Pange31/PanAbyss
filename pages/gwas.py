@@ -102,7 +102,7 @@ def layout():
 
         # Area of genomes selection
         html.Div(id='genome-checkboxes'),
-       html.H3("Select genomes : ", title="Select haplotypes for which you want to find shared regions."),
+       html.H3("Select genomes: ", title="Select haplotypes for which you want to find shared regions."),
 
         html.Div(
             id="genome-list",
@@ -115,7 +115,7 @@ def layout():
             },
         ),
         html.Br(), 
-        html.H3("Parameters : "),
+        html.H3("Parameters: "),
 
         #Parameters section
         html.Div(
@@ -343,7 +343,7 @@ def layout():
 
         html.Br(),
         html.Label(
-            "Choose a reference haplotype :  ",
+            "Choose a reference haplotype: ",
             title="Select the genome for which you want to view the results and obtain annotations. If no genome is selected, the result will be the first genome found with annotations. If there are no annotations, it will be the first genome found."
             ),
         html.Div(
@@ -388,6 +388,59 @@ def layout():
             disabled=True
         ),
 
+        html.Div(
+            [
+                html.Div(
+                    [
+                        dcc.Checklist(
+                            id="manhattan-switch",
+                            options=[{"label": "", "value": "on"}],
+                            value=[],
+                            className="switch"
+                        ),
+                        html.Label(
+                            "Size / p-value plot",
+                        ),
+                    ],
+                    className="switch-wrapper"
+                ),
+
+                html.Div(
+                    [
+                        html.Label(
+                            "p-value / nodes size filter:",
+                            title="filter high p-value or low size nodes."
+                        ),
+
+                        html.Div(
+                            dcc.Slider(
+                                id='filter-slider',
+                                min=1,
+                                max=100,
+                                step=1,
+                                marks={
+                                    1: "1",
+                                    **{i: str(i) for i in range(10, 101, 10)}
+                                },
+                                value=100,
+                            ),
+                            style={"width": "250px"}
+                        )
+                    ],
+                    style={
+                        "marginLeft": "40px",
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "alignItems": "flex-start",
+                        "gap": "5px"
+                    }
+                )
+            ],
+            style={
+                "display": "flex",
+                "alignItems": "center"
+            }
+        ),
 
         dcc.Graph(
             id="chromosome-graph",

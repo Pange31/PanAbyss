@@ -1365,7 +1365,7 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
             min_associated_genomes = max(int(min_percent_selected_genomes * nb_associated_genomes / 100), 1)
             min_flow = min_associated_genomes / nb_genomes - 0.00000001
             #max_flow = nb_associated_genomes * (1 + tolerance_percentage / 100) / nb_genomes + 0.00000001
-            max_flow = (min_associated_genomes + int(tolerance_percentage*nb_non_selected_genomes) + nb_ignored_genome)/nb_genomes + 0.00000001
+            max_flow = (min_associated_genomes + int(tolerance_percentage*nb_non_selected_genomes/100) + nb_ignored_genome)/nb_genomes + 0.00000001
             max_not_selected_genomes = int(nb_non_selected_genomes * tolerance_percentage / 100)
 
             logger.debug(
@@ -1624,7 +1624,7 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                             dic_regions[c][g]["position_mean"].append(r["nodes"]["position_mean"])
                             dic_regions[c][g]["annotations"].append(r["annotations"])
                             if "deleted_node_size" not in dict(r):
-                                dic_distribution[c].append((r["nodes"]["position_mean"], r["nodes"]["size"]))
+                                dic_distribution[c].append((r["nodes"]["position_mean"], r["nodes"]["size"],pval))
                             if "deleted_node_size" in dict(r):
                                 # If deleted nodes are found, we try to reconstruct the size of the deleted regions.
                                 # To do this, we compute the median of deleted nodes for each haplotype
@@ -1647,7 +1647,7 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                                 dic_regions[c][g]["size"].append(0)
                                 if len(gap) > 0 and statistics.median(gap) is not None:
                                     dic_distribution[c].append(
-                                        (r["nodes"]["position_mean"] + r["nodes"]["size"], -statistics.median(gap)))
+                                        (r["nodes"]["position_mean"] + r["nodes"]["size"], -statistics.median(gap), pval))
 
                             else:
                                 dic_regions[c][g]["size"].append(r["nodes"]["size"])

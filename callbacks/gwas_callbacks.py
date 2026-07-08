@@ -21,6 +21,7 @@ import base64
 import io
 import logging
 import plotly.graph_objects as go
+from plotly.colors import qualitative
 
 from app import *
 from cache_manager import *
@@ -211,16 +212,230 @@ def chromosome_sort_key(chrom):
     return (2, chrom_str.lower())
 
 #Function used to create the chromosome plot
-def build_chromosome_figure(data):
+#If Manhattan = True then plot the manhattan plot else the y axe will be the node size
+# def build_chromosome_figure(data, manhattan=False):
+#     chromosome_stats = get_chromosomes_stats()
+#     if not data:
+#         return go.Figure()
+#
+#     fig = go.Figure()
+#     y_label = "Size of the shared region (negative = deletions)"
+#     #Check data
+#     if manhattan:
+#         for chrom, points in data.items():
+#             if points and len(points[0]) != 3:
+#                 manhattan = False
+#     if manhattan:
+#         y_label = "-log10(p-value)"
+#     #Get data :
+#     # If manhattan = True => x = mean position and y = pvalue
+#     # Else => x = mean position and y = size
+#     chrom_data = {
+#
+#         chrom: (
+#             [(x, z) for x, y, z in points] if manhattan
+#             else [(x, y) for x, y, *_ in points]
+#         )
+#         for chrom, points in data.items()
+#         if points
+#     }
+#
+#     if not chrom_data:
+#         return go.Figure()
+#
+#     #Sort chromosome
+#     chromosomes = sorted(chrom_data.keys(), key=chromosome_sort_key)
+#
+#     chrom_max_lengths = {}
+#     #Global length for each chromosome
+#     for chrom in chromosomes:
+#         if chromosome_stats and chromosome_stats.get(f"{chrom}_max_position_mean") is not None:
+#             chrom_max_lengths[chrom] = chromosome_stats[f"{chrom}_max_position_mean"]
+#         else:
+#             chrom_max_lengths[chrom] = max(p[0] for p in chrom_data[chrom])
+#     uniform_chrom_length = max(chrom_max_lengths.values())
+#
+#     all_y = [p[1] for points in chrom_data.values() for p in points]
+#     y_min, y_max = min(all_y), max(all_y)
+#     y_pad = 0.1 * max(abs(y_min), abs(y_max), 1)
+#
+#     colors = ["rgba(200,200,200,0.25)", "rgba(150,150,255,0.25)"]
+#
+#     x_offset = 0
+#     chromosome_centers = []
+#     chromosome_labels = []
+#     total_points = sum(len(points) for points in chrom_data.values())
+#     use_webgl = total_points > NB_POINTS_WEBGL
+#     ScatterClass = go.Scattergl if use_webgl else go.Scatter
+#     if use_webgl :
+#         logger.debug("WebGL Scatter class used.")
+#     else:
+#         logger.debug("SVG Scatter class used.")
+#     for i, chrom in enumerate(chromosomes):
+#         #Sort by genomic coordinates
+#         points_sorted = sorted(chrom_data[chrom], key=lambda p: p[0])
+#
+#         x_local = [p[0] for p in points_sorted]
+#         y = [p[1] for p in points_sorted]
+#
+#         real_max = chrom_max_lengths[chrom]
+#
+#         x_start = x_offset
+#         x_end = x_offset + real_max
+#
+#         #global coordinates
+#         x_global = [x + x_offset for x in x_local]
+#
+#         #chromosome area
+#         fig.add_shape(
+#             type="rect",
+#             x0=x_start,
+#             x1=x_end,
+#             y0=y_min - y_pad,
+#             y1=y_max + y_pad,
+#             fillcolor=colors[i % len(colors)],
+#             line_width=0,
+#             layer="below"
+#         )
+#
+#         #Line on beginning ending of chromosome
+#         for x in (x_start, x_end):
+#             fig.add_shape(
+#                 type="line",
+#                 x0=x, x1=x,
+#                 y0=y_min - y_pad,
+#                 y1=y_max + y_pad,
+#                 line=dict(color="black", width=1)
+#             )
+#
+#         #Points
+#         fig.add_trace(ScatterClass(
+#             x=x_global,
+#             y=y,
+#             mode="markers",
+#             name=str(chrom),
+#             customdata=x_local,
+#             hovertemplate=(
+#                 f"{chrom}<br>"
+#                 "Position: %{customdata}<br>"
+#                 "Value: %{y}<extra></extra>"
+#             )
+#         ))
+#
+#         chromosome_centers.append(x_offset + real_max / 2)
+#         chromosome_labels.append(str(chrom))
+#
+#         x_offset += real_max + 1
+#
+#     fig.add_hline(
+#         y=0,
+#         line_dash="dash",
+#         line_color="black"
+#     )
+#
+#     fig.update_layout(
+#         title=dict(
+#             text="Distribution of Shared Regions",
+#             x=0.5,
+#             xanchor="center",
+#             y=0.95,
+#             yanchor="top",
+#             font=dict(
+#                 family="Inter, Arial, sans-serif",
+#                 size=18,
+#                 color="black"
+#             )
+#         ),
+#
+#         font=dict(
+#             family="Inter, Arial, sans-serif",
+#             size=12,
+#             color="black"
+#         ),
+#
+#         xaxis=dict(
+#             tickmode="array",
+#             tickvals=chromosome_centers,
+#             ticktext=chromosome_labels,
+#
+#             title=dict(
+#                 text="Chromosomes and mean position",
+#                 font=dict(size=14, color="black")
+#             ),
+#
+#             tickfont=dict(size=11, color="black"),
+#             linecolor="black",
+#             mirror=True
+#         ),
+#
+#         yaxis=dict(
+#             title=dict(
+#                 text=y_label,
+#                 font=dict(size=14, color="black")
+#             ),
+#
+#             tickfont=dict(size=11, color="black"),
+#             range=[y_min - y_pad, y_max + y_pad],
+#
+#             linecolor="black",
+#             mirror=True
+#         ),
+#
+#         showlegend=False,
+#         plot_bgcolor="white",
+#         paper_bgcolor="white",
+#
+#         margin=dict(l=60, r=20, t=90, b=60)
+#     )
+#     return fig
+
+def compute_alpha(rank, transparency):
+
+    if transparency == 0:
+        return 1.0
+
+    if transparency >= 100:
+        return 1.0 if rank >= 0.90 else 0
+
+    threshold = transparency / 100
+
+    alpha = (rank - threshold) / (1 - threshold)
+    return float(np.clip(alpha, 0.05, 1.0))
+
+def build_chromosome_figure_old(data, manhattan=False, pvalue_transparency=0):
     chromosome_stats = get_chromosomes_stats()
     if not data:
         return go.Figure()
 
     fig = go.Figure()
+    pvalue_transparency = max(0, min(100, pvalue_transparency))
 
-    #Check empty results for a chromosome
+    y_label = "Size of the shared region (negative = deletions)"
+    #Check data (presence of pvalues)
+    has_pvalues = all(
+        len(point) >= 3
+        for points in data.values()
+        for point in points
+    )
+    if manhattan and not has_pvalues:
+        manhattan = False
+
+    if manhattan:
+        y_label = "-log10(p-value)"
+    #Get data :
+    # If manhattan = True => x = mean position and y = pvalue
+    # Else => x = mean position and y = size
     chrom_data = {
-        chrom: points
+        chrom: [
+            {
+                "x": point[0],
+                "size": point[1],
+                "pval": point[2] if len(point) >= 3 else None,
+                "y": -np.log10(max(point[2], 1e-300)) if manhattan and len(point) >= 3 else point[1],
+                "alpha_value": abs(point[1]) if manhattan else (-np.log10(max(point[2], 1e-300)) if len(point) >= 3 else None)
+            }
+            for point in points
+        ]
         for chrom, points in data.items()
         if points
     }
@@ -228,23 +443,57 @@ def build_chromosome_figure(data):
     if not chrom_data:
         return go.Figure()
 
+    ######## Compute y value (p-value or size) and ranges
+    all_y = [
+        p["y"]
+        for pts in chrom_data.values()
+        for p in pts
+    ]
+
+    reference_values = [
+        p["alpha_value"]
+        for pts in chrom_data.values()
+        for p in pts
+        if p["alpha_value"] is not None
+    ]
+    sorted_values = np.sort(reference_values)
+
+    for pts in chrom_data.values():
+        for p in pts:
+            if p["alpha_value"] is not None:
+                p["rank"] = (
+                        np.searchsorted(sorted_values, p["alpha_value"], side="left")
+                        / len(sorted_values)
+                )
+
+    y_min = min(all_y)
+    y_max = max(all_y)
+
+    if manhattan:
+        y_range = [0, y_max * 1.05]
+    else:
+        y_pad = 0.1 * max(abs(y_min), abs(y_max), 1)
+        y_range = [y_min - y_pad, y_max + y_pad]
+
+
+
+    ########### Comput x value (mean position on each chromosome)
     #Sort chromosome
     chromosomes = sorted(chrom_data.keys(), key=chromosome_sort_key)
 
-    chrom_max_lengths = {}
     #Global length for each chromosome
-    for chrom in chromosomes:
-        if chromosome_stats and chromosome_stats.get(f"{chrom}_max_position_mean") is not None:
-            chrom_max_lengths[chrom] = chromosome_stats[f"{chrom}_max_position_mean"]
-        else:
-            chrom_max_lengths[chrom] = max(p[0] for p in chrom_data[chrom])
-    uniform_chrom_length = max(chrom_max_lengths.values())
+    chrom_max_lengths = {
+        chrom: (
+            chromosome_stats[f"{chrom}_max_position_mean"]
+            if chromosome_stats and chromosome_stats.get(f"{chrom}_max_position_mean") is not None
+            else max(p["x"] for p in chrom_data[chrom])
+        )
+        for chrom in chromosomes
+    }
 
-    all_y = [p[1] for points in chrom_data.values() for p in points]
-    y_min, y_max = min(all_y), max(all_y)
-    y_pad = 0.1 * max(abs(y_min), abs(y_max), 1)
 
     colors = ["rgba(200,200,200,0.25)", "rgba(150,150,255,0.25)"]
+
 
     x_offset = 0
     chromosome_centers = []
@@ -256,12 +505,25 @@ def build_chromosome_figure(data):
         logger.debug("WebGL Scatter class used.")
     else:
         logger.debug("SVG Scatter class used.")
-    for i, chrom in enumerate(chromosomes):
-        #Sort by genomic coordinates
-        points_sorted = sorted(chrom_data[chrom], key=lambda p: p[0])
 
-        x_local = [p[0] for p in points_sorted]
-        y = [p[1] for p in points_sorted]
+    plotly_colors = qualitative.Plotly
+    for i, chrom in enumerate(chromosomes):
+        #get chromosome color
+        hex_color = plotly_colors[i % len(plotly_colors)]
+
+        hex_color = hex_color.lstrip("#")
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        #Sort by genomic coordinates
+        points_sorted = sorted(
+            chrom_data[chrom],
+            key=lambda p: (p["x"], p.get("rank", 1))
+        )
+
+        x_local = [p["x"] for p in points_sorted]
+
+        y = [p["y"] for p in points_sorted]
 
         real_max = chrom_max_lengths[chrom]
 
@@ -276,8 +538,8 @@ def build_chromosome_figure(data):
             type="rect",
             x0=x_start,
             x1=x_end,
-            y0=y_min - y_pad,
-            y1=y_max + y_pad,
+            y0=y_range[0],
+            y1=y_range[1],
             fillcolor=colors[i % len(colors)],
             line_width=0,
             layer="below"
@@ -288,35 +550,91 @@ def build_chromosome_figure(data):
             fig.add_shape(
                 type="line",
                 x0=x, x1=x,
-                y0=y_min - y_pad,
-                y1=y_max + y_pad,
+                y0=y_range[0],
+                y1=y_range[1],
                 line=dict(color="black", width=1)
             )
 
-        #Points
-        fig.add_trace(ScatterClass(
-            x=x_global,
-            y=y,
-            mode="markers",
-            name=str(chrom),
-            customdata=x_local,
-            hovertemplate=(
-                f"{chrom}<br>"
-                "Position: %{customdata}<br>"
-                "Value: %{y}<extra></extra>"
+
+        ############ Set transparency and color
+        if has_pvalues:
+
+            alpha_values = [
+                compute_alpha(p["rank"], pvalue_transparency)
+                for p in points_sorted
+            ]
+
+            marker = dict(
+                color=[
+                    f"rgba({r},{g},{b},{a})"
+                    for a in alpha_values
+                ]
             )
-        ))
+        else:
+            marker = dict(
+                color="rgba(31,119,180,0.8)"
+            )
+
+        #Points
+        if has_pvalues:
+
+            customdata = np.column_stack([
+                x_local,
+                [p["size"] for p in points_sorted],
+                [p["pval"] for p in points_sorted]
+            ])
+
+            hovertemplate = (
+                f"{chrom}<br>"
+                "Position: %{customdata[0]}<br>"
+                "Size: %{customdata[1]}<br>"
+                "p-value: %{customdata[2]:.3e}<extra></extra>"
+            )
+
+        else:
+
+            customdata = np.column_stack([
+                x_local,
+                [p["size"] for p in points_sorted]
+            ])
+
+            hovertemplate = (
+                f"{chrom}<br>"
+                "Position: %{customdata[0]}<br>"
+                "Size: %{customdata[1]}<extra></extra>"
+            )
+
+        fig.add_trace(
+            ScatterClass(
+                x=x_global,
+                y=y,
+                mode="markers",
+                marker=marker,
+                name=str(chrom),
+                customdata=customdata,
+                hovertemplate=hovertemplate
+            )
+        )
 
         chromosome_centers.append(x_offset + real_max / 2)
         chromosome_labels.append(str(chrom))
 
         x_offset += real_max + 1
 
-    fig.add_hline(
-        y=0,
-        line_dash="dash",
-        line_color="black"
-    )
+    if manhattan:
+        fig.add_hline(
+            y=-np.log10(0.05),
+            line_dash="dash",
+            line_color="red",
+            annotation_text="p = 0.05",
+            annotation_position="top right"
+        )
+    else:
+        fig.add_hline(
+            y=0,
+            line_dash="dash",
+            line_color="black"
+        )
 
     fig.update_layout(
         title=dict(
@@ -355,12 +673,12 @@ def build_chromosome_figure(data):
 
         yaxis=dict(
             title=dict(
-                text="Size of the shared region (negative = deletions)",
+                text=y_label,
                 font=dict(size=14, color="black")
             ),
 
             tickfont=dict(size=11, color="black"),
-            range=[y_min - y_pad, y_max + y_pad],
+            range=y_range,
 
             linecolor="black",
             mirror=True
@@ -374,6 +692,416 @@ def build_chromosome_figure(data):
     )
     return fig
 
+
+
+def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
+    chromosome_stats = get_chromosomes_stats()
+
+    if not data:
+        return go.Figure()
+
+    fig = go.Figure()
+
+    filter_nodes = max(0, min(100, filter_nodes))
+
+    y_label = "Size of the shared region (negative = deletions)"
+
+    # Check presence of p-values
+    has_pvalues = all(
+        len(point) >= 3
+        for points in data.values()
+        for point in points
+    )
+
+    if manhattan and not has_pvalues:
+        manhattan = False
+
+    if manhattan:
+        y_label = "-log10(p-value)"
+
+    # Prepare data
+    chrom_data = {
+        chrom: [
+            {
+                "x": point[0],
+                "size": point[1],
+                "pval": point[2] if len(point) >= 3 else None,
+                "y": (
+                    -np.log10(max(point[2], 1e-300))
+                    if manhattan and len(point) >= 3
+                    else point[1]
+                ),
+                "filter_value": (
+                    abs(point[1])
+                    if manhattan
+                    else -np.log10(max(point[2], 1e-300))
+                )
+            }
+            for point in points
+        ]
+        for chrom, points in data.items()
+        if points
+    }
+
+    if not chrom_data:
+        return go.Figure()
+
+
+    # ==========================================================
+    # Compute filter threshold
+    # ==========================================================
+
+    if filter_nodes < 100:
+
+        filter_values = [
+            p["filter_value"]
+            for pts in chrom_data.values()
+            for p in pts
+        ]
+
+        threshold = np.percentile(
+            filter_values,
+            100 - filter_nodes
+        )
+
+        for chrom in chrom_data:
+            chrom_data[chrom] = [
+                p for p in chrom_data[chrom]
+                if p["filter_value"] >= threshold
+            ]
+
+
+    # ==========================================================
+    # Y range
+    # ==========================================================
+
+    all_y = [
+        p["y"]
+        for pts in chrom_data.values()
+        for p in pts
+    ]
+
+    if not all_y:
+        return go.Figure()
+
+    y_min = min(all_y)
+    y_max = max(all_y)
+
+    if manhattan:
+        y_range = [0, y_max * 1.05]
+    else:
+        y_pad = 0.1 * max(abs(y_min), abs(y_max), 1)
+        y_range = [
+            y_min - y_pad,
+            y_max + y_pad
+        ]
+
+
+    # ==========================================================
+    # Chromosome positions
+    # ==========================================================
+
+    chromosomes = sorted(
+        chrom_data.keys(),
+        key=chromosome_sort_key
+    )
+
+    chrom_max_lengths = {}
+
+    for chrom in chromosomes:
+        if (
+            chromosome_stats
+            and chromosome_stats.get(
+                f"{chrom}_max_position_mean"
+            ) is not None
+        ):
+            chrom_max_lengths[chrom] = (
+                chromosome_stats[f"{chrom}_max_position_mean"]
+            )
+        else:
+            chrom_max_lengths[chrom] = max(
+                p["x"]
+                for p in chrom_data[chrom]
+            )
+
+
+    colors = [
+        "rgba(200,200,200,0.25)",
+        "rgba(150,150,255,0.25)"
+    ]
+
+
+    x_offset = 0
+    chromosome_centers = []
+    chromosome_labels = []
+
+
+    total_points = sum(
+        len(points)
+        for points in chrom_data.values()
+    )
+
+    use_webgl = total_points > NB_POINTS_WEBGL
+
+    ScatterClass = (
+        go.Scattergl
+        if use_webgl
+        else go.Scatter
+    )
+
+
+    plotly_colors = qualitative.Plotly
+
+
+    # ==========================================================
+    # Draw chromosomes
+    # ==========================================================
+
+    for i, chrom in enumerate(chromosomes):
+
+        hex_color = plotly_colors[
+            i % len(plotly_colors)
+        ]
+
+        hex_color = hex_color.lstrip("#")
+
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+
+
+        # Sort by position
+        points_sorted = sorted(
+            chrom_data[chrom],
+            key=lambda p: p["x"]
+        )
+
+
+        x_local = [
+            p["x"]
+            for p in points_sorted
+        ]
+
+        y = [
+            p["y"]
+            for p in points_sorted
+        ]
+
+
+        real_max = chrom_max_lengths[chrom]
+
+        x_start = x_offset
+        x_end = x_offset + real_max
+
+
+        x_global = [
+            x + x_offset
+            for x in x_local
+        ]
+
+
+        # Background chromosome
+        fig.add_shape(
+            type="rect",
+            x0=x_start,
+            x1=x_end,
+            y0=y_range[0],
+            y1=y_range[1],
+            fillcolor=colors[i % len(colors)],
+            line_width=0,
+            layer="below"
+        )
+
+
+        # Chromosome borders
+        for x in (x_start, x_end):
+
+            fig.add_shape(
+                type="line",
+                x0=x,
+                x1=x,
+                y0=y_range[0],
+                y1=y_range[1],
+                line=dict(
+                    color="black",
+                    width=1
+                )
+            )
+
+
+        marker = dict(
+            color=f"rgb({r},{g},{b})",
+            size=7
+        )
+
+
+        # Hover data
+        if has_pvalues:
+
+            customdata = np.column_stack(
+                [
+                    x_local,
+                    [
+                        p["size"]
+                        for p in points_sorted
+                    ],
+                    [
+                        p["pval"]
+                        for p in points_sorted
+                    ]
+                ]
+            )
+
+            hovertemplate = (
+                f"{chrom}<br>"
+                "Position: %{customdata[0]}<br>"
+                "Size: %{customdata[1]}<br>"
+                "p-value: %{customdata[2]:.3e}"
+                "<extra></extra>"
+            )
+
+        else:
+
+            customdata = np.column_stack(
+                [
+                    x_local,
+                    [
+                        p["size"]
+                        for p in points_sorted
+                    ]
+                ]
+            )
+
+            hovertemplate = (
+                f"{chrom}<br>"
+                "Position: %{customdata[0]}<br>"
+                "Size: %{customdata[1]}"
+                "<extra></extra>"
+            )
+
+
+        fig.add_trace(
+            ScatterClass(
+                x=x_global,
+                y=y,
+                mode="markers",
+                marker=marker,
+                name=str(chrom),
+                customdata=customdata,
+                hovertemplate=hovertemplate
+            )
+        )
+
+
+        chromosome_centers.append(
+            x_offset + real_max / 2
+        )
+
+        chromosome_labels.append(
+            str(chrom)
+        )
+
+
+        x_offset += real_max + 1
+
+
+    # ==========================================================
+    # Reference line
+    # ==========================================================
+
+    if manhattan:
+
+        fig.add_hline(
+            y=-np.log10(0.05),
+            line_dash="dash",
+            line_color="red",
+            annotation_text="p = 0.05",
+            annotation_position="top right"
+        )
+
+    else:
+
+        fig.add_hline(
+            y=0,
+            line_dash="dash",
+            line_color="black"
+        )
+
+
+    # ==========================================================
+    # Layout
+    # ==========================================================
+
+    fig.update_layout(
+
+        title=dict(
+            text="Distribution of Shared Regions",
+            x=0.5,
+            xanchor="center",
+            font=dict(size=18)
+        ),
+
+        xaxis=dict(
+            tickmode="array",
+            tickvals=chromosome_centers,
+            ticktext=chromosome_labels,
+            title="Chromosomes and mean position",
+            linecolor="black",
+            mirror=True
+        ),
+
+        yaxis=dict(
+            title=y_label,
+            range=y_range,
+            linecolor="black",
+            mirror=True
+        ),
+
+        showlegend=False,
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+
+        margin=dict(
+            l=60,
+            r=20,
+            t=90,
+            b=60
+        )
+    )
+
+    return fig
+
+#Switch to manhattan plot
+@app.callback(
+    Output("chromosome-graph", "figure", allow_duplicate=True),
+    Input("manhattan-switch", "value"),
+    State("gwas-page-store", "data"),
+    State('filter-slider', 'value'),
+    prevent_initial_call=True
+)
+def manhattan_switch(value, data, transparency):
+    if not data:
+        data = {}
+    gwas_points = data.get("gwas_graph_points", None)
+    if not gwas_points or len(gwas_points) == 0:
+        return no_update
+    return build_chromosome_figure(gwas_points,manhattan=("on" in value),filter_nodes=transparency)
+
+#Pvalue and node size filter
+@app.callback(
+    Output("chromosome-graph", "figure", allow_duplicate=True),
+    Input('filter-slider', 'value'),
+    State("gwas-page-store", "data"),
+    State("manhattan-switch", "value"),
+    prevent_initial_call=True
+)
+def filter_nodes(transparency, data, manhattan_value):
+    if not data:
+        data = {}
+    gwas_points = data.get("gwas_graph_points", None)
+    if not gwas_points or len(gwas_points) == 0:
+        return no_update
+    return build_chromosome_figure(gwas_points,manhattan=("on" in manhattan_value), filter_nodes=transparency)
 
 #Callback triggered by clicking on the launch button
 #This callback is required to set the parameters in the store to allow further navigation
@@ -802,9 +1530,11 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data,
     #Input("gwas-page-store", "modified_timestamp"),
     Input("gwas-page-store", "data"),
     State('parameters-gwas-page-store', 'data'),
+    #State("manhattan-switch", "value"),
+    State("filter-slider", "value"),
     prevent_initial_call=True
 )
-def update_data(path, data, parameters_data):
+def update_data(path, data, parameters_data, filter_percent):
     #analyse = table_data
     if path != "/gwas":
         raise exceptions.PreventUpdate
@@ -868,7 +1598,9 @@ def update_data(path, data, parameters_data):
                     else:
                         message_analyse = f"{len_analyse} shared regions found."
         if "gwas_graph_points" in data and len(data["gwas_graph_points"]) > 0:
-            chromosome_figure = build_chromosome_figure(data["gwas_graph_points"])
+            #manhattan=("on" in manhattan_switch)
+            #chromosome_figure = build_chromosome_figure(data["gwas_graph_points"], manhattan=manhattan)
+            chromosome_figure = build_chromosome_figure(data["gwas_graph_points"], filter_nodes=filter_percent)
             figure_display = {"display": "block"}
     if parameters_data is not None:
         if "min_node_size" in parameters_data:

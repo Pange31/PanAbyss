@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+
+## [1.4.1]
+### Added
+- Possibility to ignore a set of haplotypes in shared region discovery page
+- Switch to manhattan plot in shared region discovery
+- Filtering nodes by size or p-value in shared region discovery
+
+### Changed
+- 
+
+### Fixed
+- Zoom on a single node
+
+### Removed
+
+
 ## [1.4.0]
 ### Added
 - Checkbox to display nodes names

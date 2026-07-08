@@ -11,6 +11,7 @@ from dash.exceptions import PreventUpdate
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
 import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 
 import pandas as pd
 import numpy as np
@@ -228,7 +229,6 @@ def hex_to_rgb_string(hex_color):
 
 
 def get_color_palette(n):
-    import matplotlib.pyplot as plt
     cmap = plt.get_cmap("tab20")
     return [f'rgb({int(r*255)}, {int(g*255)}, {int(b*255)})' for r, g, b, _ in cmap(np.linspace(0, 1, n))]
 
