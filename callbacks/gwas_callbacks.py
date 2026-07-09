@@ -98,31 +98,56 @@ def update_genome_list(data, path, gwas_genome_state_store,
         color = COLORS.get(s, "grey")
 
         children.append(
+            # html.Div(
+            #     [
+            #         html.Span(
+            #             symbol,
+            #             id={"type": "genome-toggle", "genome": genome},
+            #             style={
+            #                 "cursor": "pointer",
+            #                 "fontSize": "18px",
+            #                 "width": "20px",
+            #                 "textAlign": "center",
+            #                 "display": "inline-block",
+            #                 "color": color,
+            #                 "userSelect": "none",
+            #             },
+            #         ),
+            #         html.Span(genome, style={"fontSize": "14px"}),
+            #     ],
+            #     style={
+            #         "display": "flex",
+            #         "alignItems": "center",
+            #         "gap": "6px",
+            #         "padding": "2px 4px",
+            #         "whiteSpace": "nowrap",
+            #     },
+            # )
+
             html.Div(
                 [
                     html.Span(
                         symbol,
-                        id={"type": "genome-toggle", "genome": genome},
                         style={
-                            "cursor": "pointer",
-                            "fontSize": "18px",
                             "width": "20px",
                             "textAlign": "center",
-                            "display": "inline-block",
                             "color": color,
-                            "userSelect": "none",
                         },
                     ),
-                    html.Span(genome, style={"fontSize": "14px"}),
+                    html.Span(genome),
                 ],
+                id={"type": "genome-toggle", "genome": genome},
+                n_clicks=0,
                 style={
                     "display": "flex",
                     "alignItems": "center",
                     "gap": "6px",
+                    "cursor": "pointer",
                     "padding": "2px 4px",
-                    "whiteSpace": "nowrap",
                 },
             )
+
+
         )
 
     selected_genomes = [g for g, s in gwas_genome_state_store.items() if s == "selected"]
@@ -1074,18 +1099,27 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
 #Switch to manhattan plot
 @app.callback(
     Output("chromosome-graph", "figure", allow_duplicate=True),
+    Output("filter-slider-label", "children"),
+    Output("filter-slider-label", "title"),
     Input("manhattan-switch", "value"),
     State("gwas-page-store", "data"),
     State('filter-slider', 'value'),
     prevent_initial_call=True
 )
-def manhattan_switch(value, data, transparency):
+def manhattan_switch(value, data, filter_level):
     if not data:
         data = {}
+    manhattan = False
+    filter_label = "p-value filter:"
+    filter_title = "Filter high p-value nodes."
+    if "on" in value:
+        manhattan = True
+        filter_label = "Nodes size filter:"
+        filter_title = "Filter small nodes."
     gwas_points = data.get("gwas_graph_points", None)
     if not gwas_points or len(gwas_points) == 0:
-        return no_update
-    return build_chromosome_figure(gwas_points,manhattan=("on" in value),filter_nodes=transparency)
+        return no_update, filter_label, filter_title
+    return build_chromosome_figure(gwas_points,manhattan=manhattan,filter_nodes=filter_level), filter_label, filter_title
 
 #Pvalue and node size filter
 @app.callback(
@@ -1095,13 +1129,13 @@ def manhattan_switch(value, data, transparency):
     State("manhattan-switch", "value"),
     prevent_initial_call=True
 )
-def filter_nodes(transparency, data, manhattan_value):
+def filter_nodes(filter_level, data, manhattan_value):
     if not data:
         data = {}
     gwas_points = data.get("gwas_graph_points", None)
     if not gwas_points or len(gwas_points) == 0:
         return no_update
-    return build_chromosome_figure(gwas_points,manhattan=("on" in manhattan_value), filter_nodes=transparency)
+    return build_chromosome_figure(gwas_points,manhattan=("on" in manhattan_value), filter_nodes=filter_level)
 
 #Callback triggered by clicking on the launch button
 #This callback is required to set the parameters in the store to allow further navigation

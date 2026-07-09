@@ -399,7 +399,7 @@ def layout():
                             className="switch"
                         ),
                         html.Label(
-                            "Size / p-value plot",
+                            "Manhattan plot",
                         ),
                     ],
                     className="switch-wrapper"
@@ -408,8 +408,9 @@ def layout():
                 html.Div(
                     [
                         html.Label(
-                            "p-value / nodes size filter:",
-                            title="filter high p-value or low size nodes."
+                            id="filter-slider-label",
+                            children="p-value filter:",
+                            title="Filter small nodes."
                         ),
 
                         html.Div(
