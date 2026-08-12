@@ -4,7 +4,6 @@ from math import *
 from neo4j.exceptions import Neo4jError
 import time
 import hashlib
-import logging
 import scipy.sparse as sp
 import numpy as np
 import os
@@ -569,72 +568,6 @@ def create_indexes(base=True, extend=False, genomes_index=False):
 
 
 @require_authorization
-def creer_index_chromosome(chromosomes_list = []):
-    query_genomes = """
-    MATCH (s:Stats) 
-    RETURN s.genomes as all_genomes
-    """
-    all_chromosomes = chromosomes_list
-    all_genomes = []
-    indexes_queries = []
-    driver = get_scoped_driver()
-    if driver is None:
-        return None
-
-    with driver.session() as session:
-        result = session.run(query_genomes)
-        for record in result:
-            all_genomes = record["all_genomes"]
-
-        for c in all_chromosomes:
-            indexes_queries.append("CREATE INDEX Node_chr_" + str(c) +"IndexName IF NOT EXISTS FOR (n:Node_chr_" + str(c) +") ON (n.name)")
-            indexes_queries.append("CREATE INDEX Node_chr_" + str(c) +"IndexFlow  IF NOT EXISTS FOR (n:Node_chr_" + str(c) +") ON (n.flow)")
-            indexes_queries.append("CREATE INDEX Node_chr_" + str(c) +"IndexSize IF NOT EXISTS FOR (n:Node_chr_" + str(c) +") ON (n.size)")
-            for g in all_genomes :
-                indexes_queries.append("CREATE INDEX Node_chr_" + str(c) +"Index"+str(g)+"_position IF NOT EXISTS FOR (n:Node_chr_" + str(c) +") ON (n."+str(g)+"_position)")
-                indexes_queries.append("CREATE INDEX Node_chr_" + str(c) +"Index"+str(g)+"_node IF NOT EXISTS FOR (n:Node_chr_" + str(c) +") ON (n."+str(g)+"_node)")
-
-            with driver.session() as session:
-                with session.begin_transaction() as tx:
-                    for query in indexes_queries :
-                        tx.run(query)
-                        
-
-
-@require_authorization                        
-def creer_index_chromosome_genomes():
-    query_genomes = """
-    MATCH (s:Stats) 
-    RETURN s.genomes as all_genomes
-    """
-    indexes_queries = []
-    all_genomes = []
-    driver = get_scoped_driver()
-    if driver is None:
-        return None
-
-    with driver.session() as session:
-        result = session.run(query_genomes)
-        for record in result:
-            all_genomes = record["all_genomes"]
-
-        nb_genomes = len(all_genomes)
-        current_genome = 0
-        for g in all_genomes :
-            logger.info("creating indexes for genome " + g + " ("+str(current_genome) + "/"+str(nb_genomes) +")")
-            current_genome += 1
-            indexes_queries = []
-            indexes_queries.append("CREATE INDEX NodeIndex"+str(g).replace("-", "_").replace(".","_")+"_position IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.`"+str(g)+"_position`)")
-            indexes_queries.append("CREATE INDEX NodeIndex"+str(g).replace("-", "_").replace(".","_")+"_node IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.`"+str(g)+"_node`)")
-            with session.begin_transaction() as tx:
-                for query in indexes_queries :
-                    tx.run(query)
-            if current_genome % 5 == 0:
-                time.sleep(60*10)
-    logger.info("Indexes created")
-
-
-@require_authorization
 def create_labels_chromosomes(liste_chromosomes=[]):
     all_chromosomes = []
     labels_queries = []
@@ -697,110 +630,9 @@ def creer_relations_batch(session, liste_relations):
 
 
 '''
-This function will create the nodes and their sequences (only name and sequence) in the neo4j database.
-Then it will create the indexes: kmer and relationships with the nodes.
-'''
-@require_authorization
-def creer_sequences_et_indexes(session, dic_kmer_relation, kmer_size, nodes_dic):
-    
-    nb_transactions = ceil(len(nodes_dic)/batch_size_BDD)
-    current_transaction = 0
-    nodes_list = list(nodes_dic.keys())
-    logger.info("Start to create sequence into DB")
-    with tqdm(total=len(nodes_dic)) as bar :
-        while len(nodes_dic)-current_transaction*batch_size_BDD > 0:
-            # Démarrer une transaction
-            with session.begin_transaction() as tx:
-                ind_depart = current_transaction*batch_size_BDD
-                nodes_list_transaction = nodes_list[ind_depart:ind_depart+min(batch_size_BDD, len(nodes_dic)-current_transaction*10000)]
-    
-                logger.debug("Transaction " + str(current_transaction))
-                for t in range(min(batch_size_BDD, len(nodes_dic)-current_transaction*batch_size_BDD)):
-                    nc = nodes_list_transaction[t]
-                    q = """
-                        CREATE (n:Sequence {name:$nom, sequence:$sequence})
-                        """ 
-                    result = tx.run(
-                        q,
-                        nom=nc,
-                        sequence=nodes_dic[nc]
-                    )
-                bar.update(min(batch_size_BDD, len(nodes_dic)-current_transaction*batch_size_BDD))
-                current_transaction += 1
-    logger.info("End of sequence creation into DB")
-    liste_kmer = list(dic_kmer_relation.keys())
-    logger.info("Start of indexes creation")
-    current_transaction = 0
-    with tqdm(total=len(dic_kmer_relation)) as bar :
-        while len(dic_kmer_relation)-current_transaction*batch_size_BDD > 0:
-            # Démarrer une transaction
-            with session.begin_transaction() as tx:
-                ind_depart = current_transaction*batch_size_BDD
-                liste_kmer_transaction = liste_kmer[ind_depart:ind_depart+min(batch_size_BDD, len(dic_kmer_relation)-current_transaction*10000)]
-    
-                logger.debug("Transaction " + str(current_transaction))
-                for t in range(min(batch_size_BDD, len(dic_kmer_relation)-current_transaction*batch_size_BDD)):
-                    kmer = liste_kmer_transaction[t]
-                    q = """
-                        CREATE (k:kmer {kmer:$kmer, size:$size})
-                        WITH k 
-                        MATCH (n:Sequence)
-                        WHERE n.name IN $target_nodes
-                        CREATE (k)-[:index]->(n)
-                        """
-                    result = tx.run(
-                        q,
-                        target_nodes=dic_kmer_relation[kmer],
-                        kmer=kmer,
-                        size=kmer_size
-                    )
-                bar.update(min(batch_size_BDD, len(dic_kmer_relation)-current_transaction*batch_size_BDD))
-                current_transaction += 1
-    logger.info("Indexes created into DB")
-    return
-
-
-
-'''
-This function allows you to create nodes with the node sequence and its name.
-It also creates indexes (kmers and associated nodes).
-'''
-@require_authorization
-def load_sequences_and_indexes(gfa_file_name, kmer_size=31):
-    nodes_dic = {}
-    file = open(gfa_file_name, "r", encoding='utf-8')
-    kmer_set = set()
-    dic_kmer_relation = {}
-    with file:
-        total_nodes = sum(1 for line in file if line.startswith(('S')))
-        file.seek(0,0)
-        with tqdm(total=total_nodes) as bar :
-            ligne = file.readline()
-            while ligne:
-                if ligne.startswith(('S')):
-                    ligne_dec = ligne.split()
-                    if len(ligne_dec) > 0:
-                        bar.update(1)
-                        seq = ligne_dec[2]
-                        node = ligne_dec[1]
-                        nodes_dic[node] = seq
-                        if len(seq) > kmer_size:
-                            liste_kmer = [seq[i:i+kmer_size] for i in range(len(seq)-kmer_size+1)]
-                            for kmer in liste_kmer:
-                                if kmer in kmer_set :
-                                    dic_kmer_relation[kmer].append(node)
-                                else:
-                                    kmer_set.add(kmer)
-                                    dic_kmer_relation[kmer] = [node]
-                ligne = file.readline()
-    file.close()
-    return dic_kmer_relation, nodes_dic
-
-'''
 This function allows you to create nodes with the node sequence and name.
 '''
 @require_authorization
-#TODO : découper en lot le chargement des noeuds
 def load_sequences(gfa_file_name, chromosome_file = None, create=False, batch_size=20000000):
     nodes_dic = {}
     start_time = time.time()
@@ -2351,15 +2183,6 @@ def delete_relations(relation_label, batch_size=100000):
         logger.debug(f"Deletion completed in {duration:.2f} seconds.")
 
 
-@require_authorization            
-def construct_sequences_and_indexes(gfa_file_name, kmer_size=31):
-    dic_kmer_relation, nodes_dic = load_sequences(gfa_file_name, kmer_size=31)
-    driver = get_scoped_driver()
-    if driver is None:
-        return None
-    with driver.session() as session:
-        creer_sequences_et_indexes(session, dic_kmer_relation, kmer_size, nodes_dic)
-            
 
 @require_authorization            
 def load_multi_annotations():
