@@ -11,7 +11,6 @@ import dash
 from dash import html, Input, Output, callback, State, callback_context, dcc, ctx, exceptions, no_update
 from dash.exceptions import PreventUpdate
 
-from app import *
 from cache_manager import *
 
 import os
@@ -24,7 +23,7 @@ root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if root_path not in sys.path:
     sys.path.append(root_path)
 from app import *
-from neo4j_requests import *
+from neo4j.services.neo4j_requests import *
 import logging
 
 logger = logging.getLogger("panabyss_logger")

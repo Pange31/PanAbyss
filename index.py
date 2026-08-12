@@ -5,15 +5,12 @@ Created on Wed Jul  2 12:06:35 2025
 
 @author: fgraziani
 """
-import time
-import uuid
 
 from dash import Dash, dcc, html, Input, Output, State, ctx,no_update, exceptions
 import dash_bootstrap_components as dbc
 import dash_auth
 
 from app import *
-from pages import phylo_management
 
 import signal
 import sys
@@ -26,17 +23,11 @@ import pages.db_management as db_management
 import pages.about as about
 import pages.gwas_management as gwas_management
 import pages.phylo_management as phylo_management
-from urllib.parse import urlencode
 from pathlib import Path
-import json
 
-
-
-from neo4j_requests import *
+from neo4j.services.neo4j_requests import *
 from neo4j_container_management import *
-from config import *
 
-import logging
 from sqlite_gwas_requests import *
 from sqlite_phylo_requests import *
 
@@ -181,13 +172,6 @@ app.validation_layout = html.Div([
     dcc.Store(id="db-management-page-store", data={}, storage_type="memory"),
     dcc.Store(id='query-params-store')
 ])
-import callbacks.phylogenetic_callbacks
-import callbacks.gwas_callbacks
-import callbacks.sequences_callbacks
-import callbacks.db_management_callbacks
-import callbacks.about_callbacks
-import callbacks.gwas_management_callbacks
-import callbacks.phylo_management_callbacks
 
 
 @app.callback(

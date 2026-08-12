@@ -1,7 +1,4 @@
-import plotly.graph_objects as go
-
-
-from neo4j_requests import *
+from neo4j.services.neo4j_requests import *
 
 import dash
 from dash import Dash, dcc, html, Input, Output, State, callback_context, ctx, MATCH, ALL, no_update
@@ -10,20 +7,15 @@ from urllib.parse import parse_qs, urlparse
 from dash.exceptions import PreventUpdate
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 
 import pandas as pd
 import numpy as np
-import itertools
-import json
-import math
 
 from app import *
 from cache_manager import *
 
 import os
-from io import BytesIO
 import base64
 import logging
 

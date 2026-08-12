@@ -9,9 +9,7 @@ import dash
 from dash import html, Input, Output, callback, State, dcc, callback_context, ctx, no_update
 from dash.exceptions import PreventUpdate
 from Bio.Seq import Seq
-from app import *
-from neo4j_requests import *
-import io
+from neo4j.services.neo4j_requests import *
 from app import *
 from cache_manager import *
 

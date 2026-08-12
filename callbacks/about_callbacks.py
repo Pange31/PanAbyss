@@ -6,16 +6,14 @@ Created on Tue Oct 21 11:16:02 2025
 @author: fgraziani
 """
 
-import os
 import requests
 import zipfile
 import io
-import shutil
 from dash import html, Input, Output, callback, State, dcc, no_update
 from dash.exceptions import PreventUpdate
 from Bio.Seq import Seq
 from app import *
-from neo4j_requests import *
+from neo4j.services.neo4j_requests import *
 from auth_utils import require_authorization
 import logging
 

@@ -10,7 +10,7 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 import dash_cytoscape as cyto
 
-from neo4j_requests import *
+from neo4j.services.neo4j_requests import *
 from app import DB_VERSION
 
 from neo4j_available_docker_images_conf import AVAILABLE_DOCKER_IMAGES
