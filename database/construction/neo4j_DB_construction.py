@@ -2,14 +2,10 @@ import re
 from tqdm import tqdm
 from math import *
 from neo4j.exceptions import Neo4jError
-import time
 import hashlib
-import scipy.sparse as sp
-import numpy as np
-import os
 import csv
 from config import *
-from neo4j_driver import get_driver, get_scoped_driver
+from database.driver.neo4j_driver import get_driver, get_scoped_driver
 from auth_utils import require_authorization
 import logging
 

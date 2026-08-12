@@ -6,33 +6,19 @@ Created on Wed May  7 16:03:15 2025
 @author: fgraziani
 """
 
-import re
 from tqdm import tqdm
-from math import *
-from numpy.polynomial.polynomial import Polynomial
-import time
-import pandas as pd
-import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.io as pio
 import webbrowser
-import os
-import shutil
 import glob
-from typing import List, Dict
 import csv
-import json
-import subprocess
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, _DistanceMatrix
-from scipy.spatial.distance import pdist, squareform
-from scipy.stats import hypergeom, binom, norm, chi2_contingency, fisher_exact
-import pandas as pd
+from scipy.stats import chi2_contingency
 import numpy as np
 from Bio import Phylo
 from Bio.Seq import Seq
 import statistics
-from config import *
-from neo4j_driver import get_driver,  get_scoped_driver
+from database.driver.neo4j_driver import get_driver,  get_scoped_driver
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import uuid
 from sqlite_gwas_requests import *
