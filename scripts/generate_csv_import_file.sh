@@ -52,7 +52,7 @@ from pathlib import Path
 project_dir = Path(r'''$SCRIPT_DIR''')
 sys.path.insert(0, str(project_dir))
 
-from neo4j_DB_construction import load_gfa_data_to_csv
+from neo4j.construction.neo4j_DB_construction import load_gfa_data_to_csv
 
 load_gfa_data_to_csv(
     r'''$file_path''',
@@ -193,7 +193,7 @@ from pathlib import Path
 project_dir = Path(r'''$SCRIPT_DIR''')
 sys.path.insert(0, str(project_dir))
 
-from neo4j_DB_construction import load_gfa_data_to_csv
+from neo4j.construction.neo4j_DB_construction import load_gfa_data_to_csv
 
 load_gfa_data_to_csv(
     r'''$file_path''',
