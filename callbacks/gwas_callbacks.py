@@ -15,7 +15,7 @@ root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if root_path not in sys.path:
     sys.path.append(root_path)
 
-from neo4j.services.neo4j_requests import *
+from database.services.neo4j_requests import *
 import base64
 import io
 import plotly.graph_objects as go

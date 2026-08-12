@@ -13,7 +13,7 @@ from dash import html, Input, Output, callback, State, dcc, no_update
 from dash.exceptions import PreventUpdate
 from Bio.Seq import Seq
 from app import *
-from neo4j.services.neo4j_requests import *
+from database.services.neo4j_requests import *
 from auth_utils import require_authorization
 import logging
 

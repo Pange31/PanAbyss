@@ -19,8 +19,8 @@ if root_path not in sys.path:
     sys.path.append(root_path)
 
 from app import *
-from neo4j.services.neo4j_requests import *
-from neo4j.construction.neo4j_DB_construction import *
+from database.services.neo4j_requests import *
+from database.construction.neo4j_DB_construction import *
 from neo4j_container_management import *
 from config import *
 import base64

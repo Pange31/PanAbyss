@@ -1,4 +1,4 @@
-from neo4j.services.neo4j_requests import *
+from database.services.neo4j_requests import *
 
 import dash
 from dash import Dash, dcc, html, Input, Output, State, callback_context, ctx, MATCH, ALL, no_update

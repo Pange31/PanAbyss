@@ -25,7 +25,7 @@ import pages.gwas_management as gwas_management
 import pages.phylo_management as phylo_management
 from pathlib import Path
 
-from neo4j.services.neo4j_requests import *
+from database.services.neo4j_requests import *
 from neo4j_container_management import *
 
 from sqlite_gwas_requests import *
