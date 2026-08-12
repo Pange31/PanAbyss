@@ -30,23 +30,29 @@ MAX_READ_BUFFER_SIZE_VALUE = 128000000
 from app import DB_VERSION
 """DB structure for this version
 
-Nodes :
+Nodes:
 
-Stats :
-    - genomes : list of all genomes of the pangenome
-    - chromosomes : list of all chromosome of the pangenome
+Stats:
+    - genomes: list of all genomes of the pangenome
+    - chromosomes: list of all chromosome of the pangenome
+    
+chromosome_stats:
+    - $chromosome_max_position_mean: max position mean on nodes of chromosome $ĉhromosome
+    - $chromosome_nodes_number: max nodes number on chromosome $ĉhromosome
 
-Sequence :
-    - name : unique name of the node, must be the same than ref_node of nodes of type Node
-    - sequence : String (DNA sequence of the node)
 
-Annotation : attributes are directly related to gff / gtf format and not all detailed
-    - name : hash of the annotation (unique)
+
+Sequence:
+    - name: unique name of the node, must be the same than ref_node of nodes of type Node
+    - sequence: String (DNA sequence of the node)
+
+Annotation: attributes are directly related to gff / gtf format and not all detailed
+    - name: hash of the annotation (unique)
     - chromosome
-    - genome_ref : genome associated with this annotation
+    - genome_ref: genome associated with this annotation
     - source
     - feature
-    - filename : gtf or  gff filename used to create the node
+    - filename: gtf or  gff filename used to create the node
     - id
     - gene_version
     - gene_name
@@ -65,24 +71,24 @@ Annotation : attributes are directly related to gff / gtf format and not all det
     - tag
 
 Node:
-    - name : String and unique
-    - genomes : List of genomes that pass through this node
-    - max : for the reference node (in the case of redundant nodes) the number of degenerate (redundant) nodes
-    - strandP : indicates if the genome pass through the node in direct mode
-    - strandM : indicates if the genome pass through the node in reverse mode
-    - ref_node : main node, usefull for degenerate nodes. This name must be the same than the sequence node name
-    - $genome_node : node number for the genome $genome
-    - $genome_position : position of the start of the node for the genome $genome
-    - size : size of the node
-    - chromosome : chromosome associated to the node
-    - position_min : the min of all $genome_position of the node
-    - position_max : the max of all $genome_position of the node
-    - position_mean : the mean of all $genome_position of the node
-    - flow : percentage of all genomes of the pangenome passing throug this node
+    - name: String and unique
+    - genomes: List of genomes that pass through this node
+    - max: for the reference node (in the case of redundant nodes) the number of degenerate (redundant) nodes
+    - strandP: indicates if the genome pass through the node in direct mode
+    - strandM: indicates if the genome pass through the node in reverse mode
+    - ref_node: main node, usefull for degenerate nodes. This name must be the same than the sequence node name
+    - $genome_node: node number for the genome $genome
+    - $genome_position: position of the start of the node for the genome $genome
+    - size: size of the node
+    - chromosome: chromosome associated to the node
+    - position_min: the min of all $genome_position of the node
+    - position_max: the max of all $genome_position of the node
+    - position_mean: the mean of all $genome_position of the node
+    - flow: percentage of all genomes of the pangenome passing throug this node
 
-Relationships :
+Relationships:
     - :gfa_link : link between 2 nodes (2 nodes can be linked be a unique link)
-    - :A_POUR_ANNOTATION : link between a node of type Node and a node of type Annotation
+    - :annotation_link : link between a node of type Node and a node of type Annotation
 
 """
 
