@@ -174,6 +174,15 @@ app.validation_layout = html.Div([
 ])
 
 
+import callbacks.phylogenetic_callbacks
+import callbacks.gwas_callbacks
+import callbacks.sequences_callbacks
+import callbacks.db_management_callbacks
+import callbacks.about_callbacks
+import callbacks.gwas_management_callbacks
+import callbacks.phylo_management_callbacks
+
+
 @app.callback(
     Output('shared_storage', 'data'),
     Output("shared_storage_nodes", "data"),
