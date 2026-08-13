@@ -59,10 +59,9 @@ def copy_update_to_root():
 @require_authorization
 def update_panabyss(n_clicks):
 
-    # Requête GET
     response = requests.get(url)
     
-    # Vérification du code de statut
+    #Check status
     if response.status_code == 200:
         release = response.json()
         version = release["tag_name"]
@@ -80,19 +79,18 @@ def update_panabyss(n_clicks):
                 logger.error(f"Error {r.status_code} while downloading")
                 exit(1)
             
-            # Créer dossier update s'il n'existe pas
+            #create update dir if not exist
             os.makedirs(update_dir, exist_ok=True)
             
-            # Dézipper le contenu de l'archive dans /update en écrasant
+            # unzip archive in /update
             with zipfile.ZipFile(io.BytesIO(r.content)) as z:
-                # Attention : l'archive GitHub zipball a un dossier racine unique
                 root_folder = z.namelist()[0].split('/')[0]
             
                 for member in z.namelist():
-                    # retirer le dossier racine unique
+                    # remove archive dir
                     filename = member[len(root_folder)+1:]
                     if not filename:
-                        continue  # passer le dossier racine
+                        continue  # pass root dir
             
                     dest_path = os.path.join(update_dir, filename)
                     if member.endswith('/'):

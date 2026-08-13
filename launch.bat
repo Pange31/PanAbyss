@@ -8,6 +8,15 @@ SET "HASH_FILE=.%ENV_NAME%_env_hash"
 SET "DASH_PORT=8050"
 IF NOT "%~1"=="" SET "DASH_PORT=%~1"
 
+
+REM --- Check and apply project updates ---
+call .\scripts\check_update.bat
+
+if errorlevel 1 (
+    echo Error while checking project updates.
+    exit /b 1
+)
+
 :: --- Check if conda is available ---
 where conda >nul 2>&1
 IF ERRORLEVEL 1 (

@@ -8,6 +8,9 @@ CONF_FILE="./conf.json"
 
 set -e
 
+# Check update rules
+bash ./scripts/check_update.sh
+
 # --- Initialize conda ---
 CONDA_BASE=$(conda info --base)
 source "$CONDA_BASE/etc/profile.d/conda.sh"
