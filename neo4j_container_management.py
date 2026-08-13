@@ -168,7 +168,6 @@ def start_container():
         return False
 
     docker = conf.get("docker", True)
-
     container_name = str(conf["container_name"])
 
     if docker:
@@ -277,19 +276,18 @@ def start_container():
 
     return True
 
-
+"""
+Create or update the configuration file.
+If the file already exists, only update specific fields:
+    - container_name
+    - http_port
+    - bolt_port
+    - login
+    - password
+Otherwise, create a new configuration file with default fields.
+"""
 @require_authorization
 def write_config(container_name, HTTP_PORT=7474, BOLT_PORT=7687, docker=True):
-    """
-    Create or update the configuration file.
-    If the file already exists, only update specific fields:
-        - container_name
-        - http_port
-        - bolt_port
-        - login
-        - password
-    Otherwise, create a new configuration file with default fields.
-    """
     logger.info(f"Writing configuration for container: {container_name}")
 
     # Default configuration structure
@@ -484,7 +482,6 @@ def create_db(container_name, docker_image=DOCKER_IMAGE, docker=True):
     if docker_image is not None :
         DOCKER_IMAGE = docker_image
     logger.info(f"🔧 Creating database for container '{container_name}' with {DOCKER_IMAGE} neo4j image")
-
     # Stop container
     remove_container(container_name, docker=docker)
     

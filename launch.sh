@@ -6,6 +6,7 @@ GENERATE_CSV_IMPORT=0
 CREATE_DATABASE=0
 DATABASE_NAME=""
 BATCH_SIZE=""
+DOCKER=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -17,6 +18,14 @@ while [ $# -gt 0 ]; do
             CREATE_DATABASE=1
             DATABASE_NAME="DB_1.0.0_$2"
             shift 2
+            ;;
+        --docker)
+            DOCKER=1
+            shift
+            ;;
+        --apptainer)
+            DOCKER=0
+            shift
             ;;
         --batch_size)
             BATCH_SIZE="$2"
@@ -30,8 +39,12 @@ while [ $# -gt 0 ]; do
             echo "  ./launch.sh [PORT]"
             echo "  ./launch.sh --generate_csv_import"
             echo "  ./launch.sh --create_database <database_name>"
+            echo "  ./launch.sh --create_database <database_name> --docker"
+            echo "  ./launch.sh --create_database <database_name> --apptainer"
             echo "  ./launch.sh --batch_size <size> --generate_csv_import"
             echo "  ./launch.sh --batch_size <size> --create_database <database_name>"
+            echo "  ./launch.sh --batch_size <size> --create_database <database_name> --docker"
+            echo "  ./launch.sh --batch_size <size> --create_database <database_name> --apptainer"
             echo "  ./launch.sh --help"
             echo ""
             echo "Options:"
@@ -41,6 +54,14 @@ while [ $# -gt 0 ]; do
             echo ""
             echo "  --create_database <database_name>"
             echo "      Create a Neo4j database named <database_name>"
+            echo ""
+            echo "  --docker"
+            echo "      Use Docker when creating the database"
+            echo "      Only valid with --create_database"
+            echo ""
+            echo "  --apptainer"
+            echo "      Use Apptainer when creating the database"
+            echo "      Only valid with --create_database"
             echo ""
             echo "  --generate_csv_import"
             echo "      Convert all .gfa files from:"
@@ -84,6 +105,7 @@ echo "GENERATE_CSV_IMPORT=$GENERATE_CSV_IMPORT"
 echo "CREATE_DATABASE=$CREATE_DATABASE"
 echo "DATABASE_NAME=$DATABASE_NAME"
 echo "BATCH_SIZE=$BATCH_SIZE"
+echo "DOCKER=$DOCKER"
 
 ENV_NAME="panabyss"
 ENV_FILE="panabyss.yaml"
@@ -177,6 +199,12 @@ fi
 if [ "${CREATE_DATABASE:-0}" -eq 1 ]; then
     echo "WARNING: This step requires Apptainer to be loaded."
 
+    if [ "$DOCKER" -eq 1 ]; then
+        echo "Database creation using Docker."
+    else
+        echo "Database creation using Apptainer."
+    fi
+
     if [ -n "$BATCH_SIZE" ]; then
         bash ./scripts/generate_csv_import_file.sh "$BATCH_SIZE" || exit $?
     else
@@ -185,7 +213,7 @@ if [ "${CREATE_DATABASE:-0}" -eq 1 ]; then
 
     python3 - << EOF
 from neo4j_container_management import create_db
-create_db("${DATABASE_NAME}", docker=False)
+create_db("${DATABASE_NAME}", docker=$DOCKER)
 EOF
 
     exit $?
