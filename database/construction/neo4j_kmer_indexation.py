@@ -1,3 +1,11 @@
+"""
+Created on Tue Aug 18 18:05:16 2026
+
+@author: fgraziani
+
+This file contains the function to index a pangenome from neo4j database
+"""
+
 import json
 
 from neo4j.exceptions import Neo4jError
@@ -17,11 +25,7 @@ from utils.base_utils import get_current_version
 from utils.kmer import encode_kmer_numba
 from database.services.neo4j_kmer_requests import load_index_catalog
 
-"""
-Created on Tue Aug 18 18:05:16 2026
 
-@author: fgraziani
-"""
 
 ##########################################
 # Configuration
@@ -40,6 +44,14 @@ INDEX_CATALOG_FILENAME = "kmer.indexes.json"
 INDEX_DTYPE = np.dtype([
     ("offset", "<u8"),
     ("count", "<u2"),
+])
+
+#Size index:
+# node_id
+# size
+NODE_SIZE_DTYPE = np.dtype([
+    ("node_id", "<u8"),
+    ("size", "<u8"),
 ])
 
 """
@@ -232,6 +244,9 @@ def build_chunked_direct_index(
         parents=True,
         exist_ok=True,
     )
+    node_size_index_path = output_dir / "nodes.size.index"
+
+    build_node_size_index = not node_size_index_path.exists()
 
     num_kmers = 4 ** k
 
@@ -280,7 +295,6 @@ def build_chunked_direct_index(
     # PASS 1
     # =========================================================
 
-    logger.info()
     logger.info("=== PASS 1 : Encoding and writing chunks ===")
     logger.info(f"K-mers          : {num_kmers:,}")
     logger.info(f"Partitions      : {num_partitions}")
@@ -312,6 +326,17 @@ def build_chunked_direct_index(
         )
         for path in partition_paths
     ]
+
+    node_size_file = None
+    if build_node_size_index:
+        logger.info(f"Node size index does not exist: {node_size_index_path}")
+
+        node_size_file = open(
+            node_size_index_path,
+            "wb",
+            buffering=16 * 1024 * 1024,
+        )
+
 
     # ---------------------------------------------------------
     # Reusable pair buffers.
@@ -363,6 +388,22 @@ def build_chunked_direct_index(
         ):
 
             sequence_count += 1
+
+            # -------------------------------------------------
+            # Build node size index if necessary.
+            # -------------------------------------------------
+            if build_node_size_index:
+                node_size_record = np.array(
+                    (
+                        np.uint64(node_id),
+                        np.uint64(len(sequence)),
+                    ),
+                    dtype=NODE_SIZE_DTYPE,
+                )
+
+                node_size_file.write(
+                    node_size_record.tobytes()
+                )
 
             # -------------------------------------------------
             # Encode canonical k-mers.
@@ -538,6 +579,12 @@ def build_chunked_direct_index(
 
             partition_files[p].close()
 
+        # -----------------------------------------------------
+        # Finalize node size index.
+        # -----------------------------------------------------
+        if node_size_file is not None:
+            node_size_file.close()
+
     pass1_time = (
             time.perf_counter()
             - pass1_start
@@ -547,7 +594,6 @@ def build_chunked_direct_index(
     del partition_sizes
     del partition_boundaries
 
-    logger.info()
     logger.info("PASS 1 complete.")
 
     logger.info(f"Sequences : {sequence_count:,}")
@@ -558,7 +604,6 @@ def build_chunked_direct_index(
     # Partition statistics
     # =========================================================
 
-    logger.info()
     logger.info("=== Partition sizes ===")
 
     partition_pair_counts = np.zeros(
@@ -589,7 +634,6 @@ def build_chunked_direct_index(
     # PASS 2
     # =========================================================
 
-    logger.info()
     logger.info("=== PASS 2 : Sorting chunks and building index ===")
 
     pass2_start = time.perf_counter()
@@ -889,7 +933,6 @@ def build_chunked_direct_index(
     # Write discarded k-mers
     # =========================================================
 
-    logger.info()
     logger.info("Writing discarded k-mers...")
 
     t0 = time.perf_counter()
@@ -942,14 +985,12 @@ def build_chunked_direct_index(
     # Final report
     # =========================================================
 
-    logger.info()
     logger.info("=== Direct index complete ===")
     logger.info(f"Sequences          : {sequence_count:,}")
     logger.info(f"Pairs              : {pair_count:,}")
     logger.info(f"Retained postings  : {total_postings:,}")
     logger.info(f"Discarded k-mers   : {discarded_count:,}")
 
-    logger.info()
     logger.info("=== Timing ===")
 
     logger.info(f"PASS 1             : {pass1_time:.2f}s")
@@ -957,7 +998,6 @@ def build_chunked_direct_index(
     logger.info(f"Discarded write    : {discarded_write_time:.2f}s")
 
     logger.info(f"TOTAL              : {total_time:.2f}s")
-    logger.info()
     logger.info(f"Index size         : {index_path.stat().st_size / 1024 ** 3:.2f} GB")
     logger.info(f"Postings size      : {postings_path.stat().st_size / 1024 ** 3:.2f} GB")
 

@@ -1,8 +1,17 @@
+"""
+Created on Tue Aug 19 16:05:16 2026
+
+@author: fgraziani
+
+This file contains the function to access the kmer index
+"""
+
 import json
 from pathlib import Path
 import numpy as np
 from utils.kmer import encode_kmer_numba
 import matplotlib.pyplot as plt
+import logging
 
 logger = logging.getLogger("panabyss_logger")
 
@@ -18,6 +27,7 @@ DEFAULT_KMER_SIZE = 13
 KMER_INDEX = None
 POSTINGS_INDEX = None
 DISCARDED_INDEX = None
+NODE_SIZE_INDEX = None
 
 # Metadata of the currently loaded index.
 INDEX_K = None
@@ -29,13 +39,17 @@ INDEX_DTYPE = np.dtype([
     ("count", "<u2"),
 ])
 
+NODE_SIZE_DTYPE = np.dtype([
+    ("node_id", "<u8"),
+    ("size", "<u8"),
+])
+
+
 """
 Load the PanAbyss k-mer index catalog.
 
 If the catalog does not exist yet, return an empty catalog.
 """
-
-
 def load_index_catalog(output_dir=DEFAULT_INDEX_PATH):
     catalog_path = Path(output_dir) / INDEX_CATALOG_FILENAME
 
@@ -70,8 +84,6 @@ def load_index_catalog(output_dir=DEFAULT_INDEX_PATH):
 Find the index metadata corresponding to
 the requested k-mer size and canonical mode.
 """
-
-
 def find_index_metadata(
         k,
         canonical,
@@ -106,7 +118,6 @@ The loaded resources are stored in global variables:
 
 If the requested index is already loaded, nothing is done.
 """
-
 
 def load_kmer_index(
         k,
@@ -192,6 +203,59 @@ def load_kmer_index(
     INDEX_K = k
     INDEX_CANONICAL = canonical
 
+
+def load_node_size_index(output_dir=DEFAULT_INDEX_PATH):
+    global NODE_SIZE_INDEX
+
+    if NODE_SIZE_INDEX is not None:
+        return
+    path = Path(output_dir) / "nodes.size.index"
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Node size index not found: {path}"
+        )
+
+    NODE_SIZE_INDEX = np.memmap(
+        path,
+        dtype=NODE_SIZE_DTYPE,
+        mode="r",
+    )
+
+
+"""
+Return the sequence size associated with a node ID.
+
+Returns
+-------
+int
+    Sequence size.
+
+None
+    If the node is not present in the index.
+"""
+def get_node_size(node_id: int):
+    load_node_size_index()
+    if NODE_SIZE_INDEX.size == 0:
+        return None
+
+    # Binary search on node_id.
+    node_ids = NODE_SIZE_INDEX["node_id"]
+
+    position = np.searchsorted(
+        node_ids,
+        np.uint64(node_id),
+    )
+
+    if position >= NODE_SIZE_INDEX.size:
+        return None
+
+    if node_ids[position] != node_id:
+        return None
+
+    return int(
+        NODE_SIZE_INDEX["size"][position]
+    )
 
 """
 Look up a k-mer in the currently selected PanAbyss index.
@@ -297,6 +361,8 @@ def get_kmer_nodes(
     )
 
     return TAG, nodes.tolist()
+
+
 
 
 """
