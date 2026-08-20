@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 from utils.base_utils import get_current_version
-from utils.kmer import encode_kmer_numba
+from utils.kmer import encode_kmers
 from database.services.neo4j_kmer_requests import load_index_catalog
 
 
@@ -409,7 +409,7 @@ def build_chunked_direct_index(
             # Encode canonical k-mers.
             # -------------------------------------------------
 
-            kmers = encode_kmer_numba(
+            kmers = encode_kmers(
                 sequence,
                 k,
                 canonical=canonical

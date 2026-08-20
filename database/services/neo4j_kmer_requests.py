@@ -9,7 +9,7 @@ This file contains the function to access the kmer index
 import json
 from pathlib import Path
 import numpy as np
-from utils.kmer import encode_kmer_numba
+from utils.kmer import encode_kmers
 import matplotlib.pyplot as plt
 import logging
 
@@ -209,6 +209,25 @@ def load_node_size_index(output_dir=DEFAULT_INDEX_PATH):
 
     if NODE_SIZE_INDEX is not None:
         return
+
+    path = Path(output_dir) / "nodes.size.index"
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Node size index not found: {path}"
+        )
+
+    NODE_SIZE_INDEX = np.memmap(
+        path,
+        dtype=NODE_SIZE_DTYPE,
+        mode="r",
+    )
+
+def load_node_size_index_old(output_dir=DEFAULT_INDEX_PATH):
+    global NODE_SIZE_INDEX
+
+    if NODE_SIZE_INDEX is not None:
+        return
     path = Path(output_dir) / "nodes.size.index"
 
     if not path.exists():
@@ -298,7 +317,7 @@ def get_kmer_nodes(
     )
 
     # Encode k-mer (same encoder than for index creation)
-    encoded = encode_kmer_numba(
+    encoded = encode_kmers(
         kmer.encode("ascii"),
         k=k,
         canonical=canonical,
@@ -362,6 +381,401 @@ def get_kmer_nodes(
 
     return TAG, nodes.tolist()
 
+
+
+"""
+Look up multiple encoded k-mers in the currently selected
+PanAbyss index.
+
+Parameters
+----------
+kmer_codes : np.ndarray
+    One-dimensional array of encoded k-mers with dtype
+    uint32.
+
+k : int
+    K-mer size.
+
+canonical : bool
+    Whether canonical k-mer encoding is used.
+
+output_dir : str or Path
+    Directory containing the k-mer index.
+
+Returns
+-------
+list[tuple[str, list[int]]]
+    One result per input k-mer.
+
+    Each result is:
+
+        ("FOUND", [node_ids])
+        ("NOT_FOUND", [])
+        ("DISCARDED", [])
+"""
+def get_encoded_kmer_nodes_batch(
+        kmer_codes,
+        k,
+        canonical=True,
+        output_dir=DEFAULT_INDEX_PATH,
+):
+
+
+    global KMER_INDEX
+    global POSTINGS_INDEX
+    global DISCARDED_INDEX
+
+    # --------------------------------------------------------
+    # Validate k.
+    # --------------------------------------------------------
+
+    if not 1 <= k <= MAX_KMER_SIZE:
+        raise ValueError(
+            f"k must be between 1 and "
+            f"{MAX_KMER_SIZE}, got {k}"
+        )
+
+    # --------------------------------------------------------
+    # Convert input to uint32.
+    #
+    # np.asarray() does not copy if kmer_codes already has
+    # the correct dtype.
+    # --------------------------------------------------------
+
+    kmer_codes = np.asarray(
+        kmer_codes,
+        dtype=np.uint32,
+    )
+
+    if kmer_codes.ndim != 1:
+        raise ValueError(
+            "kmer_codes must be one-dimensional."
+        )
+
+    if kmer_codes.size == 0:
+        return []
+
+    # --------------------------------------------------------
+    # Load the corresponding index.
+    # --------------------------------------------------------
+
+    load_kmer_index(
+        k=k,
+        canonical=canonical,
+        output_dir=output_dir,
+    )
+
+    # --------------------------------------------------------
+    # Batch lookup in the direct index.
+    #
+    # This is the main optimization:
+    #
+    #     KMER_INDEX[kmer_codes]
+    #
+    # performs all index lookups using NumPy advanced
+    # indexing instead of one Python lookup per k-mer.
+    # --------------------------------------------------------
+
+    entries = KMER_INDEX[
+        kmer_codes
+    ]
+
+    counts = entries["count"]
+    offsets = entries["offset"]
+
+    # --------------------------------------------------------
+    # Prepare results.
+    # --------------------------------------------------------
+
+    results = [
+        None
+        for _ in range(kmer_codes.size)
+    ]
+
+    # --------------------------------------------------------
+    # Process FOUND k-mers.
+    # --------------------------------------------------------
+
+    found_positions = np.flatnonzero(
+        counts > 0
+    )
+
+    for position in found_positions:
+
+        position = int(position)
+
+        offset = int(
+            offsets[position]
+        )
+
+        count = int(
+            counts[position]
+        )
+
+        # ----------------------------------------------------
+        # Read postings.
+        # ----------------------------------------------------
+
+        POSTINGS_INDEX.seek(
+            offset * np.dtype(np.uint64).itemsize
+        )
+
+        nodes = np.fromfile(
+            POSTINGS_INDEX,
+            dtype=np.uint64,
+            count=count,
+        )
+
+        results[position] = (
+            "FOUND",
+            nodes.tolist(),
+        )
+
+    # --------------------------------------------------------
+    # Process k-mers with count == 0.
+    #
+    # A zero count means either:
+    #
+    #   - k-mer was not found
+    #   - k-mer was discarded because it exceeded
+    #     max_postings during index construction
+    # --------------------------------------------------------
+
+    zero_positions = np.flatnonzero(
+        counts == 0
+    )
+
+    if zero_positions.size > 0:
+
+        zero_codes = kmer_codes[
+            zero_positions
+        ]
+
+        # ----------------------------------------------------
+        # DISCARDED_INDEX is sorted, so use binary search.
+        # ----------------------------------------------------
+
+        discarded_positions = np.searchsorted(
+            DISCARDED_INDEX,
+            zero_codes,
+        )
+
+        valid_positions = (
+            discarded_positions
+            < DISCARDED_INDEX.size
+        )
+
+        # ----------------------------------------------------
+        # Default all zero-count k-mers to NOT_FOUND.
+        # ----------------------------------------------------
+
+        for position in zero_positions:
+
+            results[int(position)] = (
+                "NOT_FOUND",
+                [],
+            )
+
+        # ----------------------------------------------------
+        # Replace NOT_FOUND with DISCARDED where appropriate.
+        # ----------------------------------------------------
+
+        if np.any(valid_positions):
+
+            candidate_indices = np.flatnonzero(
+                valid_positions
+            )
+
+            candidate_discarded_positions = (
+                discarded_positions[
+                    valid_positions
+                ]
+            )
+
+            candidate_codes = zero_codes[
+                valid_positions
+            ]
+
+            matches = (
+                DISCARDED_INDEX[
+                    candidate_discarded_positions
+                ]
+                == candidate_codes
+            )
+
+            for candidate_index in np.flatnonzero(
+                    matches
+            ):
+
+                original_position = int(
+                    zero_positions[
+                        candidate_indices[
+                            candidate_index
+                        ]
+                    ]
+                )
+
+                results[original_position] = (
+                    "DISCARDED",
+                    [],
+                )
+
+    return results
+
+"""
+Look up multiple encoded k-mers and directly count
+the number of distinct queried k-mers supporting
+each node.
+
+Returns
+-------
+dict
+    node_id -> number of supporting k-mers
+"""
+def get_encoded_kmer_node_counts_batch(
+        kmer_codes,
+        k,
+        canonical=True,
+        output_dir=DEFAULT_INDEX_PATH,
+):
+
+    global KMER_INDEX
+    global POSTINGS_INDEX
+
+    # --------------------------------------------------------
+    # Prepare input.
+    # --------------------------------------------------------
+
+    kmer_codes = np.asarray(
+        kmer_codes,
+        dtype=np.uint32,
+    )
+
+    if kmer_codes.ndim != 1:
+        raise ValueError(
+            "kmer_codes must be one-dimensional."
+        )
+
+    if kmer_codes.size == 0:
+        return {}
+
+    # --------------------------------------------------------
+    # Load index.
+    # --------------------------------------------------------
+
+    load_kmer_index(
+        k=k,
+        canonical=canonical,
+        output_dir=output_dir,
+    )
+
+    # --------------------------------------------------------
+    # Lookup all k-mers at once.
+    # --------------------------------------------------------
+
+    entries = KMER_INDEX[
+        kmer_codes
+    ]
+
+    counts = entries["count"]
+    offsets = entries["offset"]
+
+    found_mask = counts > 0
+
+    if not np.any(found_mask):
+        return {}
+
+    offsets = offsets[found_mask].astype(
+        np.uint64,
+        copy=False,
+    )
+
+    counts = counts[found_mask].astype(
+        np.uint64,
+        copy=False,
+    )
+
+    # --------------------------------------------------------
+    # Total number of node IDs that must be read.
+    # --------------------------------------------------------
+
+    total_postings = int(
+        np.sum(counts)
+    )
+
+    # --------------------------------------------------------
+    # Allocate the complete postings array.
+    #
+    # 10.4 million uint64 values = ~83 MB.
+    # --------------------------------------------------------
+
+    all_nodes = np.empty(
+        total_postings,
+        dtype=np.uint64,
+    )
+
+    # --------------------------------------------------------
+    # Read postings.
+    #
+    # The important difference is that we write directly
+    # into the final NumPy array instead of creating many
+    # temporary arrays and concatenating them.
+    # --------------------------------------------------------
+
+    itemsize = np.dtype(
+        np.uint64
+    ).itemsize
+
+    destination = 0
+
+    for offset, count in zip(
+            offsets,
+            counts,
+    ):
+
+        offset = int(offset)
+        count = int(count)
+
+        POSTINGS_INDEX.seek(
+            offset * itemsize
+        )
+
+        nodes = np.fromfile(
+            POSTINGS_INDEX,
+            dtype=np.uint64,
+            count=count,
+        )
+
+        all_nodes[
+            destination:
+            destination + count
+        ] = nodes
+
+        destination += count
+
+    # --------------------------------------------------------
+    # Count node occurrences.
+    #
+    # Because kmer_codes contains unique k-mers, the number
+    # of occurrences of a node is exactly the number of
+    # distinct queried k-mers supporting that node.
+    # --------------------------------------------------------
+
+    unique_nodes, node_counts = np.unique(
+        all_nodes,
+        return_counts=True,
+    )
+
+    # --------------------------------------------------------
+    # Convert to dictionary.
+    # --------------------------------------------------------
+
+    return dict(
+        zip(
+            unique_nodes.tolist(),
+            node_counts.tolist(),
+        )
+    )
 
 
 
@@ -457,3 +871,67 @@ def plot_kmer_count_histogram():
 
     plt.tight_layout()
     plt.show()
+
+"""
+Return node sizes for an array of node IDs.
+
+Parameters
+----------
+node_ids : array-like
+    Node IDs to look up.
+
+Returns
+-------
+np.ndarray
+    Node sizes.
+    Returns 0 for node IDs that are not present.
+"""
+def get_node_sizes_batch(node_ids):
+
+    global NODE_SIZE_INDEX
+
+    load_node_size_index()
+
+    node_ids = np.asarray(
+        node_ids,
+        dtype=np.uint64,
+    )
+
+    if node_ids.size == 0:
+        return np.empty(
+            0,
+            dtype=np.uint64,
+        )
+
+    indexed_ids = NODE_SIZE_INDEX["node_id"]
+
+    positions = np.searchsorted(
+        indexed_ids,
+        node_ids,
+    )
+
+    sizes = np.zeros(
+        node_ids.size,
+        dtype=np.uint64,
+    )
+
+    valid = positions < indexed_ids.size
+
+    if not np.any(valid):
+        return sizes
+
+    valid_indices = np.flatnonzero(valid)
+    valid_positions = positions[valid]
+
+    matches = (
+        indexed_ids[valid_positions]
+        == node_ids[valid]
+    )
+
+    sizes[
+        valid_indices[matches]
+    ] = NODE_SIZE_INDEX["size"][
+        valid_positions[matches]
+    ]
+
+    return sizes

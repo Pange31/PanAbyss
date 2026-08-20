@@ -162,29 +162,104 @@ def encode_sequence_numba(seq,k,canonical=True):
 """
 Fast Python wrapper around the Numba encoder.
 
-canonical=True:
-    Encode canonical k-mers using the minimum of the forward
-    and reverse-complement representations.
+Parameters
+    ----------
+    seq : str, bytes, bytearray, or numpy.ndarray
+        DNA sequence.
 
-canonical=False:
-    Encode k-mers only in their original sequence orientation.
+        Supported inputs:
+            - str
+            - bytes
+            - bytearray
+            - numpy.ndarray with dtype uint8
+
+    k : int
+        K-mer size.
+
+    canonical : bool
+        If True, encode canonical k-mers using the minimum
+        of the forward and reverse-complement representations.
+
+    Returns
+    -------
+    np.ndarray
+        uint32 array containing one encoded value per valid
+        k-mer.
+
 """
-def encode_kmer_numba(
-    seq_bytes: bytes,
+
+def encode_kmers(
+    seq,
     k: int,
     canonical: bool = True,
 ):
+    if isinstance(seq, str):
 
-    if len(seq_bytes) < k:
-        return np.empty(
-            0,
-            dtype=np.uint32,
+        seq_bytes = seq.encode("ascii")
+
+        if len(seq_bytes) < k:
+            return np.empty(
+                0,
+                dtype=np.uint32,
+            )
+
+        seq_array = np.frombuffer(
+            seq_bytes,
+            dtype=np.uint8,
         )
 
-    seq_array = np.frombuffer(
-        seq_bytes,
-        dtype=np.uint8,
-    )
+    elif isinstance(seq, bytes):
+
+        if len(seq) < k:
+            return np.empty(
+                0,
+                dtype=np.uint32,
+            )
+
+        seq_array = np.frombuffer(
+            seq,
+            dtype=np.uint8,
+        )
+
+    elif isinstance(seq, bytearray):
+
+        if len(seq) < k:
+            return np.empty(
+                0,
+                dtype=np.uint32,
+            )
+
+        seq_array = np.frombuffer(
+            seq,
+            dtype=np.uint8,
+        )
+
+    elif isinstance(seq, np.ndarray):
+
+        if seq.dtype != np.uint8:
+            raise TypeError(
+                "NumPy sequence array must have dtype uint8."
+            )
+
+        if seq.ndim != 1:
+            raise ValueError(
+                "NumPy sequence array must be one-dimensional."
+            )
+
+        if seq.size < k:
+            return np.empty(
+                0,
+                dtype=np.uint32,
+            )
+
+        seq_array = seq
+
+    else:
+
+        raise TypeError(
+            "seq must be a str, bytes, bytearray, "
+            "or a NumPy uint8 array."
+        )
 
     return encode_sequence_numba(
         seq_array,
