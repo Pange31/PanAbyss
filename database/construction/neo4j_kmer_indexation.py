@@ -4,6 +4,21 @@ Created on Tue Aug 18 18:05:16 2026
 @author: fgraziani
 
 This file contains the function to index a pangenome from neo4j database
+4 index files are created for a given k / canonical couple:
+- kmer index contains for each kmer the couple (offset, count)
+- kmer discarded (contains kmer not indexed because too frequent, i.e. present more than MAX_POSTINGS times)
+- postings index (contains nodes id)
+- node size index
+
+The kmer index contains all the possible kmer, so it is limited to kmer of size 15 max (kmer is encoded on 4 bytes)
+This is to improve kmer search in the index (no need of binary search).
+Node id and offset are encoded on 8 bytes.
+
+The postings index is constitute by nodes id linked to each kmer
+To access nodes id for a kmer, it is done by :
+1) look for the kmer in kmer index => get the offset and count
+2) If count is > 0 => get the nodes id in the postings index between offset and offset + count
+
 """
 
 import json
@@ -439,13 +454,6 @@ def build_chunked_direct_index(
             #
             # Since kmers is sorted, searchsorted gives us
             # contiguous slices directly.
-            #
-            # This avoids:
-            #
-            #   - partition_ids
-            #   - flatnonzero
-            #   - concatenate
-            #   - boolean masks
             # -------------------------------------------------
 
             boundaries = np.searchsorted(
@@ -470,15 +478,11 @@ def build_chunked_direct_index(
                 if end <= previous:
                     continue
 
-                selected_kmers = kmers[
-                    previous:end
-                ]
+                selected_kmers = kmers[previous:end]
 
                 n = end - previous
 
-                current_size = int(
-                    partition_sizes[p]
-                )
+                current_size = int(partition_sizes[p])
 
                 # -------------------------------------------------
                 # Flush the current buffer if necessary.
@@ -487,17 +491,13 @@ def build_chunked_direct_index(
                 if current_size + n > pair_buffer_size:
 
                     if current_size > 0:
-                        partition_files[p].write(
-                            partition_buffers[p][
-                                :current_size
-                            ].tobytes()
-                        )
+                        partition_files[p].write(partition_buffers[p][:current_size].tobytes())
 
                         current_size = 0
                         partition_sizes[p] = 0
 
                 # -------------------------------------------------
-                # Very large sequence segment.
+                # Very large sequence segment => no buffer
                 # -------------------------------------------------
 
                 if n >= pair_buffer_size:
@@ -508,13 +508,9 @@ def build_chunked_direct_index(
                     )
 
                     direct_pairs["kmer"] = selected_kmers
-                    direct_pairs["node_id"] = np.uint64(
-                        node_id
-                    )
+                    direct_pairs["node_id"] = np.uint64(node_id)
 
-                    partition_files[p].write(
-                        direct_pairs.tobytes()
-                    )
+                    partition_files[p].write(direct_pairs.tobytes())
 
                     del direct_pairs
 
@@ -538,9 +534,7 @@ def build_chunked_direct_index(
                         node_id
                     )
 
-                    partition_sizes[p] = (
-                            current_size + n
-                    )
+                    partition_sizes[p] = current_size + n
 
                 previous = end
 
@@ -549,10 +543,7 @@ def build_chunked_direct_index(
             # -------------------------------------------------
 
             if sequence_count % 500000 == 0:
-                elapsed = (
-                        time.perf_counter()
-                        - pass1_start
-                )
+                elapsed = time.perf_counter() - pass1_start
 
                 logger.info(
                     f"[PASS1 "
@@ -586,10 +577,7 @@ def build_chunked_direct_index(
         if node_size_file is not None:
             node_size_file.close()
 
-    pass1_time = (
-            time.perf_counter()
-            - pass1_start
-    )
+    pass1_time = time.perf_counter() - pass1_start
 
     del partition_buffers
     del partition_sizes
@@ -612,14 +600,10 @@ def build_chunked_direct_index(
         dtype=np.uint64,
     )
 
-    for p, path in enumerate(
-            partition_paths
-    ):
+    for p, path in enumerate(partition_paths):
         size = path.stat().st_size
 
-        count = (
-                size // pair_dtype.itemsize
-        )
+        count = size // pair_dtype.itemsize
 
         partition_pair_counts[p] = count
 
@@ -704,13 +688,9 @@ def build_chunked_direct_index(
 
     try:
 
-        for p, path in enumerate(
-                partition_paths
-        ):
+        for p, path in enumerate(partition_paths):
 
-            partition_start_time = (
-                time.perf_counter()
-            )
+            partition_start_time = time.perf_counter()
 
             logger.info(f"Processing partition {p + 1}/{num_partitions}...")
 
@@ -732,10 +712,7 @@ def build_chunked_direct_index(
                 dtype=pair_dtype,
             )
 
-            load_time = (
-                    time.perf_counter()
-                    - t0
-            )
+            load_time = time.perf_counter() - t0
 
             logger.info(f"  Loaded {len(pairs):,} pairs in {load_time:.2f}s")
 
@@ -744,17 +721,12 @@ def build_chunked_direct_index(
                 continue
 
             # =================================================
-            # Sort by (kmer, node_id)
+            # Sort by (kmer, node_id) (lexsort sort first by last key)
             # =================================================
 
             t0 = time.perf_counter()
 
-            order = np.lexsort(
-                (
-                    pairs["node_id"],
-                    pairs["kmer"],
-                )
-            )
+            order = np.lexsort((pairs["node_id"], pairs["kmer"],))
             #Change to these lines to sort only on kmer key
             # order = np.argsort(
             #     pairs["kmer"],
@@ -765,10 +737,7 @@ def build_chunked_direct_index(
 
             del order
 
-            sort_time = (
-                    time.perf_counter()
-                    - t0
-            )
+            sort_time = time.perf_counter() - t0
 
             logger.info(f"  Sorted in {sort_time:.2f}s")
 
@@ -788,14 +757,12 @@ def build_chunked_direct_index(
             # -------------------------------------------------
 
             if n_pairs == 1:
-
                 group_starts = np.array(
                     [0],
                     dtype=np.int64,
                 )
 
             else:
-
                 group_starts = np.flatnonzero(
                     kmers[1:] != kmers[:-1]
                 ).astype(
@@ -819,26 +786,14 @@ def build_chunked_direct_index(
             # Process each k-mer group.
             # -------------------------------------------------
 
-            for group_index in range(
-                    n_groups
-            ):
-
-                start = int(
-                    group_starts[group_index]
-                )
-
+            for group_index in range(n_groups):
+                start = int(group_starts[group_index])
                 if group_index + 1 < n_groups:
-                    end = int(
-                        group_starts[
-                            group_index + 1
-                            ]
-                    )
+                    end = int(group_starts[group_index + 1])
                 else:
                     end = n_pairs
 
-                kmer = int(
-                    kmers[start]
-                )
+                kmer = int(kmers[start])
 
                 count = end - start
 
@@ -856,13 +811,8 @@ def build_chunked_direct_index(
                 # Record index entry.
                 # -------------------------------------------------
 
-                index[kmer]["offset"] = (
-                    total_postings
-                )
-
-                index[kmer]["count"] = (
-                    count
-                )
+                index[kmer]["offset"] = total_postings
+                index[kmer]["count"] = count
 
                 # -------------------------------------------------
                 # Copy nodes to the postings output buffer.
@@ -873,39 +823,21 @@ def build_chunked_direct_index(
 
                 while remaining > 0:
 
-                    available = (
-                            postings_block_size
-                            - postings_buffer_size
-                    )
+                    available = postings_block_size - postings_buffer_size
 
-                    take = min(
-                        remaining,
-                        available,
-                    )
+                    take = min(remaining, available,)
 
-                    postings_buffer[
-                        postings_buffer_size:
-                        postings_buffer_size + take
-                    ] = nodes[
-                        source_pos:
-                        source_pos + take
-                    ]
+                    postings_buffer[postings_buffer_size:postings_buffer_size + take] = nodes[source_pos:source_pos + take]
 
                     postings_buffer_size += take
                     source_pos += take
                     remaining -= take
                     total_postings += take
 
-                    if (
-                            postings_buffer_size
-                            == postings_block_size
-                    ):
+                    if (postings_buffer_size == postings_block_size):
                         flush_postings_buffer()
 
-            process_time = (
-                    time.perf_counter()
-                    - t0
-            )
+            process_time = time.perf_counter() - t0
 
             logger.info(f"  Processed in {process_time:.2f}s")
 
@@ -949,10 +881,7 @@ def build_chunked_direct_index(
         discarded_path
     )
 
-    discarded_write_time = (
-            time.perf_counter()
-            - t0
-    )
+    discarded_write_time = time.perf_counter() - t0
 
     discarded_count = discarded_kmers.size
 
@@ -972,15 +901,9 @@ def build_chunked_direct_index(
     # Timing
     # =========================================================
 
-    pass2_time = (
-            time.perf_counter()
-            - pass2_start
-    )
+    pass2_time = time.perf_counter() - pass2_start
 
-    total_time = (
-            time.perf_counter()
-            - pass1_start
-    )
+    total_time = time.perf_counter() - pass1_start
 
     # =========================================================
     # Final report
