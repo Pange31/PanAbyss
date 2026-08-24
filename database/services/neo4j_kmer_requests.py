@@ -402,14 +402,7 @@ def get_kmer_nodes(
 
     TAG = "FOUND"
     # Read postings.
-    # POSTINGS_INDEX.seek(
-    #     offset * np.dtype(np.uint64).itemsize
-    # )
-    # nodes = np.fromfile(
-    #     POSTINGS_INDEX,
-    #     dtype=np.uint64,
-    #     count=count,
-    # )
+
     nodes = POSTINGS_INDEX[
         offset: offset + count
     ]
@@ -551,15 +544,6 @@ def get_encoded_kmer_nodes_batch(
         # Read postings.
         # ----------------------------------------------------
 
-        # POSTINGS_INDEX.seek(
-        #     offset * np.dtype(np.uint64).itemsize
-        # )
-        #
-        # nodes = np.fromfile(
-        #     POSTINGS_INDEX,
-        #     dtype=np.uint64,
-        #     count=count,
-        # )
 
         nodes = POSTINGS_INDEX[
             offset: offset + count
@@ -777,15 +761,6 @@ def get_encoded_kmer_node_counts_batch(
         offset = int(offset)
         count = int(count)
 
-        # POSTINGS_INDEX.seek(
-        #     offset * itemsize
-        # )
-        #
-        # nodes = np.fromfile(
-        #     POSTINGS_INDEX,
-        #     dtype=np.uint64,
-        #     count=count,
-        # )
         nodes = POSTINGS_INDEX[
             offset: offset + count
         ]
