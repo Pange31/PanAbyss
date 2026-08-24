@@ -212,10 +212,15 @@ def load_kmer_index(
     )
 
     # Open postings file.
-    # access with seek().
-    POSTINGS_INDEX = open(
+    # # access with seek().
+    # POSTINGS_INDEX = open(
+    #     postings_path,
+    #     "rb",
+    # )
+    POSTINGS_INDEX = np.memmap(
         postings_path,
-        "rb",
+        dtype=np.uint64,
+        mode="r",
     )
 
     INDEX_K = k
@@ -397,15 +402,17 @@ def get_kmer_nodes(
 
     TAG = "FOUND"
     # Read postings.
-    POSTINGS_INDEX.seek(
-        offset * np.dtype(np.uint64).itemsize
-    )
-
-    nodes = np.fromfile(
-        POSTINGS_INDEX,
-        dtype=np.uint64,
-        count=count,
-    )
+    # POSTINGS_INDEX.seek(
+    #     offset * np.dtype(np.uint64).itemsize
+    # )
+    # nodes = np.fromfile(
+    #     POSTINGS_INDEX,
+    #     dtype=np.uint64,
+    #     count=count,
+    # )
+    nodes = POSTINGS_INDEX[
+        offset: offset + count
+    ]
 
     return TAG, nodes.tolist()
 
@@ -544,15 +551,19 @@ def get_encoded_kmer_nodes_batch(
         # Read postings.
         # ----------------------------------------------------
 
-        POSTINGS_INDEX.seek(
-            offset * np.dtype(np.uint64).itemsize
-        )
+        # POSTINGS_INDEX.seek(
+        #     offset * np.dtype(np.uint64).itemsize
+        # )
+        #
+        # nodes = np.fromfile(
+        #     POSTINGS_INDEX,
+        #     dtype=np.uint64,
+        #     count=count,
+        # )
 
-        nodes = np.fromfile(
-            POSTINGS_INDEX,
-            dtype=np.uint64,
-            count=count,
-        )
+        nodes = POSTINGS_INDEX[
+            offset: offset + count
+        ]
 
         results[position] = (
             "FOUND",
@@ -766,15 +777,18 @@ def get_encoded_kmer_node_counts_batch(
         offset = int(offset)
         count = int(count)
 
-        POSTINGS_INDEX.seek(
-            offset * itemsize
-        )
-
-        nodes = np.fromfile(
-            POSTINGS_INDEX,
-            dtype=np.uint64,
-            count=count,
-        )
+        # POSTINGS_INDEX.seek(
+        #     offset * itemsize
+        # )
+        #
+        # nodes = np.fromfile(
+        #     POSTINGS_INDEX,
+        #     dtype=np.uint64,
+        #     count=count,
+        # )
+        nodes = POSTINGS_INDEX[
+            offset: offset + count
+        ]
 
         all_nodes[
             destination:
