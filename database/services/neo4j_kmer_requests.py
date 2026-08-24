@@ -89,9 +89,7 @@ def find_index_metadata(
         canonical,
         output_dir=DEFAULT_INDEX_PATH,
 ):
-    catalog = load_index_catalog(
-        output_dir
-    )
+    catalog = load_index_catalog(output_dir)
 
     for entry in catalog["indexes"]:
 
@@ -204,17 +202,44 @@ def load_kmer_index(
     INDEX_CANONICAL = canonical
 
 
-def load_node_size_index(output_dir=DEFAULT_INDEX_PATH):
+
+def load_node_size_index(
+        k: int,
+        output_dir=DEFAULT_INDEX_PATH,
+):
     global NODE_SIZE_INDEX
 
     if NODE_SIZE_INDEX is not None:
         return
 
-    path = Path(output_dir) / "nodes.size.index"
+    output_dir = Path(output_dir)
+
+    catalog = load_index_catalog(output_dir)
+
+    # Find the first index entry matching k.
+    matching_index = next(
+        (
+            entry
+            for entry in catalog.get("indexes", [])
+            if entry.get("kmer_size") == k
+            and entry.get("node_size_index_filename")
+        ),
+        None,
+    )
+
+    if matching_index is None:
+        raise FileNotFoundError(
+            f"No node size index registered for k={k} "
+            f"in {output_dir / INDEX_CATALOG_FILENAME}"
+        )
+
+    filename = matching_index["node_size_index_filename"]
+    path = output_dir / filename
 
     if not path.exists():
         raise FileNotFoundError(
-            f"Node size index not found: {path}"
+            f"Node size index registered in catalog but "
+            f"file does not exist: {path}"
         )
 
     NODE_SIZE_INDEX = np.memmap(
@@ -253,7 +278,7 @@ int
 None
     If the node is not present in the index.
 """
-def get_node_size(node_id: int):
+def get_node_size(k: int, node_id: int):
     load_node_size_index()
     if NODE_SIZE_INDEX.size == 0:
         return None
@@ -886,11 +911,11 @@ np.ndarray
     Node sizes.
     Returns 0 for node IDs that are not present.
 """
-def get_node_sizes_batch(node_ids):
+def get_node_sizes_batch(k:int, node_ids):
 
     global NODE_SIZE_INDEX
 
-    load_node_size_index()
+    load_node_size_index(k=k)
 
     node_ids = np.asarray(
         node_ids,

@@ -244,9 +244,6 @@ def build_chunked_direct_index(
         parents=True,
         exist_ok=True,
     )
-    node_size_index_path = output_dir / "nodes.size.index"
-
-    build_node_size_index = not node_size_index_path.exists()
 
     num_kmers = 4 ** k
 
@@ -271,10 +268,14 @@ def build_chunked_direct_index(
     index_path = output_dir / f"kmer.{mode}.{k}.index"
     postings_path = output_dir / f"kmer.{mode}.{k}.postings"
     discarded_path = output_dir / f"kmer.{mode}.{k}.discarded"
+    node_size_index_path = output_dir / f"nodes.size.{k}.index"
+
+    build_node_size_index = not node_size_index_path.exists()
 
     filenames = {"kmer_index_filename": f"kmer.{mode}.{k}.index",
                  "kmer_discarded_filename": f"kmer.{mode}.{k}.discarded",
-                 "kmer_postings_filename": f"kmer.{mode}.{k}.postings"
+                 "kmer_postings_filename": f"kmer.{mode}.{k}.postings",
+                 "node_size_index_filename": f"nodes.size.{k}.index"
                  }
 
     # =========================================================
@@ -1018,5 +1019,6 @@ def build_chunked_direct_index(
         index_path,
         postings_path,
         discarded_path,
+        node_size_index_path
     )
 
