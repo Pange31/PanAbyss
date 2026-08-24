@@ -44,6 +44,26 @@ NODE_SIZE_DTYPE = np.dtype([
     ("size", "<u8"),
 ])
 
+"""
+Unload an index (used after index creation)
+"""
+def unload_index():
+
+    global KMER_INDEX
+    global POSTINGS_INDEX
+    global DISCARDED_INDEX
+    global INDEX_K
+    global INDEX_CANONICAL
+    global NODE_SIZE_INDEX
+
+    KMER_INDEX = None
+    POSTINGS_INDEX = None
+    DISCARDED_INDEX = None
+    NODE_SIZE_INDEX = None
+
+    INDEX_K = None
+    INDEX_CANONICAL = None
+
 
 """
 Load the PanAbyss k-mer index catalog.
@@ -209,7 +229,7 @@ def load_node_size_index(
 ):
     global NODE_SIZE_INDEX
 
-    if NODE_SIZE_INDEX is not None:
+    if NODE_SIZE_INDEX is not None and INDEX_K == k:
         return
 
     output_dir = Path(output_dir)
@@ -248,23 +268,6 @@ def load_node_size_index(
         mode="r",
     )
 
-def load_node_size_index_old(output_dir=DEFAULT_INDEX_PATH):
-    global NODE_SIZE_INDEX
-
-    if NODE_SIZE_INDEX is not None:
-        return
-    path = Path(output_dir) / "nodes.size.index"
-
-    if not path.exists():
-        raise FileNotFoundError(
-            f"Node size index not found: {path}"
-        )
-
-    NODE_SIZE_INDEX = np.memmap(
-        path,
-        dtype=NODE_SIZE_DTYPE,
-        mode="r",
-    )
 
 
 """

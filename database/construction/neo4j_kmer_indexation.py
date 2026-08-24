@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 from utils.base_utils import get_current_version
 from utils.kmer import encode_kmers
-from database.services.neo4j_kmer_requests import load_index_catalog
+from database.services.neo4j_kmer_requests import load_index_catalog, unload_index
 
 
 
@@ -1015,6 +1015,7 @@ def build_chunked_direct_index(
         filenames=filenames
     )
 
+    unload_index()
     return (
         index_path,
         postings_path,
