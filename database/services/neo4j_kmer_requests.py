@@ -660,13 +660,14 @@ Returns
 dict
     node_id -> number of supporting k-mers
 """
+
+
 def get_encoded_kmer_node_counts_batch(
         kmer_codes,
         k,
         canonical=True,
         output_dir=DEFAULT_INDEX_PATH,
 ):
-
     global KMER_INDEX
     global POSTINGS_INDEX
 
@@ -756,11 +757,12 @@ def get_encoded_kmer_node_counts_batch(
 
     destination = 0
 
-    for offset, count in zip(
-            offsets,
-            counts,
-    ):
+    order = np.argsort(offsets)
 
+    offsets_sorted = offsets[order]
+    counts_sorted = counts[order]
+
+    for offset, count in zip(offsets_sorted, counts_sorted):
         offset = int(offset)
         count = int(count)
 
