@@ -903,35 +903,47 @@ def get_annotation_before_or_after_position(genome_ref, chromosome="1", position
                 return dict(record)
     return None
 
+"""
+This function take ids of Sequence nodes and return nodes of type Nodes 
+whose ref_node is in the Sequence name result
+"""
+def get_nodes_from_sequence_id(
+        sequence_ids,
+):
+    start_time = time.time()
+    if not sequence_ids or len(sequence_ids) == 0:
+        return []
 
+    driver = get_scoped_driver()
 
-# This function get first annotation on nodes of a reference_genome on a given chromosome after the given position
-# def get_annotation_before_or_after_position(genome_ref, chromosome="1", position=0, before=True):
-#     if get_driver() is None:
-#         return {}
-#     with get_driver() as driver:
-#         if before:
-#             query = f"""
-#             MATCH (a:Annotation)
-#             WHERE a.genome_ref = "{genome_ref}" and a.chromosome = "{chromosome}" and a.end < $position and a.gene_name is not null
-#             RETURN a.gene_name AS gene_name, a.end as end, a.start as start, a.feature as feature
-#             ORDER BY a.end DESC
-#             LIMIT 1
-#             """
-#         else:
-#             query = f"""
-#             MATCH (a:Annotation)
-#             WHERE a.genome_ref = "{genome_ref}" and a.chromosome = "{chromosome}" and a.start > $position and a.gene_name is not null
-#             RETURN a.gene_name AS gene_name, a.end as end, a.start as start, a.feature as feature
-#             ORDER BY a.start ASC
-#             LIMIT 1
-#             """
-#
-#         with driver.session() as session:
-#             result = session.run(query, position=position)
-#             record = result.single()
-#             return dict(record) if record else None
+    if driver is None:
+        return []
 
+    query = """
+    MATCH (s:Sequence)
+    WHERE id(s) IN $sequence_ids
+
+    MATCH (n:Node)
+    WHERE n.ref_node = s.name
+
+    RETURN n, id(s) AS sequence_id
+    """
+
+    nodes = []
+
+    with driver.session() as session:
+        result = session.run(
+            query,
+            sequence_ids=sequence_ids,
+        )
+
+        for record in result:
+            nodes.append({
+                "node": dict(record["n"]),
+                "sequence_id": record["sequence_id"],
+            })
+    logger.debug(f"Get {len(nodes)} nodes in {time.time() - start_time} s.")
+    return nodes
 
 # This function get all annotations on nodes of a reference_genome on a given chromosome between start_position and end_position
 def get_annotations_in_position_range(genome_ref, chromosome="1", start_position=0, end_position=0):
