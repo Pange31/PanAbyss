@@ -1,6 +1,5 @@
 import plotly.graph_objects as go
 
-
 from neo4j_requests import *
 
 import dash
@@ -28,7 +27,6 @@ import logging
 
 import urllib.parse
 
-
 logger = logging.getLogger("panabyss_logger")
 
 cyto.load_extra_layouts()
@@ -42,16 +40,17 @@ MAX_NODES_TO_VISUALIZE = get_max_nodes_to_visualize()
 MAX_NODES_FROM_DB = get_max_nodes_from_db()
 logger.debug(f"Conf max nodes to visualize: {MAX_NODES_TO_VISUALIZE} max nodes from db: {MAX_NODES_FROM_DB}")
 
-#MAX_GAP is used to dash edges between nodes separated by more than this value
+# MAX_GAP is used to dash edges between nodes separated by more than this value
 MAX_GAP = 50000
 
-#MAX size of displayed nodes
+# MAX size of displayed nodes
 S_MAX = 200
-#MIN size of displayed nodes
+# MIN size of displayed nodes
 S_MIN = 30
 
-#MAX_EDGE WIDTH
+# MAX_EDGE WIDTH
 MAX_EDGE_WIDTH = 4
+
 
 def records_to_dataframe(nodes_data):
     rows = []
@@ -62,21 +61,21 @@ def records_to_dataframe(nodes_data):
 
 def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=False, nodes_size_scale=1):
     node_shape = 'circle' if node_shape_as_circle else 'round-rectangle'
-    node_height = 'data(displayed_node_size)' if node_shape_as_circle else 18*nodes_size_scale
+    node_height = 'data(displayed_node_size)' if node_shape_as_circle else 18 * nodes_size_scale
     if color_number > 1:
         stylesheet = [
             {
-            'selector': 'node',
-            'style': {
-                'label': 'data(name)' if nodes_names else '',
-                'backgroundColor':'data(color)',
-                'text-opacity':1,
-                'opacity':1,
-                'shape': node_shape,
-                'width':'data(displayed_node_size)',
-                'height': node_height,
-                #'height':'data(displayed_node_size)',
-                'z-compound-depth': 'top'
+                'selector': 'node',
+                'style': {
+                    'label': 'data(name)' if nodes_names else '',
+                    'backgroundColor': 'data(color)',
+                    'text-opacity': 1,
+                    'opacity': 1,
+                    'shape': node_shape,
+                    'width': 'data(displayed_node_size)',
+                    'height': node_height,
+                    # 'height':'data(displayed_node_size)',
+                    'z-compound-depth': 'top'
 
                 }
             },
@@ -97,7 +96,7 @@ def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=Fal
                     'target-arrow-shape': 'triangle',
                     'arrow-scale': 1,
                     'control-point-distances': [1],
-                    'opacity':0.9,
+                    'opacity': 0.9,
                     'z-compound-depth': 'bottom'
                 },
             },
@@ -128,12 +127,12 @@ def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=Fal
                 'border-width': 3,
                 'border-color': 'black'
             }},
-            
-            ]
-        for i in range(1, color_number+1):
+
+        ]
+        for i in range(1, color_number + 1):
             sign = 1 if i % 2 == 0 else -1
             distance = sign * (20 + 10 * (i // 2))
-            distance = 1 + 5*i
+            distance = 1 + 5 * i
             stylesheet.append({
                 'selector': f'.offset-{i}',
                 'style': {'control-point-distances': [distance], 'opacity': 0.6, }
@@ -143,14 +142,14 @@ def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=Fal
             {
                 'selector': 'node',
                 'style': {
-                    'backgroundColor':'data(color)',
+                    'backgroundColor': 'data(color)',
                     'label': 'data(name)' if nodes_names else '',
                     'text-opacity': 1,
-                    'opacity':1,
+                    'opacity': 1,
                     'shape': node_shape,
-                    'width':'data(displayed_node_size)',
+                    'width': 'data(displayed_node_size)',
                     'height': node_height,
-                    #'height':'data(displayed_node_size)',
+                    # 'height':'data(displayed_node_size)',
                     'z-compound-depth': 'top'
                 }
             },
@@ -170,9 +169,8 @@ def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=Fal
                     'target-arrow-shape': 'triangle',
                     'arrow-scale': 1,
                     'curve-style': 'straight',
-                    'opacity':0.9,
+                    'opacity': 0.9,
                     'z-compound-depth': 'bottom'
-
 
                 }
             },
@@ -208,7 +206,7 @@ def compute_stylesheet(color_number, nodes_names=False, node_shape_as_circle=Fal
 
 
 def flow_to_rgb(flow, node_style="default", exons_color=DEFAULT_EXONS_COLOR):
-    if node_style=="exon":
+    if node_style == "exon":
         defined_color = hex_to_rgb_string(exons_color)
     else:
         r = int(255 * flow)
@@ -216,6 +214,7 @@ def flow_to_rgb(flow, node_style="default", exons_color=DEFAULT_EXONS_COLOR):
         b = int(255 * (1 - flow))
         defined_color = f'rgb({r},{g},{b})'
     return defined_color
+
 
 def hex_to_rgb_string(hex_color):
     hex_color = hex_color.lstrip('#')
@@ -230,14 +229,11 @@ def hex_to_rgb_string(hex_color):
 def get_color_palette(n):
     import matplotlib.pyplot as plt
     cmap = plt.get_cmap("tab20")
-    return [f'rgb({int(r*255)}, {int(g*255)}, {int(b*255)})' for r, g, b, _ in cmap(np.linspace(0, 1, n))]
+    return [f'rgb({int(r * 255)}, {int(g * 255)}, {int(b * 255)})' for r, g, b, _ in cmap(np.linspace(0, 1, n))]
 
 
-
-
-#Merge the data of nodes to be removed into their predecessor node.
+# Merge the data of nodes to be removed into their predecessor node.
 def merge_node_data(df, nodes_to_remove, predecessors):
-
     df = df.copy()
 
     # Fast lookup
@@ -295,7 +291,6 @@ def merge_node_data(df, nodes_to_remove, predecessors):
         size_pred = df.at[idx_pred, "size"]
         df.at[idx_pred, "size"] = size_pred + size_n
 
-
         # FEATURES
         f1 = row_n.get("features")
         f1 = f1 if isinstance(f1, list) else []
@@ -304,7 +299,6 @@ def merge_node_data(df, nodes_to_remove, predecessors):
         f2 = f2 if isinstance(f2, list) else []
 
         df.at[idx_pred, "features"] = list(set(f1 + f2))
-
 
         # EXONS
 
@@ -332,7 +326,6 @@ def merge_node_data(df, nodes_to_remove, predecessors):
 
         df.at[idx_pred, "exons"] = merged_exons
 
-
         # GENES
 
         g1 = row_n.get("genes_names")
@@ -346,7 +339,6 @@ def merge_node_data(df, nodes_to_remove, predecessors):
         # GENOMES
 
         if "genomes" in df.columns:
-
             genomes_n = row_n.get("genomes")
             genomes_n = genomes_n if isinstance(genomes_n, list) else []
 
@@ -374,15 +366,15 @@ def merge_node_data(df, nodes_to_remove, predecessors):
     return df_compacted
 
 
-
 """
 This function compress a graph by removing
 linear internal nodes, while allowing orientation inversions
 across genomes.
 If nodes have been selected, only these nodes will be compacted
 """
-def graph_compression(df, flow_min=0, selected_genomes=None, selected_nodes_name=None):
 
+
+def graph_compression(df, flow_min=0, selected_genomes=None, selected_nodes_name=None):
     genome_position_cols = [c for c in df.columns if c.endswith("_position")]
     if selected_genomes is not None:
         selected_position_cols = {
@@ -486,12 +478,12 @@ def graph_compression(df, flow_min=0, selected_genomes=None, selected_nodes_name
     return df_compacted
 
 
-
 def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_genomes, all_chromosomes,
                            specifics_genomes=None, color_genomes=[], x_max=1000, y_max=1000, labels=True,
                            min_shared_genome=100, tolerance=0, color_shared_regions=DEFAULT_SHARED_REGION_COLOR,
                            exons=False, exons_color=DEFAULT_EXONS_COLOR, colored_edges_size=5,
-                           compression=False, min_flow_compression_value=0, max_nodes_to_visualize=MAX_NODES_TO_VISUALIZE,
+                           compression=False, min_flow_compression_value=0,
+                           max_nodes_to_visualize=MAX_NODES_TO_VISUALIZE,
                            nodes_size_scale=1, genes_color=None, selected_nodes_name=None):
     logger.debug(f"Compute elements with ref genome {ref_genome} node min size : {size_min}")
 
@@ -501,7 +493,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
     }
     if data != None and len(data) > 0:
         if ref_genome is not None and ref_genome != "":
-            position_field = ref_genome+"_position"
+            position_field = ref_genome + "_position"
         else:
             position_field = "mean_pos"
         df = records_to_dataframe(data)
@@ -511,11 +503,11 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         n_rows = len(df)
         if df.empty:
             return [], 0, legend_nodes_size_dict
-        #If compression is set to true then it will compress the graph
-        #Nodes with a single predecessor and a single successor, and for which the predecessor
-        #has only one outgoing node, are removed
+        # If compression is set to true then it will compress the graph
+        # Nodes with a single predecessor and a single successor, and for which the predecessor
+        # has only one outgoing node, are removed
         if compression or (selected_nodes_name and len(selected_nodes_name) > 1):
-            if compression :
+            if compression:
                 selected_nodes_name = None
             df = graph_compression(df, min_flow_compression_value, selected_genomes, selected_nodes_name)
         n_rows = len(df)
@@ -530,7 +522,8 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
             if isinstance(g, (list, set, tuple))
             else False
         )].copy()
-        #logger.debug(f"Compute elements - dataframe")
+
+        # logger.debug(f"Compute elements - dataframe")
         def mean_position(row):
             positions = [row.get(f"{g}_node")
                          for g in row["genomes"] if f"{g}_node" in row]
@@ -540,19 +533,17 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         size_max = df['size'].max()
         size_min = df['size'].min()
 
-        df["displayed_node_size"] = (S_MIN + (df["size"]-size_min)*(S_MAX-S_MIN)/(size_max-size_min))*nodes_size_scale
+        df["displayed_node_size"] = (S_MIN + (df["size"] - size_min) * (S_MAX - S_MIN) / (
+                    size_max - size_min)) * nodes_size_scale
 
         legend_nodes_size_dict = {
-                "size_min": str(size_min),
-                "size_max": str(size_max)
+            "size_min": str(size_min),
+            "size_max": str(size_max)
         }
-
 
         df["mean_pos"] = df.apply(mean_position, axis=1)
         x_min, x_max_data = df["mean_pos"].min(), df["mean_pos"].max()
-        df["x"] = ((df["mean_pos"] - x_min) / max(1,(x_max_data - x_min))) * x_max
-
-
+        df["x"] = ((df["mean_pos"] - x_min) / max(1, (x_max_data - x_min))) * x_max
 
         X_SPAN = 40000
         GAP = 40
@@ -560,9 +551,9 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         min_x = df["mean_pos"].min()
         max_x = df["mean_pos"].max()
 
-        df["x_mean"] = ((df["mean_pos"] - min_x)/ (max(1,max_x - min_x))) * X_SPAN - X_SPAN / 2
+        df["x_mean"] = ((df["mean_pos"] - min_x) / (max(1, max_x - min_x))) * X_SPAN - X_SPAN / 2
         df = df.sort_values("x_mean").reset_index(drop=True)
-        #df["x"] = 0.0
+        # df["x"] = 0.0
         for n in range(len(df)):
             if n == 0:
                 df.at[n, "x"] = df.at[n, "x_mean"]
@@ -584,20 +575,19 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         mask = df["flow"] < FLOW_CENTER
         df.loc[mask, "y"] = Y_MIN + (Y_MAX - Y_MIN) * (df.loc[mask, "flow"] / FLOW_CENTER) ** ALPHA
 
-        #df.loc[df.index % 2 == 0, "y"] *= -1
+        # df.loc[df.index % 2 == 0, "y"] *= -1
 
-        #This line is due to a pb with cytoscape : if no y with negative and positive values then
-        #graph disappear when zooming
-        #the first node y value is set negative to avoid this problem
+        # This line is due to a pb with cytoscape : if no y with negative and positive values then
+        # graph disappear when zooming
+        # the first node y value is set negative to avoid this problem
         df.at[df.index[0], "y"] = -Y_MAX
-        #logger.debug(df[["x", "y"]].describe())
-
+        # logger.debug(df[["x", "y"]].describe())
 
         df["genome_key"] = df["genomes"].apply(lambda g: "".join(sorted(g)))
         genome_keys = sorted(
             df["genome_key"].drop_duplicates(), key=lambda x: (-len(x), x))
-        #y_positions = {k: 1 for k in enumerate(genome_keys)}
-        #df["y"] = df["genome_key"].map(y_positions)
+        # y_positions = {k: 1 for k in enumerate(genome_keys)}
+        # df["y"] = df["genome_key"].map(y_positions)
 
         color_map = {k: c for k, c in zip(
             genome_keys, get_color_palette(len(genome_keys)))}
@@ -605,15 +595,15 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
         nodes = []
 
         size_max_noeud = 10
-        #logger.debug(f"Compute elements - begin loop")
+        # logger.debug(f"Compute elements - begin loop")
 
         for _, row in df.iterrows():
             node_style = "default"
             classes = "main-node" if row['ref_node'] == row['name'] else "degenerate-node"
-            if exons :
+            if exons:
                 if "features" in row and "exon" in row['features']:
-                    node_style="exon"
-            node_color = flow_to_rgb(row['flow'],node_style,exons_color)
+                    node_style = "exon"
+            node_color = flow_to_rgb(row['flow'], node_style, exons_color)
 
             # if genes_color:
             #     genes = row.get("genes_names") or []
@@ -640,18 +630,16 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                     'position': row.get(position_field)
                 },
                 'position': {'x': row['x'], 'y': row['y']},
-                'classes':classes
+                'classes': classes
             }
 
             nodes.append(data_nodes)
-
-
 
         edges = []
         edges_dict = {}
 
         for genome in selected_genomes:
-            #logger.debug(f"Compute elements - genome {genome}")
+            # logger.debug(f"Compute elements - genome {genome}")
 
             mask = df["genomes"].apply(lambda g: genome in g)
             nodes_g = df.loc[mask, :]
@@ -666,7 +654,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
 
             nodes_g = nodes_g.sort_values(by=col, ascending=True, ignore_index=True)
 
-            #compute source and targets
+            # compute source and targets
             sources = nodes_g["name"].iloc[:-1].values
             targets = nodes_g["name"].iloc[1:].values
             positions = nodes_g[col].values
@@ -699,7 +687,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                 if (positions[i + 1] - positions[i]) > MAX_GAP and MAX_GAP > sizes[i]:
                     edges_dict[edge_key]["SV"] = True
 
-        #logger.debug(f"Compute elements - specific color")
+        # logger.debug(f"Compute elements - specific color")
         # Color the links shared by a set of selected genomes to detect shared paths
         colored_genomes = {}
         for g, c in zip(all_genomes, color_genomes):
@@ -721,12 +709,13 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                 if len(intersect) >= min_required_shared and len(dic["genomes"]) - len(intersect) <= max_allowed_extra:
                     link_color = color_shared_regions
                     virtual_flow = len(selected_genomes)
-                    normal_width = ((virtual_flow + int(0.2 * len(selected_genomes))) / len(selected_genomes)) * MAX_EDGE_WIDTH
+                    normal_width = ((virtual_flow + int(0.2 * len(selected_genomes))) / len(
+                        selected_genomes)) * MAX_EDGE_WIDTH
                     width = max(colored_edges_size, normal_width)
 
             label = ""
             label_color = "black"
-            if labels :
+            if labels:
                 if not genes_color or len(genes_color) == 0:
                     first_label = True
                     for a in dic["annotations"]:
@@ -735,13 +724,13 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                             first_label = False
                         else:
                             label += ", " + str(a)
-                else :
+                else:
                     first_label = True
                     for a in dic["annotations"]:
                         if a.lower() in genes_color:
                             if first_label:
                                 label += str(a)
-                            else :
+                            else:
                                 label += ", " + str(a)
                             label_color = genes_color[a.lower()]
                             break
@@ -750,7 +739,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                 line_style = "dashed"
             else:
                 line_style = "solid"
-            if "direction_genome_ref" in dic :
+            if "direction_genome_ref" in dic:
                 source = dic["direction_genome_ref"].split("->")[0]
                 target = dic["direction_genome_ref"].split("->")[1]
             else:
@@ -770,14 +759,14 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                 },
                 'style': {
                     'line-color': link_color,
-                    'line-style':line_style,
+                    'line-style': line_style,
                     'target-arrow-color': link_color,
                     'label': label,
                     'font-size': '20px',
                     'color': label_color,
                     'text-rotation': 'autorotate',
                     'text-margin-y': -20,
-                    'width':width
+                    'width': width
                 }
             })
             if len(colored_genomes) > 0:
@@ -802,7 +791,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                             'classes': f'offset-{i}',
                             'style': {
                                 'line-color': colored_genomes[g],
-                                'line-style' : line_style,
+                                'line-style': line_style,
                                 'target-arrow-color': colored_genomes[g],
                                 'width': colored_edges_size
 
@@ -810,7 +799,7 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
                         })
                         i += 1
         logger.debug("nb nodes : " + str(len(nodes)) +
-              " - nb edges : " + str(len(edges)))
+                     " - nb edges : " + str(len(edges)))
         return nodes + edges, len(nodes), legend_nodes_size_dict
     else:
         return [], 0, legend_nodes_size_dict
@@ -833,7 +822,7 @@ legend = html.Div(
 
         # === NODE SIZE ===
 
-        #New version of node size legend
+        # New version of node size legend
         svg.Svg(width="320", height="70", children=[
 
             # ===== MIN =====
@@ -905,10 +894,9 @@ legend = html.Div(
             )
         ]),
 
-
         # === NODE COLOR (BLUE → RED) ===
 
-        #new version with bar
+        # new version with bar
         svg.Svg(width="300", height="60", children=[
 
             svg.Rect(x="10", y="10", width="45", height="20", fill="blue"),
@@ -935,13 +923,11 @@ legend = html.Div(
             )
         ]),
 
-
         # === REPEATED NODE ===
         svg.Svg(width="300", height="70", children=[
             svg.Ellipse(cx="40", cy="25", rx="28", ry="12", fill="red", stroke="black"),
             svg.Text("Repeated node", x="80", y="30", fontSize="14")
         ]),
-
 
         # === EDGE WIDTH ===
         svg.Svg(width="360", height="30", children=[
@@ -974,15 +960,14 @@ legend = html.Div(
 )
 
 
-
 def layout(data=None, initial_size_limit=10):
     all_genomes = get_genomes()
     all_genomes.sort()
     all_chromosomes = get_chromosomes()
     features = get_annotations_features()
-    if all_genomes :
+    if all_genomes:
         max_label_len = max(len(s) for s in all_genomes)
-    else :
+    else:
         max_label_len = 30
     min_item_width = min(max_label_len * 8 + 15, 350)
     if data != None:
@@ -1008,7 +993,8 @@ def layout(data=None, initial_size_limit=10):
                         "Select a chromosome: searches will only be performed on this chromosome."),
                     html.Li("Choose from the following options:"),
                     html.Ul([
-                        html.Li("Select the start and end of the region on the selected chromosome. If there is no defined end, then the searched region will be from the defined start to the end of the pangenome. The region should not be too large, otherwise the display will take too long or will not be possible."),
+                        html.Li(
+                            "Select the start and end of the region on the selected chromosome. If there is no defined end, then the searched region will be from the defined start to the end of the pangenome. The region should not be too large, otherwise the display will take too long or will not be possible."),
                         html.Li("Search by annotation with a gene name or ID.")
                     ]),
                     html.Li("Select the haplotypes to be viewed: it is possible to exclude some haplotypes. "
@@ -1032,15 +1018,18 @@ def layout(data=None, initial_size_limit=10):
                         "Graph compression: when a min node size is set greater than 0, this will compact the linear parts of the graph (i.e. nodes connected to exactly 2 nodes will be compacted. It is possible to set the minimal percentage of individuals for compressing a node (for instance to compress only the core nodes)."),
                     html.Li(
                         "Graph compression: when selecting node and clicking on update graph, the selected nodes will be compacted if they have only one predecessor and one successor."),
-                    html.Li("Search shared paths : if the box is checked, the display is modified to allow the selection of haplotypes for which you want to view shared links. This display can be configured:"),
+                    html.Li(
+                        "Search shared paths : if the box is checked, the display is modified to allow the selection of haplotypes for which you want to view shared links. This display can be configured:"),
                     html.Ul([
                         html.Li(
                             "Selection of haplotypes for which common links are sought"),
-                        html.Li("Selection of the minimum percentage of selected haplotypes that must be present on the link "
-                                "(for example, if the value is set to 50 and 10 haplotypes are selected, at least 5 of the haplotypes must be on the link). "
-                                "If the value is zero, then at least one of the selected haplotypes will be required."),
-                        html.Li("Tolerance: links containing fewer than [(tolerance / 100) × number of haplotypes passing through this node] "
-                                "unselected haplotypes will be reported."),
+                        html.Li(
+                            "Selection of the minimum percentage of selected haplotypes that must be present on the link "
+                            "(for example, if the value is set to 50 and 10 haplotypes are selected, at least 5 of the haplotypes must be on the link). "
+                            "If the value is zero, then at least one of the selected haplotypes will be required."),
+                        html.Li(
+                            "Tolerance: links containing fewer than [(tolerance / 100) × number of haplotypes passing through this node] "
+                            "unselected haplotypes will be reported."),
                         html.Li("Link color: choice of color for reported links")
                     ]),
                     html.Li(
@@ -1058,7 +1047,8 @@ def layout(data=None, initial_size_limit=10):
                     html.Ul([
                         html.Li(
                             "Node shape : a node is drawn as a round rectangle (can be configured in about page), unless if it's a repeated node in which case it will be displayed as an ellipse."),
-                        html.Li("Node color : The color of the nodes ranges from blue to red. The bluer the color, the less common the node (node associated with only one or a small number of haplotypes). Conversely, red nodes are those of the core genome shared by all haplotypes."),
+                        html.Li(
+                            "Node color : The color of the nodes ranges from blue to red. The bluer the color, the less common the node (node associated with only one or a small number of haplotypes). Conversely, red nodes are those of the core genome shared by all haplotypes."),
                         html.Li(
                             "Node size : the size of a node is proportionnal to the size of the sequence associated."),
                         html.Li(
@@ -1086,10 +1076,10 @@ def layout(data=None, initial_size_limit=10):
                         "It is possible to directly visualize a region by specifying query parameters in the request."]),
 
                     html.Li([
-                    "For example, to visualize the region from 10,330,185 to 10,529,460 on chromosome 21 of the haplotype CHM13_0, "
-                    "you can use the following query parameter: ",
-                    html.Code("?haplotype=CHM13_0&chromosome=21&start=10330185&end=10529460")
-                        ]),
+                        "For example, to visualize the region from 10,330,185 to 10,529,460 on chromosome 21 of the haplotype CHM13_0, "
+                        "you can use the following query parameter: ",
+                        html.Code("?haplotype=CHM13_0&chromosome=21&start=10330185&end=10529460")
+                    ]),
                     html.Li(["Here is the list of available parameters:"]),
                     html.Ul([
                         html.Li([
@@ -1112,17 +1102,16 @@ def layout(data=None, initial_size_limit=10):
                 ]),
             ], style={"marginBottom": "20px"}),
 
-
         ]),
         # Upper block : settings
         html.Div([
-
 
             # Left block
             html.Div([
                 html.Div([
                     html.Div([
-                        html.Label("Reference haplotype", title="Select an haplotype to search / display annotation and to define genomic coordinates to search region.",
+                        html.Label("Reference haplotype",
+                                   title="Select an haplotype to search / display annotation and to define genomic coordinates to search region.",
                                    style={'display': 'block', 'marginBottom': '5px'}),
                         dcc.Dropdown(
                             id='genomes-dropdown',
@@ -1134,7 +1123,8 @@ def layout(data=None, initial_size_limit=10):
                         )
                     ], style={'marginRight': '30px'}),
                     html.Div([
-                        html.Label("Chromosome", title="The regions / annotations will be related only to this chromosome.",
+                        html.Label("Chromosome",
+                                   title="The regions / annotations will be related only to this chromosome.",
                                    style={'display': 'block', 'marginBottom': '5px'}),
                         dcc.Dropdown(
                             id='chromosomes-dropdown',
@@ -1146,14 +1136,14 @@ def layout(data=None, initial_size_limit=10):
                             style={'width': '200px'}
                         )
                     ])
-                ], style={'display': 'flex', 'padding': '20px', 'border': '1px solid #ccc', 'minWidth': '300px', 'boxSizing': 'border-box'}),
-
+                ], style={'display': 'flex', 'padding': '20px', 'border': '1px solid #ccc', 'minWidth': '300px',
+                          'boxSizing': 'border-box'}),
 
                 html.Div([
                     html.Div([
-                        #Div search and display
+                        # Div search and display
                         html.Div([
-                                #div search options
+                            # div search options
                             html.H5("Search region", style={'textAlign': 'left', 'marginBottom': '15px'}),
                             html.Div([
                                 # html.Label("Start : ", title="Start on the selected haplotype / chromosome."),
@@ -1164,12 +1154,14 @@ def layout(data=None, initial_size_limit=10):
                                 html.Div([
                                     html.Div([
                                         html.Label("Start : ", title="Start on the selected haplotype / chromosome."),
-                                        dcc.Input(id='start-input', type='text', inputMode='numeric', pattern='[0-9]*', style={'width': '140px','minWidth': '120px'})
+                                        dcc.Input(id='start-input', type='text', inputMode='numeric', pattern='[0-9]*',
+                                                  style={'width': '140px', 'minWidth': '120px'})
                                     ], style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'}),
 
                                     html.Div([
                                         html.Label("End : ", title="End on the selected haplotype / chromosome."),
-                                        dcc.Input(id='end-input', type='text', inputMode='numeric', pattern='[0-9]*', style={'width': '140px','minWidth': '120px'})
+                                        dcc.Input(id='end-input', type='text', inputMode='numeric', pattern='[0-9]*',
+                                                  style={'width': '140px', 'minWidth': '120px'})
                                     ], style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'})
 
                                 ], style={
@@ -1178,9 +1170,7 @@ def layout(data=None, initial_size_limit=10):
                                     'gap': '10px'
                                 })
 
-
                             ], style={'marginBottom': '10px'}),
-
 
                             html.Div(
                                 style={
@@ -1256,22 +1246,20 @@ def layout(data=None, initial_size_limit=10):
                                 ]
                             ),
 
-
-
                             html.Button('Search', id='search-button',
                                         n_clicks=0, style={'marginTop': '10px'}),
                             dcc.Loading(
                                 id="loading-search-msg",
-                                #type="circle",
+                                # type="circle",
                                 children=html.Div(id="search-message")
                             ),
-                        ],style={
+                        ], style={
                             'width': '45%',
                             'padding': '10px',
                             'boxSizing': 'border-box'
                         }),
                         html.Div([
-                            #Div displayed region
+                            # Div displayed region
                             html.H4("Displayed region", style={'marginBottom': '10px'}),
                             html.Div([
                                 html.Div(id='displayed-region-container', children=[
@@ -1292,7 +1280,7 @@ def layout(data=None, initial_size_limit=10):
                                 'borderLeft': '2px solid #ddd',
                                 'boxSizing': 'border-box'
                             }),
-                    ],style={
+                    ], style={
                         'display': 'flex',
                         'flexDirection': 'row',
                         'justifyContent': 'space-between',
@@ -1346,8 +1334,6 @@ def layout(data=None, initial_size_limit=10):
                     ],
                         style={'marginBottom': '20px'}),
 
-
-
                 ],
                     style={'marginBottom': '20px'}
                 )
@@ -1365,7 +1351,7 @@ def layout(data=None, initial_size_limit=10):
                         min=1,
                         max=size_max,
                         step=1,
-                        marks={i: str(i) for i in range(0, size_max + 1, int(size_max/10))},
+                        marks={i: str(i) for i in range(0, size_max + 1, int(size_max / 10))},
                         value=DEFAULT_SIZE_VALUE,
                         updatemode="mouseup",
                         tooltip={"placement": "bottom",
@@ -1433,7 +1419,6 @@ def layout(data=None, initial_size_limit=10):
                             html.Span(" % of individuals. "),
                         ]),
 
-
                     ], style={
                         'display': 'flex',
                         'alignItems': 'center',
@@ -1442,8 +1427,7 @@ def layout(data=None, initial_size_limit=10):
                         'marginBottom': '10px'
                     }),
 
-
-                    #Size sliders
+                    # Size sliders
                     html.Div([
                         # Colored edge size slider
                         html.Div([
@@ -1536,16 +1520,11 @@ def layout(data=None, initial_size_limit=10):
                             id='exon-color-picker',
                             type='color',
                             value=DEFAULT_EXONS_COLOR,
-                            style={'width': '25px', 'minWidth':'25px', 'height': '25px', 'marginRight': '10px'}
+                            style={'width': '25px', 'minWidth': '25px', 'height': '25px', 'marginRight': '10px'}
                         ),
 
-
-
-
-
                     ], style={'display': 'flex', 'alignItems': 'center', 'gap': '8px'}),
-                ], style={'display': 'flex', 'flexDirection': 'column', 'marginBottom':'10px'}),
-
+                ], style={'display': 'flex', 'flexDirection': 'column', 'marginBottom': '10px'}),
 
                 html.Div(
                     style={
@@ -1560,15 +1539,16 @@ def layout(data=None, initial_size_limit=10):
                             id='shared-mode'
                         )
 
-
                     ]
                 ),
-            
+
                 html.Div([
 
                     html.Div([
                         html.Label(
-                            "Vizualize shared paths :", title="Detect the links through which the selected haplotypes pass - the following input fields allow you to refine the search. ", style={'marginBottom': '20px'}),
+                            "Vizualize shared paths :",
+                            title="Detect the links through which the selected haplotypes pass - the following input fields allow you to refine the search. ",
+                            style={'marginBottom': '20px'}),
 
                         dcc.Checklist(
                             id="specific-genome_selector",
@@ -1594,15 +1574,18 @@ def layout(data=None, initial_size_limit=10):
                                 "marginBottom": "5px"
                             }
                         ),
-                        html.Label("Min (%) of shared haplotypes : ", title="Min (%) of shared haplotypes = M. Number of selected haplotypes = N. To detect a shared node it must contains almost (M/100) x N of the selected haplotypes. If M = 0 then the minimum number of selected haplotypes will be 1."),
+                        html.Label("Min (%) of shared haplotypes : ",
+                                   title="Min (%) of shared haplotypes = M. Number of selected haplotypes = N. To detect a shared node it must contains almost (M/100) x N of the selected haplotypes. If M = 0 then the minimum number of selected haplotypes will be 1."),
                         dcc.Input(id='min_shared_genomes-input', type='number',
                                   value=100, style={'width': '100px', 'marginRight': '10px', "marginBottom": "5px"}),
-                        html.Label("Tolerance (%) : ", title="Tolerance = T. Number of haplotypes on a node = n. To detect a shared node it must contains less than (T/100) x n of the non selected haplotypes. If T = 0 then detected nodes should contain only selected haplotypes."),
+                        html.Label("Tolerance (%) : ",
+                                   title="Tolerance = T. Number of haplotypes on a node = n. To detect a shared node it must contains less than (T/100) x n of the non selected haplotypes. If T = 0 then detected nodes should contain only selected haplotypes."),
                         dcc.Input(id='tolerance-input', type='number', value=0,
                                   style={'width': '100px', 'marginRight': '20px'}),
 
                         html.Label(
-                            "Link color", title="This color will be used to color links between detected shared nodes."),
+                            "Link color",
+                            title="This color will be used to color links between detected shared nodes."),
 
                         dbc.Input(
                             id='shared-region-color-picker',
@@ -1661,13 +1644,31 @@ def layout(data=None, initial_size_limit=10):
                 html.Button("Update graph", id="update-btn",
                             n_clicks=0, style={'marginTop': '10px'}),
 
-                html.Div(html.H4(id='node-info', style={'margin': '10px'})),
-                html.Div(html.Label("Annotations in the region:", title="Compiles all annotations for the displayed nodes.", style={
-                         'marginBottom': '5px'})),
+                html.Div(
+                    html.H4(
+                        id='node-info',
+                        style={
+                            'margin': '10px',
+                            'height': '330px',
+                            'overflowY': 'auto',
+                            'overflowX': 'hidden',
+                        }
+                    ),
+                    style={
+                        'height': '350px',
+                        'boxSizing': 'border-box',
+                        'overflow': 'hidden',
+                    }
+                ),
+                html.Div(
+                    html.Label("Annotations in the region:", title="Compiles all annotations for the displayed nodes.",
+                               style={
+                                   'marginBottom': '5px'})),
                 html.Div(html.H4(id='annotations-info',
-                         style={'margin': '10px'})),
+                                 style={'margin': '10px'})),
                 html.Div(id="gene-color-picker-container")
-            ], style={'flex': '1', 'padding': '20px', 'border': '1px solid #ccc', 'marginLeft': '20px', 'minWidth': '300px',
+            ], style={'flex': '1', 'padding': '20px', 'border': '1px solid #ccc', 'marginLeft': '20px',
+                      'minWidth': '300px',
                       'boxSizing': 'border-box', 'display': 'flex', 'flexDirection': 'column'})
         ], style={
             'display': 'flex',
@@ -1728,7 +1729,7 @@ def layout(data=None, initial_size_limit=10):
             html.Div(
                 legend,
                 id='legend-div',
-                style={'marginBottom': '10px','display': 'none'}
+                style={'marginBottom': '10px', 'display': 'none'}
             )
         ]),
 
@@ -1768,10 +1769,10 @@ def layout(data=None, initial_size_limit=10):
             }
         )
 
+    ])
 
-        ])
 
-#callback to show / hide legend
+# callback to show / hide legend
 @app.callback(
     Output('legend-div', 'style'),
     Input('btn-toggle-legend', 'n_clicks'),
@@ -1785,7 +1786,7 @@ def toggle_legend(n_clicks, current_style):
     return current_style
 
 
-#Callback to selected all / unselect all genomes
+# Callback to selected all / unselect all genomes
 @app.callback(
     Output("genome_selector", "value"),
     Input("select_all_genomes", "n_clicks"),
@@ -1811,46 +1812,95 @@ def update_genome_selection(n_select, n_unselect, options):
 
     return dash.no_update
 
+
 # Callback to get nodes or link info when clicking on it
 @app.callback(
     Output('node-info', 'children'),
-    Input('graph', 'tapNodeData'),
-    Input('graph', 'tapEdgeData')
+    Input('graph', 'selectedNodeData'),
+    Input('graph', 'selectedEdgeData'),
+    prevent_initial_call=True
 )
-def display_element_data(node_data, edge_data):
-    triggered_id = ctx.triggered_id
+def display_element_data(selected_nodes, selected_edges):
+    selected_nodes = selected_nodes or []
+    selected_edges = selected_edges or []
 
-    # -------------------------
-    # EDGE
-    # -------------------------
-    if triggered_id == 'graph' and "prop_id" in ctx.triggered[0] and ctx.triggered[0]['prop_id'] == 'graph.tapEdgeData' and edge_data:
+    # =========================================================
+    # NOTHING SELECTED
+    # =========================================================
+
+    if not selected_nodes and not selected_edges:
+        return "Click on a node or link to display data."
+
+    # =========================================================
+    # MULTIPLE NODES
+    # =========================================================
+
+    if len(selected_nodes) > 1:
+
+        positions = [
+            node.get("position")
+            for node in selected_nodes
+            if node.get("position") is not None
+        ]
+
+        info = [
+            html.B(
+                f"{len(selected_nodes)} nodes selected"
+            )
+        ]
+
+        if positions:
+            info.append(
+                html.Div(
+                    f"• Position : {min(positions)} - {max(positions)}"
+                )
+            )
+
+        return html.Div(info)
+
+    # =========================================================
+    # MULTIPLE EDGES
+    # =========================================================
+
+    if len(selected_edges) > 1:
         return html.Div([
-            html.Div(f"Selected link : {edge_data.get('source')} → {edge_data.get('target')}"),
-            html.Div(f"• Flow : {edge_data.get('flow')}"),
-            html.Div(f"• Haplotypes : {', '.join(edge_data.get('genomes', []))}")
+            html.B(
+                f"{len(selected_edges)} links selected"
+            )
         ])
 
-    # -------------------------
-    # NODE
-    # -------------------------
-    elif triggered_id == 'graph' and "prop_id" in ctx.triggered[0] and ctx.triggered[0]['prop_id'] == 'graph.tapNodeData' and node_data:
+    # =========================================================
+    # ONE NODE
+    # =========================================================
+
+    if len(selected_nodes) == 1:
+
+        node_data = selected_nodes[0]
+
         exon_spans = []
+
         for exon in sorted(
                 node_data.get("exons", []),
                 key=lambda e: e.get("exon_id") or ""
         ):
+
             exon_id = exon.get("exon_id")
+
             if exon_id is None:
                 continue
 
             tooltip_lines = []
-            # transcripts
-            transcripts = exon.get("transcript_ids", [])
-            if transcripts:
-                tooltip_lines.append("Transcripts: " + ", ".join(transcripts))
 
-            # coordinates
-            tooltip_lines.append(f"{exon.get('start')} - {exon.get('end')}")
+            transcripts = exon.get("transcript_ids", [])
+
+            if transcripts:
+                tooltip_lines.append(
+                    "Transcripts: " + ", ".join(transcripts)
+                )
+
+            tooltip_lines.append(
+                f"{exon.get('start')} - {exon.get('end')}"
+            )
 
             exon_spans.append(
                 html.Span(
@@ -1863,34 +1913,47 @@ def display_element_data(node_data, edge_data):
                         "fontSize": "14px"
                     }
                 )
-
             )
+
         return html.Div([
+
             html.B(
-                f"Selected node : {node_data.get('label', node_data.get('name'))}"
-                f" - Ref node : {node_data.get('ref_node')}"
+                f"Selected node : "
+                f"{node_data.get('label', node_data.get('name'))}"
+                f" - Ref node : "
+                f"{node_data.get('ref_node')}"
             ),
+
             html.Div([
-                html.Span(f"• Size : {node_data.get('size')} | "),
-                html.Span(f"Position : {node_data.get('position')} | "),
-                html.Span(f"Flow : {node_data.get('flow')}")
+                html.Span(
+                    f"• Size : {node_data.get('size')} | "
+                ),
+                html.Span(
+                    f"Position : {node_data.get('position')} | "
+                ),
+                html.Span(
+                    f"Flow : {node_data.get('flow')}"
+                )
             ]),
-            html.Div([
-                html.Span(f"• Haplotypes : {', '.join(node_data.get('genomes', []))}")
-            ]),
-            html.Div([
-                html.Span(f"• Genes : {', '.join(node_data.get('genes_names', []))}")
-            ]),
-            html.Div([
-                html.Span(f"• Features : {', '.join(node_data.get('features', []))}")
-            ]),
-            #Exon with tooltip
-            # html.Div([
-            #     html.Span("• Exons : "),
-            #     html.Span(exon_spans)
-            # ]),
+
+            html.Div(
+                f"• Haplotypes : "
+                f"{', '.join(node_data.get('genomes', []))}"
+            ),
+
+            html.Div(
+                f"• Genes : "
+                f"{', '.join(node_data.get('genes_names', []))}"
+            ),
+
+            html.Div(
+                f"• Features : "
+                f"{', '.join(node_data.get('features', []))}"
+            ),
+
             html.Div([
                 html.Span("• Exons : "),
+
                 html.Div(
                     exon_spans,
                     style={
@@ -1901,10 +1964,13 @@ def display_element_data(node_data, edge_data):
                     }
                 )
             ]),
+
             html.Br(),
-            html.Div([
-                html.B("Sequence (first 1000 bp only):")
-            ]),
+
+            html.B(
+                "Sequence (first 1000 bp only):"
+            ),
+
             html.Pre(
                 node_data.get("sequence"),
                 style={
@@ -1914,21 +1980,48 @@ def display_element_data(node_data, edge_data):
             )
         ])
 
+    # =========================================================
+    # ONE EDGE
+    # =========================================================
+
+    if len(selected_edges) == 1:
+        edge_data = selected_edges[0]
+
+        return html.Div([
+
+            html.Div(
+                f"Selected link : "
+                f"{edge_data.get('source')} → "
+                f"{edge_data.get('target')}"
+            ),
+
+            html.Div(
+                f"• Flow : {edge_data.get('flow')}"
+            ),
+
+            html.Div(
+                f"• Haplotypes : "
+                f"{', '.join(edge_data.get('genomes', []))}"
+            )
+        ])
+
     return "Click on a node or link to display data."
 
 
-#Function to construct the region information
+# Function to construct the region information
 def get_displayed_div(start, end, feature_name, feature_value):
     no_display = True
+
     def info_line(label, value):
         if value is not None and value != "":
             return html.Div([
                 html.Span(f"{label}: ", style={'font-weight': 'bold', 'marginRight': '5px'}),
                 html.Span(str(value))
             ], style={'margin-bottom': '5px'})
+
     info_rows = []
 
-    if start is not None :
+    if start is not None:
         start_txt = str(start)
         no_display = False
     else:
@@ -1947,14 +2040,14 @@ def get_displayed_div(start, end, feature_name, feature_value):
     if feature_name and feature_name != "" and feature_value and feature_value != "":
         info_rows.append(info_line(feature_name, feature_value))
         no_display = False
-    if no_display :
+    if no_display:
         displayed_div = html.Div("No region selected.", style={'fontStyle': 'italic', 'color': '#777'})
     else:
         displayed_div = info_rows
     return displayed_div
 
 
-#Callback to set size of nodes in legend
+# Callback to set size of nodes in legend
 @app.callback(
     Output("legend-size-min", "children"),
     Output("legend-size-max", "children"),
@@ -1976,7 +2069,8 @@ def update_legend_size(legend_data):
         str(max_val)
     )
 
-#This function build annotations to display for the global region
+
+# This function build annotations to display for the global region
 def build_annotations(nodes_data, genes_color=None):
     genes_set = set()
     genes_to_transcripts = {}
@@ -2067,7 +2161,7 @@ def build_annotations(nodes_data, genes_color=None):
 
     genes_list = sorted(list(genes_set))
 
-    #Gene with tooltip
+    # Gene with tooltip
     genes_html = []
 
     for gene in genes_list:
@@ -2084,17 +2178,17 @@ def build_annotations(nodes_data, genes_color=None):
             )
         tooltip_text = "\n".join(tooltip_lines) if tooltip_lines else "No transcripts"
 
-    #     genes_html.append(
-    #         html.Span(
-    #             gene,
-    #             title=tooltip_text,
-    #             style={
-    #                 "textDecoration": "underline",
-    #                 "cursor": "pointer",
-    #                 "whiteSpace": "nowrap"
-    #             }
-    #         )
-    #     )
+        #     genes_html.append(
+        #         html.Span(
+        #             gene,
+        #             title=tooltip_text,
+        #             style={
+        #                 "textDecoration": "underline",
+        #                 "cursor": "pointer",
+        #                 "whiteSpace": "nowrap"
+        #             }
+        #         )
+        #     )
 
         genes_html.append(
             html.Div(
@@ -2166,7 +2260,7 @@ def build_annotations(nodes_data, genes_color=None):
 @app.callback(
     Output("graph", "elements"),
     Output("nb-noeuds", 'children'),
-    #Output('shared_storage_nodes', 'data', allow_duplicate=True),
+    # Output('shared_storage_nodes', 'data', allow_duplicate=True),
     Output('search-message', 'children'),
     Output('annotations-info', 'children'),
     Output('graph', 'stylesheet'),
@@ -2224,12 +2318,14 @@ def build_annotations(nodes_data, genes_color=None):
     State({"type": "gene-color", "gene": ALL}, "id"),
     prevent_initial_call=True
 )
-def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes, show_labels, 
-                 update_n_clicks, zoom_clicks, zoom_out_clicks, reset_zoom_bouton_clicks, 
-                 selected_nodes_data, size_slider, home_data_storage, n_clicks, update_graph_command_storage, start, end,
+def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes, show_labels,
+                 update_n_clicks, zoom_clicks, zoom_out_clicks, reset_zoom_bouton_clicks,
+                 selected_nodes_data, size_slider, home_data_storage, n_clicks, update_graph_command_storage, start,
+                 end,
                  feature_name, feature_value, genome, chromosome, data_storage, data_storage_nodes,
-                 min_shared_genome, tolerance, shared_regions_link_color, zoom_shared_storage, 
-                 show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size, nodes_size_scale,
+                 min_shared_genome, tolerance, shared_regions_link_color, zoom_shared_storage,
+                 show_exons, exons_color, layout_choice, phylo_data, sequences_data, colored_edges_size,
+                 nodes_size_scale,
                  graph_compression_value, min_flow_compression, nodes_names_value, global_parameters,
                  genes_color_values, genes_color_ids):
     if genome is not None and chromosome is not None:
@@ -2238,14 +2334,14 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         nodes_cache_id = data_storage_nodes["nodes_cache_id"]
         cached = get_session_cache(nodes_cache_id)
         ctx = dash.callback_context
-        return_metadata = {"return_code":"", "flow":None, "nodes_number":0, "removed_genomes":None}
+        return_metadata = {"return_code": "", "flow": None, "nodes_number": 0, "removed_genomes": None}
         message = ""
         nodes = {}
         genes_color = {}
         start_value = None
         end_value = None
         new_request = False
-        #alternatif genome in case of zoom on a region that doesn't contain the reference genome
+        # alternatif genome in case of zoom on a region that doesn't contain the reference genome
         alt_genome = ""
         if home_data_storage is None:
             home_data_storage = {}
@@ -2271,31 +2367,33 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         if home_data_storage is None:
             home_data_storage = {}
         size_slider_val = DEFAULT_SIZE_VALUE
-        if size_slider is None :
+        if size_slider is None:
             if home_data_storage is not None and 'slider_value' in home_data_storage:
                 size_slider_val = home_data_storage["slider_value"]
         else:
             size_slider_val = size_slider
             home_data_storage["slider_value"] = size_slider
 
-        #Checks if min node size has been decreased : if so it is required to get data from database
-        if size_slider_val is not None and "current_size" in home_data_storage and home_data_storage["current_size"] > size_slider_val and cached["min_node_size"] > size_slider_val:
-            logger.debug(f"Min node size has been set to {size_slider_val} and is lower than old value {home_data_storage['current_size']} - nodes will be updated from database.")
+        # Checks if min node size has been decreased : if so it is required to get data from database
+        if size_slider_val is not None and "current_size" in home_data_storage and home_data_storage[
+            "current_size"] > size_slider_val and cached["min_node_size"] > size_slider_val:
+            logger.debug(
+                f"Min node size has been set to {size_slider_val} and is lower than old value {home_data_storage['current_size']} - nodes will be updated from database.")
             new_request = True
-            if "start" in home_data_storage :
+            if "start" in home_data_storage:
                 start_value = home_data_storage["start"]
-            if "end" in home_data_storage :
+            if "end" in home_data_storage:
                 end_value = home_data_storage["end"]
-            if feature_name in home_data_storage and feature_value in home_data_storage :
+            if feature_name in home_data_storage and feature_value in home_data_storage:
                 feature_name = home_data_storage["feature_name"]
                 feature_value = home_data_storage["feature_value"]
         else:
-            if "current_size" in  home_data_storage :
+            if "current_size" in home_data_storage:
                 logger.debug(f"Min node size {size_slider_val} - old value {home_data_storage['current_size']}.")
             else:
                 logger.debug(f"min node size : {size_slider_val}")
 
-        if "search_return_metadata" in home_data_storage and home_data_storage["search_return_metadata"] is not None :
+        if "search_return_metadata" in home_data_storage and home_data_storage["search_return_metadata"] is not None:
             return_metadata = home_data_storage["search_return_metadata"]
             home_data_storage["search_return_metadata"] = None
         # save the parameters into store
@@ -2346,7 +2444,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         min_flow_compression_value = 0
         if compression:
             try:
-                min_flow_compression_value = float(min_flow_compression)/100
+                min_flow_compression_value = float(min_flow_compression) / 100
             except (TypeError, ValueError):
                 min_flow_compression_value = 0
             if not (0 <= min_flow_compression_value <= 1):
@@ -2362,34 +2460,34 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         if selected_nodes_data is not None and len(selected_nodes_data) > 0:
             selected_nodes_name = set([node['name'] for node in selected_nodes_data])
         if triggered_id == "btn-zoom":
-            #In case of zoom => get the selected nodes to prepare a new request
-            if not selected_nodes_name or len (selected_nodes_name) == 0:
+            # In case of zoom => get the selected nodes to prepare a new request
+            if not selected_nodes_name or len(selected_nodes_name) == 0:
                 raise PreventUpdate
-            #Check if it is the first zoom to store it
+            # Check if it is the first zoom to store it
 
             if "nodes" in cached:
                 nodes = cached["nodes"]
                 if zoom_shared_storage_out or len(zoom_shared_storage_out) == 0:
-                    #First zoom => store the old data to retrieve them when reset zoom
+                    # First zoom => store the old data to retrieve them when reset zoom
                     cached["zoom"] = cached["nodes"]
                 zoom_shared_storage_out["start"] = home_data_storage["start"]
                 zoom_shared_storage_out["end"] = home_data_storage["end"]
 
                 position_field = genome + "_position"
-                selected_positions =set()
-                for k,node in nodes.items():
-                    if node["name"] in selected_nodes_name and position_field in node :
+                selected_positions = set()
+                for k, node in nodes.items():
+                    if node["name"] in selected_nodes_name and position_field in node:
                         selected_positions.add(node[position_field])
                     if alt_genome is None or alt_genome == "":
                         if node["name"] in selected_nodes_name:
                             alt_genome = node["genomes"][0]
                 if len(selected_positions) == 0 and alt_genome != "":
-                    #Try to switch to another reference genome
+                    # Try to switch to another reference genome
                     genome = alt_genome
                     position_field = genome + "_position"
                     for n in nodes:
                         node = nodes[n]
-                        if node["name"] in selected_nodes_name and position_field in node :
+                        if node["name"] in selected_nodes_name and position_field in node:
                             selected_positions.add(node[position_field])
                 if len(selected_positions) > 0:
                     start_value = min(selected_positions)
@@ -2402,8 +2500,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
 
         if triggered_id == "btn-zoom-out":
             if "start" in home_data_storage and home_data_storage["start"] is not None \
-                and "end" in home_data_storage and home_data_storage["end"] is not None:
-                start_value = max(0,int(home_data_storage["start"]) - 1000)
+                    and "end" in home_data_storage and home_data_storage["end"] is not None:
+                start_value = max(0, int(home_data_storage["start"]) - 1000)
                 end_value = int(home_data_storage["end"]) + 1000
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
@@ -2421,8 +2519,6 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 logger.debug(f"No zoom, can't reset zoom")
                 raise PreventUpdate
 
-
-
         logger.debug("update graph : " + str(ctx.triggered[0]['prop_id']))
         stylesheet = []
         if shared_mode and 'shared' in shared_mode:
@@ -2434,37 +2530,38 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         labels = True
         if show_labels and 'hide' in show_labels:
             labels = False
-        exons=False
+        exons = False
         if show_exons and 'exons' in show_exons:
             exons = True
         all_genomes = data_storage["genomes"]
         all_chromosomes = data_storage["chromosomes"]
-        #Checks if it is required to request database
-        if (triggered_id== "search-button" and n_clicks > 0)  \
-            or triggered_id in ["btn-zoom", "btn-reset-zoom", "btn-zoom-out"] \
-            or (triggered_id == "update_graph_command_storage" and update_graph_command_storage is not None) \
-            or new_request:
+        # Checks if it is required to request database
+        if (triggered_id == "search-button" and n_clicks > 0) \
+                or triggered_id in ["btn-zoom", "btn-reset-zoom", "btn-zoom-out"] \
+                or (triggered_id == "update_graph_command_storage" and update_graph_command_storage is not None) \
+                or new_request:
             new_data = {}
             if triggered_id == "search-button":
-                #New search => reset genes color
+                # New search => reset genes color
                 genes_color = {}
-            #Delete local phylo graph if exists
+            # Delete local phylo graph if exists
             if start_value and end_value:
                 if (triggered_id == "btn-reset-zoom"
-                    and "zoom" in cached
-                    and len(cached["zoom"]) > 0
-                    and home_data_storage.get("min_node_size",0) == size_slider_val):
+                        and "zoom" in cached
+                        and len(cached["zoom"]) > 0
+                        and home_data_storage.get("min_node_size", 0) == size_slider_val):
                     logger.debug(
                         f"Retrieve {len(cached['zoom'])} nodes before zoom.")
                 else:
-                    logger.debug(f"Getting data from database from {start_value} to {end_value} on chr {chromosome} for genome {genome}")
+                    logger.debug(
+                        f"Getting data from database from {start_value} to {end_value} on chr {chromosome} for genome {genome}")
             else:
                 if feature_name and feature_value:
                     logger.debug(
                         f"Getting data from database for {feature_name} {feature_value} for genome {genome}")
             if phylo_data is not None and "newick_region" in phylo_data:
                 phylo_data["newick_region"] = None
-            if sequences_data is not None :
+            if sequences_data is not None:
                 sequences_data = {}
             if start_value is not None:
                 use_anchor = True
@@ -2473,30 +2570,31 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                     home_data_storage["zoom"] = True
                     home_data_storage["genome_zoom"] = alt_genome
                 if (triggered_id == "btn-reset-zoom"
-                    and "zoom" in cached
-                    and len(cached["zoom"]) > 0
-                    and home_data_storage.get("min_node_size",0) == size_slider_val):
+                        and "zoom" in cached
+                        and len(cached["zoom"]) > 0
+                        and home_data_storage.get("min_node_size", 0) == size_slider_val):
                     new_data = cached["zoom"]
                     return_metadata["return_code"] = "OK"
                     return_metadata['nodes_number'] = len(new_data)
                 else:
                     new_data, return_metadata = get_nodes_by_region(
-                            genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor, min_node_size=size_slider_val,
-                            max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
+                        genome, chromosome=chromosome, start=start_value, end=end_value, use_anchor=use_anchor,
+                        min_node_size=size_slider_val,
+                        max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
 
-                #data_storage_nodes = new_data
+                # data_storage_nodes = new_data
                 logger.debug("len new_data : " + str(len(new_data)))
             else:
-                if (feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "") and chromosome is not None:
-                        new_data,return_metadata = get_nodes_by_feature(
-                            genome, chromosome=chromosome, feature= feature_name, value=feature_value, min_node_size=size_slider_val,
-                            max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes, use_anchor=True)
+                if (
+                        feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "") and chromosome is not None:
+                    new_data, return_metadata = get_nodes_by_feature(
+                        genome, chromosome=chromosome, feature=feature_name, value=feature_value,
+                        min_node_size=size_slider_val,
+                        max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes, use_anchor=True)
                 else:
                     new_data, return_metadata = get_nodes_by_region(
                         genome, chromosome=chromosome, start=0, end=end, min_node_size=size_slider_val,
                         max_nodes_number=max_nodes_from_db, selected_genomes=selected_genomes)
-
-
 
             if triggered_id in ["btn-reset-zoom", "search-button"] and nodes_cache_id in zoom_shared_storage_out:
                 cached["zoom"] = {}
@@ -2516,18 +2614,26 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
                 logger.debug(f"start value : {start_value} - end value : {end_value}")
-            #data_storage_nodes = new_data
+            # data_storage_nodes = new_data
 
             nodes = new_data
 
-            elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(new_data, genome, selected_genomes, size_slider_val, all_genomes,
-                                              all_chromosomes, specifics_genomes_list,
-                                              color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
-                                              tolerance=tolerance, color_shared_regions=shared_regions_link_color,
-                                              exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
-                                              compression = compression, min_flow_compression_value = min_flow_compression_value,
-                                              max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale,
-                                              genes_color=genes_color, selected_nodes_name=None)
+            elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(new_data, genome, selected_genomes,
+                                                                                   size_slider_val, all_genomes,
+                                                                                   all_chromosomes,
+                                                                                   specifics_genomes_list,
+                                                                                   color_genomes_list, labels=labels,
+                                                                                   min_shared_genome=min_shared_genome,
+                                                                                   tolerance=tolerance,
+                                                                                   color_shared_regions=shared_regions_link_color,
+                                                                                   exons=exons, exons_color=exons_color,
+                                                                                   colored_edges_size=colored_edges_size,
+                                                                                   compression=compression,
+                                                                                   min_flow_compression_value=min_flow_compression_value,
+                                                                                   max_nodes_to_visualize=max_nodes_to_visualize,
+                                                                                   nodes_size_scale=nodes_size_scale,
+                                                                                   genes_color=genes_color,
+                                                                                   selected_nodes_name=None)
             home_data_storage["current_size"] = size_slider_val
             home_data_storage["min_node_size"] = size_slider_val
             if triggered_id == "search-button":
@@ -2543,12 +2649,15 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 return_metadata["return_code"] = "WIDE"
 
             if new_data is not None and return_metadata["return_code"] == "OK":
-                message = html.Div(f"✅ Region has been successfully found, number of node {return_metadata['nodes_number']}.", style=success_style)
+                message = html.Div(
+                    f"✅ Region has been successfully found, number of node {return_metadata['nodes_number']}.",
+                    style=success_style)
             elif new_data is not None and return_metadata["return_code"] == "ZOOM":
                 message = html.Div(
                     f"⚠️ Region is too large, data has been filtered and only nodes with flow > {return_metadata['flow']} are displayed. Nodes number : {return_metadata['nodes_number']}.",
                     style=warning_style)
-            elif new_data is not None and return_metadata["return_code"] == "FILTER" and 'removed_genomes' in return_metadata:
+            elif new_data is not None and return_metadata[
+                "return_code"] == "FILTER" and 'removed_genomes' in return_metadata:
                 message = html.Div(
                     f"⚠️ Region is too large, some individuals have been removed from search : {return_metadata['removed_genomes']}. These individuals won't be complete. Total nodes number : {return_metadata['nodes_number']}.",
                     style=warning_style)
@@ -2568,27 +2677,36 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
             elif return_metadata["return_code"] == "NO_DATA":
                 if feature_name is not None and feature_name != "" and feature_value is not None and feature_value != "":
-                    message = html.Div(f"❌ No nodes associated to {feature_name} {feature_value} found.", style=error_style)
+                    message = html.Div(f"❌ No nodes associated to {feature_name} {feature_value} found.",
+                                       style=error_style)
                 else:
                     message = html.Div("❌ Region not found.", style=error_style)
             else:
                 message = html.Div("❌ Error.", style=error_style)
 
         else:
-            #No needs to get data from database
-            start_value = home_data_storage.get("start",None)
-            end_value = home_data_storage.get("end",None)
+            # No needs to get data from database
+            start_value = home_data_storage.get("start", None)
+            end_value = home_data_storage.get("end", None)
             feature_name = home_data_storage.get("feature_name", "")
             feature_value = home_data_storage.get("feature_value", "")
             nodes = cached.get("nodes", {})
-            elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(nodes, genome, selected_genomes, size_slider_val, all_genomes,
-                                              all_chromosomes, specifics_genomes_list,
-                                              color_genomes_list, labels=labels, min_shared_genome=min_shared_genome,
-                                              tolerance=tolerance, color_shared_regions=shared_regions_link_color,
-                                              exons=exons, exons_color=exons_color, colored_edges_size=colored_edges_size,
-                                              compression = compression, min_flow_compression_value = min_flow_compression_value,
-                                              max_nodes_to_visualize=max_nodes_to_visualize, nodes_size_scale=nodes_size_scale,
-                                              genes_color=genes_color, selected_nodes_name=selected_nodes_name)
+            elements, nodes_count, legend_nodes_size_dict = compute_graph_elements(nodes, genome, selected_genomes,
+                                                                                   size_slider_val, all_genomes,
+                                                                                   all_chromosomes,
+                                                                                   specifics_genomes_list,
+                                                                                   color_genomes_list, labels=labels,
+                                                                                   min_shared_genome=min_shared_genome,
+                                                                                   tolerance=tolerance,
+                                                                                   color_shared_regions=shared_regions_link_color,
+                                                                                   exons=exons, exons_color=exons_color,
+                                                                                   colored_edges_size=colored_edges_size,
+                                                                                   compression=compression,
+                                                                                   min_flow_compression_value=min_flow_compression_value,
+                                                                                   max_nodes_to_visualize=max_nodes_to_visualize,
+                                                                                   nodes_size_scale=nodes_size_scale,
+                                                                                   genes_color=genes_color,
+                                                                                   selected_nodes_name=selected_nodes_name)
 
             if len(elements) == 0 and nodes_count > 0:
                 message = html.Div("⚠️ Region is too wide and cannot be displayed.", style=warning_style)
@@ -2598,13 +2716,14 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             for c in color_genomes:
                 if c != "#000000":
                     defined_color += 1
-        stylesheet = compute_stylesheet(defined_color, nodes_names, node_shape_as_circle,nodes_size_scale=nodes_size_scale)
+        stylesheet = compute_stylesheet(defined_color, nodes_names, node_shape_as_circle,
+                                        nodes_size_scale=nodes_size_scale)
         count = len(elements)
 
         annotations = ""
         if nodes != None and len(nodes) > 0:
             annotations = build_annotations(nodes, genes_color)
-        #default layout is fcose
+        # default layout is fcose
         layout = {
             'name': 'fcose',
             'maxIterations': 100000,
@@ -2624,9 +2743,9 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                     layout = {'name': 'preset',
                               'fit': True
                               }
-        #displayed region construction:
+        # displayed region construction:
         displayed_div = get_displayed_div(start_value, end_value, feature_name, feature_value)
-        return (elements,f"{nodes_count} displayed nodes", message, annotations, stylesheet,
+        return (elements, f"{nodes_count} displayed nodes", message, annotations, stylesheet,
                 layout, home_data_storage, [], [], zoom_shared_storage_out,
                 None, None, feature_name, "", displayed_div, phylo_data, sequences_data, legend_nodes_size_dict)
     else:
@@ -2661,8 +2780,8 @@ def process_query_params(search):
     params = parse_qs(urlparse(search).query)
     url_hap = params.get('haplotype', [None])[0]
     url_chromosome = (
-        params.get('chr', [None])[0]
-        or params.get('chromosome', [None])[0]
+            params.get('chr', [None])[0]
+            or params.get('chromosome', [None])[0]
     )
     url_feature_name = params.get('featureName', [None])[0]
     url_feature_value = params.get('featureValue', [None])[0]
@@ -2670,13 +2789,13 @@ def process_query_params(search):
     url_end = params.get('end', [None])[0]
 
     valid_query = (
-        url_hap is not None
-        and url_chromosome is not None
-        and (
-            (url_start is not None and url_end is not None)
-            or
-            (url_feature_name is not None and url_feature_value is not None)
-        )
+            url_hap is not None
+            and url_chromosome is not None
+            and (
+                    (url_start is not None and url_end is not None)
+                    or
+                    (url_feature_name is not None and url_feature_value is not None)
+            )
     )
     if not valid_query:
         raise PreventUpdate
@@ -2714,11 +2833,10 @@ def process_query_params(search):
     State('specific-genome_selector', 'value'),
     State('demo_store', 'data'),
 )
-def update_parameters_on_page_load(pathname,data,
-                                   query_params,shared_data,
-                                   options_genomes,options_chromosomes,
+def update_parameters_on_page_load(pathname, data,
+                                   query_params, shared_data,
+                                   options_genomes, options_chromosomes,
                                    specifics_genomes, demo_data):
-
     if pathname != "/" and pathname != "/demo":
         raise PreventUpdate
     slider_value = DEFAULT_SIZE_VALUE
@@ -2747,7 +2865,7 @@ def update_parameters_on_page_load(pathname,data,
     if data is None:
         data = {}
 
-    #Saved values
+    # Saved values
     if "slider_value" in data and data["slider_value"] is not None:
         slider_value = data["slider_value"]
     if "shared_regions_link_color" in data:
@@ -2755,7 +2873,7 @@ def update_parameters_on_page_load(pathname,data,
     if "specifics_genomes" in data:
         selected_shared_genomes = data["specifics_genomes"]
 
-    #Query params
+    # Query params
     no_query_params = True
 
     if query_params is not None:
@@ -2805,9 +2923,8 @@ def update_parameters_on_page_load(pathname,data,
         feature_value = ""
 
     return (slider_value, selected_chromosome, selected_genome, start_input,
-        end_input, feature_name, feature_value, shared_regions_link_color,
-        selected_shared_genomes, update_graph_command_storage)
-
+            end_input, feature_name, feature_value, shared_regions_link_color,
+            selected_shared_genomes, update_graph_command_storage)
 
 
 ######## download graph callbacks ###############
@@ -2822,14 +2939,13 @@ def update_parameters_on_page_load(pathname,data,
 )
 def save_image_to_file(image_data, chromosome, genome, data):
     start = data.get("start", "")
-    end =  data.get("end", "")
+    end = data.get("end", "")
     if not image_data:
         raise PreventUpdate
     # check directory exists
     os.makedirs(EXPORT_DIR, exist_ok=True)
 
-
-    #header, base64_data = image_data.split(',', 1)
+    # header, base64_data = image_data.split(',', 1)
     header, content = image_data.split(',', 1)
     # Get image format from header
     if 'image/png' in header:
@@ -2850,15 +2966,14 @@ def save_image_to_file(image_data, chromosome, genome, data):
     else:
         raise ValueError("Unsupported image format")
 
-
-    file_name = "graph_"+str(genome)+"_chr_"+str(chromosome) + \
-        "_start_"+str(start)+"_end_"+str(end)+"."+ext
-    #image_bytes = base64.b64decode(base64_data)
+    file_name = "graph_" + str(genome) + "_chr_" + str(chromosome) + \
+                "_start_" + str(start) + "_end_" + str(end) + "." + ext
+    # image_bytes = base64.b64decode(base64_data)
     if not SERVER_MODE:
         save_path = os.path.join(os.getcwd(), EXPORT_DIR, file_name)
         with open(save_path, 'wb') as f:
             f.write(image_bytes)
-    
+
         return f"Image downloaded in {save_path}", None
     else:
         return "File downloaded.", dcc.send_bytes(lambda io: io.write(image_bytes), file_name)
