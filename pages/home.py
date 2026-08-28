@@ -1653,7 +1653,22 @@ def layout(data=None, initial_size_limit=10):
                 html.Button("Update graph", id="update-btn",
                             n_clicks=0, style={'marginTop': '10px'}),
 
-                html.Div(html.H4(id='node-info', style={'margin': '10px'})),
+                html.Div(
+                    html.H4(
+                        id='node-info',
+                        style={
+                            'margin': '10px',
+                            'height': '330px',
+                            'overflowY': 'auto',
+                            'overflowX': 'hidden',
+                        }
+                    ),
+                    style={
+                        'height': '350px',
+                        'boxSizing': 'border-box',
+                        'overflow': 'hidden',
+                    }
+                ),
                 html.Div(html.Label("Annotations in the region:", title="Compiles all annotations for the displayed nodes.", style={
                          'marginBottom': '5px'})),
                 html.Div(html.H4(id='annotations-info',
@@ -1738,17 +1753,23 @@ def layout(data=None, initial_size_limit=10):
 
         html.Div(
             [
-                cyto.Cytoscape(
-                    id='graph',
+                html.Div(
+                    cyto.Cytoscape(
+                        id='graph',
+                        style={
+                            'width': '100%',
+                            'height': '1000px',
+                        },
+                        zoomingEnabled=True,
+                        userZoomingEnabled=True,
+                        userPanningEnabled=True,
+                        wheelSensitivity=0.1,
+                        boxSelectionEnabled=True,
+                    ),
                     style={
                         'width': '100%',
                         'height': '1000px',
-                    },
-                    zoomingEnabled=True,
-                    userZoomingEnabled=True,
-                    userPanningEnabled=True,
-                    wheelSensitivity=0.1,
-                    boxSelectionEnabled=True,
+                    }
                 )
             ],
             style={
@@ -1757,6 +1778,7 @@ def layout(data=None, initial_size_limit=10):
                 'padding': '10px',
                 'backgroundColor': '#f8f9fa',
                 'boxShadow': '0 2px 6px rgba(0,0,0,0.04)',
+                'boxSizing': 'border-box',
             }
         )
 
@@ -1805,44 +1827,94 @@ def update_genome_selection(n_select, n_unselect, options):
 
 # Callback to get nodes or link info when clicking on it
 @app.callback(
-    Output('node-info', 'children'),
-    Input('graph', 'tapNodeData'),
-    Input('graph', 'tapEdgeData')
+Output('node-info', 'children'),
+Input('graph', 'selectedNodeData'),
+Input('graph', 'selectedEdgeData'),
+prevent_initial_call=True
 )
-def display_element_data(node_data, edge_data):
-    triggered_id = ctx.triggered_id
+def display_element_data(selected_nodes, selected_edges):
 
-    # -------------------------
-    # EDGE
-    # -------------------------
-    if triggered_id == 'graph' and "prop_id" in ctx.triggered[0] and ctx.triggered[0]['prop_id'] == 'graph.tapEdgeData' and edge_data:
+    selected_nodes = selected_nodes or []
+    selected_edges = selected_edges or []
+
+    # =========================================================
+    # NOTHING SELECTED
+    # =========================================================
+
+    if not selected_nodes and not selected_edges:
+        return "Click on a node or link to display data."
+
+    # =========================================================
+    # MULTIPLE NODES
+    # =========================================================
+
+    if len(selected_nodes) > 1:
+
+        positions = [
+            node.get("position")
+            for node in selected_nodes
+            if node.get("position") is not None
+        ]
+
+        info = [
+            html.B(
+                f"{len(selected_nodes)} nodes selected"
+            )
+        ]
+
+        if positions:
+            info.append(
+                html.Div(
+                    f"• Position : {min(positions)} - {max(positions)}"
+                )
+            )
+
+        return html.Div(info)
+
+    # =========================================================
+    # MULTIPLE EDGES
+    # =========================================================
+
+    if len(selected_edges) > 1:
+
         return html.Div([
-            html.Div(f"Selected link : {edge_data.get('source')} → {edge_data.get('target')}"),
-            html.Div(f"• Flow : {edge_data.get('flow')}"),
-            html.Div(f"• Haplotypes : {', '.join(edge_data.get('genomes', []))}")
+            html.B(
+                f"{len(selected_edges)} links selected"
+            )
         ])
 
-    # -------------------------
-    # NODE
-    # -------------------------
-    elif triggered_id == 'graph' and "prop_id" in ctx.triggered[0] and ctx.triggered[0]['prop_id'] == 'graph.tapNodeData' and node_data:
+    # =========================================================
+    # ONE NODE
+    # =========================================================
+
+    if len(selected_nodes) == 1:
+
+        node_data = selected_nodes[0]
+
         exon_spans = []
+
         for exon in sorted(
-                node_data.get("exons", []),
-                key=lambda e: e.get("exon_id") or ""
+            node_data.get("exons", []),
+            key=lambda e: e.get("exon_id") or ""
         ):
+
             exon_id = exon.get("exon_id")
+
             if exon_id is None:
                 continue
 
             tooltip_lines = []
-            # transcripts
-            transcripts = exon.get("transcript_ids", [])
-            if transcripts:
-                tooltip_lines.append("Transcripts: " + ", ".join(transcripts))
 
-            # coordinates
-            tooltip_lines.append(f"{exon.get('start')} - {exon.get('end')}")
+            transcripts = exon.get("transcript_ids", [])
+
+            if transcripts:
+                tooltip_lines.append(
+                    "Transcripts: " + ", ".join(transcripts)
+                )
+
+            tooltip_lines.append(
+                f"{exon.get('start')} - {exon.get('end')}"
+            )
 
             exon_spans.append(
                 html.Span(
@@ -1855,34 +1927,47 @@ def display_element_data(node_data, edge_data):
                         "fontSize": "14px"
                     }
                 )
-
             )
+
         return html.Div([
+
             html.B(
-                f"Selected node : {node_data.get('label', node_data.get('name'))}"
-                f" - Ref node : {node_data.get('ref_node')}"
+                f"Selected node : "
+                f"{node_data.get('label', node_data.get('name'))}"
+                f" - Ref node : "
+                f"{node_data.get('ref_node')}"
             ),
+
             html.Div([
-                html.Span(f"• Size : {node_data.get('size')} | "),
-                html.Span(f"Position : {node_data.get('position')} | "),
-                html.Span(f"Flow : {node_data.get('flow')}")
+                html.Span(
+                    f"• Size : {node_data.get('size')} | "
+                ),
+                html.Span(
+                    f"Position : {node_data.get('position')} | "
+                ),
+                html.Span(
+                    f"Flow : {node_data.get('flow')}"
+                )
             ]),
-            html.Div([
-                html.Span(f"• Haplotypes : {', '.join(node_data.get('genomes', []))}")
-            ]),
-            html.Div([
-                html.Span(f"• Genes : {', '.join(node_data.get('genes_names', []))}")
-            ]),
-            html.Div([
-                html.Span(f"• Features : {', '.join(node_data.get('features', []))}")
-            ]),
-            #Exon with tooltip
-            # html.Div([
-            #     html.Span("• Exons : "),
-            #     html.Span(exon_spans)
-            # ]),
+
+            html.Div(
+                f"• Haplotypes : "
+                f"{', '.join(node_data.get('genomes', []))}"
+            ),
+
+            html.Div(
+                f"• Genes : "
+                f"{', '.join(node_data.get('genes_names', []))}"
+            ),
+
+            html.Div(
+                f"• Features : "
+                f"{', '.join(node_data.get('features', []))}"
+            ),
+
             html.Div([
                 html.Span("• Exons : "),
+
                 html.Div(
                     exon_spans,
                     style={
@@ -1893,16 +1978,45 @@ def display_element_data(node_data, edge_data):
                     }
                 )
             ]),
+
             html.Br(),
-            html.Div([
-                html.B("Sequence (first 1000 bp only):")
-            ]),
+
+            html.B(
+                "Sequence (first 1000 bp only):"
+            ),
+
             html.Pre(
                 node_data.get("sequence"),
                 style={
                     "whiteSpace": "pre-wrap",
                     "overflowWrap": "break-word"
                 }
+            )
+        ])
+
+    # =========================================================
+    # ONE EDGE
+    # =========================================================
+
+    if len(selected_edges) == 1:
+
+        edge_data = selected_edges[0]
+
+        return html.Div([
+
+            html.Div(
+                f"Selected link : "
+                f"{edge_data.get('source')} → "
+                f"{edge_data.get('target')}"
+            ),
+
+            html.Div(
+                f"• Flow : {edge_data.get('flow')}"
+            ),
+
+            html.Div(
+                f"• Haplotypes : "
+                f"{', '.join(edge_data.get('genomes', []))}"
             )
         ])
 
