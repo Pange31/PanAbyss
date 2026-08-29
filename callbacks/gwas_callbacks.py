@@ -234,184 +234,6 @@ def chromosome_sort_key(chrom):
 
     return (2, chrom_str.lower())
 
-#Function used to create the chromosome plot
-#If Manhattan = True then plot the manhattan plot else the y axe will be the node size
-# def build_chromosome_figure(data, manhattan=False):
-#     chromosome_stats = get_chromosomes_stats()
-#     if not data:
-#         return go.Figure()
-#
-#     fig = go.Figure()
-#     y_label = "Size of the shared region (negative = deletions)"
-#     #Check data
-#     if manhattan:
-#         for chrom, points in data.items():
-#             if points and len(points[0]) != 3:
-#                 manhattan = False
-#     if manhattan:
-#         y_label = "-log10(p-value)"
-#     #Get data :
-#     # If manhattan = True => x = mean position and y = pvalue
-#     # Else => x = mean position and y = size
-#     chrom_data = {
-#
-#         chrom: (
-#             [(x, z) for x, y, z in points] if manhattan
-#             else [(x, y) for x, y, *_ in points]
-#         )
-#         for chrom, points in data.items()
-#         if points
-#     }
-#
-#     if not chrom_data:
-#         return go.Figure()
-#
-#     #Sort chromosome
-#     chromosomes = sorted(chrom_data.keys(), key=chromosome_sort_key)
-#
-#     chrom_max_lengths = {}
-#     #Global length for each chromosome
-#     for chrom in chromosomes:
-#         if chromosome_stats and chromosome_stats.get(f"{chrom}_max_position_mean") is not None:
-#             chrom_max_lengths[chrom] = chromosome_stats[f"{chrom}_max_position_mean"]
-#         else:
-#             chrom_max_lengths[chrom] = max(p[0] for p in chrom_data[chrom])
-#     uniform_chrom_length = max(chrom_max_lengths.values())
-#
-#     all_y = [p[1] for points in chrom_data.values() for p in points]
-#     y_min, y_max = min(all_y), max(all_y)
-#     y_pad = 0.1 * max(abs(y_min), abs(y_max), 1)
-#
-#     colors = ["rgba(200,200,200,0.25)", "rgba(150,150,255,0.25)"]
-#
-#     x_offset = 0
-#     chromosome_centers = []
-#     chromosome_labels = []
-#     total_points = sum(len(points) for points in chrom_data.values())
-#     use_webgl = total_points > NB_POINTS_WEBGL
-#     ScatterClass = go.Scattergl if use_webgl else go.Scatter
-#     if use_webgl :
-#         logger.debug("WebGL Scatter class used.")
-#     else:
-#         logger.debug("SVG Scatter class used.")
-#     for i, chrom in enumerate(chromosomes):
-#         #Sort by genomic coordinates
-#         points_sorted = sorted(chrom_data[chrom], key=lambda p: p[0])
-#
-#         x_local = [p[0] for p in points_sorted]
-#         y = [p[1] for p in points_sorted]
-#
-#         real_max = chrom_max_lengths[chrom]
-#
-#         x_start = x_offset
-#         x_end = x_offset + real_max
-#
-#         #global coordinates
-#         x_global = [x + x_offset for x in x_local]
-#
-#         #chromosome area
-#         fig.add_shape(
-#             type="rect",
-#             x0=x_start,
-#             x1=x_end,
-#             y0=y_min - y_pad,
-#             y1=y_max + y_pad,
-#             fillcolor=colors[i % len(colors)],
-#             line_width=0,
-#             layer="below"
-#         )
-#
-#         #Line on beginning ending of chromosome
-#         for x in (x_start, x_end):
-#             fig.add_shape(
-#                 type="line",
-#                 x0=x, x1=x,
-#                 y0=y_min - y_pad,
-#                 y1=y_max + y_pad,
-#                 line=dict(color="black", width=1)
-#             )
-#
-#         #Points
-#         fig.add_trace(ScatterClass(
-#             x=x_global,
-#             y=y,
-#             mode="markers",
-#             name=str(chrom),
-#             customdata=x_local,
-#             hovertemplate=(
-#                 f"{chrom}<br>"
-#                 "Position: %{customdata}<br>"
-#                 "Value: %{y}<extra></extra>"
-#             )
-#         ))
-#
-#         chromosome_centers.append(x_offset + real_max / 2)
-#         chromosome_labels.append(str(chrom))
-#
-#         x_offset += real_max + 1
-#
-#     fig.add_hline(
-#         y=0,
-#         line_dash="dash",
-#         line_color="black"
-#     )
-#
-#     fig.update_layout(
-#         title=dict(
-#             text="Distribution of Shared Regions",
-#             x=0.5,
-#             xanchor="center",
-#             y=0.95,
-#             yanchor="top",
-#             font=dict(
-#                 family="Inter, Arial, sans-serif",
-#                 size=18,
-#                 color="black"
-#             )
-#         ),
-#
-#         font=dict(
-#             family="Inter, Arial, sans-serif",
-#             size=12,
-#             color="black"
-#         ),
-#
-#         xaxis=dict(
-#             tickmode="array",
-#             tickvals=chromosome_centers,
-#             ticktext=chromosome_labels,
-#
-#             title=dict(
-#                 text="Chromosomes and mean position",
-#                 font=dict(size=14, color="black")
-#             ),
-#
-#             tickfont=dict(size=11, color="black"),
-#             linecolor="black",
-#             mirror=True
-#         ),
-#
-#         yaxis=dict(
-#             title=dict(
-#                 text=y_label,
-#                 font=dict(size=14, color="black")
-#             ),
-#
-#             tickfont=dict(size=11, color="black"),
-#             range=[y_min - y_pad, y_max + y_pad],
-#
-#             linecolor="black",
-#             mirror=True
-#         ),
-#
-#         showlegend=False,
-#         plot_bgcolor="white",
-#         paper_bgcolor="white",
-#
-#         margin=dict(l=60, r=20, t=90, b=60)
-#     )
-#     return fig
-
 def compute_alpha(rank, transparency):
 
     if transparency == 0:
@@ -1144,6 +966,7 @@ def filter_nodes(filter_level, data, manhattan_value):
     Output("gwas-poll-interval", "disabled", allow_duplicate=True),
     Output("btn-find-shared", "disabled", allow_duplicate=True),
     Output("btn-cancel-find-shared", "disabled", allow_duplicate=True),
+    Output('sequence-zone', 'children', allow_duplicate=True),
     Input('btn-find-shared', 'n_clicks'),
     State("use-cache-checkbox", "value"),
     State("gwas-genome-state-store", "data"),
@@ -1215,7 +1038,7 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, gwas_genome_sta
     if ref_genome is not None:
         data["ref_genome"] = ref_genome
     if not selected_genomes:
-        return "❌ Choose at least one genome.", no_update, no_update, poll_enabled, find_button, cancel_button
+        return "❌ Choose at least one genome.", no_update, no_update, poll_enabled, find_button, cancel_button, ""
     data["launch_ts"] = time.time()
     gwas_data.update({
         "analyse": [],
@@ -1243,16 +1066,16 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, gwas_genome_sta
     job_id = submit_job_gwas(params, recompute)
     if job_id == "limit_exceeded":
         return ("❌ Too many jobs are currently running on the server, please try again later.",
-                no_update, no_update, no_update, no_update, no_update)
+                no_update, no_update, no_update, no_update, no_update, "")
     elif job_id == "blocked_functionality":
         return ("❌ This functionnality has been blocked.",
-                no_update, no_update, no_update, no_update, no_update)
+                no_update, no_update, no_update, no_update, no_update, "")
     gwas_data["job_id"] = job_id
     # Enable polling
     poll_enabled = False if job_id else True
     find_button = True
     cancel_button = False
-    return "Processing...", data, gwas_data, poll_enabled, find_button, cancel_button
+    return "Processing...", data, gwas_data, poll_enabled, find_button, cancel_button, ""
 
 
 #Callback to poll the current process
