@@ -1493,7 +1493,12 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                           """
                     if node_max_size > 0:
                         query += f" AND n.size <= {node_max_size}"
+
+                    #Check that node n not contains any of the selected genomes
                     query += f"AND {none_expr}"
+
+                    #If ignored genomes, check that the minimal number of not selected genomes is respected
+                    #If deletion percentage is 100% then all of the not selected genomes must be on n node
                     if len(set_ignored_genomes) > 0:
                         query += f"""
                             WITH n, size([g IN n.genomes WHERE g IN {list_not_selected_genomes}]) AS overlap
@@ -1510,21 +1515,74 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                           WHERE m.chromosome = "{c}"
                             AND m.flow >= {global_min_flow_deletion}
 
+                          //Checks that the minimum number of selected genomes is on m node
                           WITH m, n,
                                [g IN {genomes_list} WHERE g IN m.genomes AND NOT g IN n.genomes] AS added_genomes
                           WHERE size(added_genomes) >= {min_associated_genomes}
+                            // Checks that all genomes in n nodes are present on m node
                             AND ALL(g IN n.genomes WHERE g IN m.genomes)
 
-                          WITH m, n
-                          WHERE COUNT {{ (m)-[]->(:Node) }} = 2
-
-                          MATCH (m)-[]->(n2:Node)
+                        """
+                    #Check that m node has 2 successors excepted successors with only ignored genomes
+                    if len(set_ignored_genomes) > 0:
+                        print("genomes ignored")
+                        query += f"""
+                            // m must be the unique predecessor of n containing genomes not ignored 
+                            AND NOT EXISTS {{
+                                MATCH (other:Node)-[]->(n)
+                                WHERE other <> m
+                                  AND ANY(g IN other.genomes WHERE NOT g IN {list(set_ignored_genomes)})
+                            }}
+                              WITH m, n
+                              // Check that m node has 2 successors (n and n2) excepted successor with only ignored genomes
+                                MATCH (m)-[]->(n2:Node)
+                                WHERE n2 <> n
+                                  AND n2.chromosome = "{c}"
+                                
+                                  // Check that all non ignored genomes are the same in m and n2 nodes
+                                  AND ALL(
+                                      g IN m.genomes
+                                      WHERE g IN {list(set_ignored_genomes)}
+                                         OR g IN n2.genomes
+                                  )
+                                  AND ALL(
+                                      g IN n2.genomes
+                                      WHERE g IN {list(set_ignored_genomes)}
+                                         OR g IN m.genomes
+                                  )
+                                
+                                // Les seules sorties de m pouvant contenir des génomes
+                                // non ignorés sont n et n2
+                                WITH m, n, n2
+                                WHERE NOT EXISTS {{
+                                    MATCH (m)-[]->(other:Node)
+                                    WHERE other <> n
+                                      AND other <> n2
+                                      AND ANY(
+                                          g IN other.genomes
+                                          WHERE NOT g IN {list(set_ignored_genomes)}
+                                      )
+                                }}
+                                """
+                    else:
+                        print("no genome ignored")
+                        query += f"""
+                            // m must be the unique predecessor of n containing genomes not ignored 
+                            AND NOT EXISTS {{
+                                MATCH (other:Node)-[]->(n)
+                                WHERE other <> m
+                            }}
+                            WITH m, n
+                            WHERE COUNT {{ (m)-[]->(:Node) }} = 2
+                            MATCH (m)-[]->(n2:Node)
                           WHERE n2 <> n
                             AND n2.chromosome = "{c}"
                             AND ALL(g IN n2.genomes WHERE g IN m.genomes)
                             AND size(n2.genomes) = size(m.genomes)
-
-
+                            
+                        """
+                    #Get annotations
+                    query += f"""
                           WITH m, collect(n2) AS nodes_tmp, count(n2) AS nodes_tmp_count
                           WHERE nodes_tmp_count = 1
                           RETURN m, nodes_tmp[0] AS n2
@@ -1584,7 +1642,7 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                 # Kc_shared is the total shared size on the chromosome
                 # Kc[c] = {"shared":0, "deleted":0}
                 # N += chromosome_stats.get(c+"_max_position_mean")
-                if deletion:
+                if deletion and c + "_deletion" in results and results[c + "_deletion"]:
                     result = results[c + "_shared"] + results[c + "_deletion"]
                 else:
                     result = results[c + "_shared"]
@@ -1635,13 +1693,16 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                                     if hap in r["genomes_deleted_nodes"]:
                                         start_deletion = r["nodes"][hap + "_position"] + r["nodes"]["size"]
                                         end_deletion = r["end_deletion_nodes"][hap + "_position"]
-                                        if start_deletion > end_deletion:
-                                            end_deletion_tmp = end_deletion
-                                            end_deletion = start_deletion
-                                            start_deletion = end_deletion_tmp
-                                        gap.append(end_deletion - start_deletion)
-                                        deleted_nodes_dict[hap] = {"start_deletion": start_deletion,
-                                                                   "end_deletion": end_deletion}
+                                        if start_deletion != end_deletion:
+                                            if start_deletion > end_deletion:
+                                                end_deletion_tmp = end_deletion
+                                                end_deletion = start_deletion
+                                                start_deletion = end_deletion_tmp
+                                            gap.append(end_deletion - start_deletion)
+                                            deleted_nodes_dict[hap] = {"start_deletion": start_deletion,
+                                                                       "end_deletion": end_deletion}
+                                        else:
+                                            deleted_nodes_dict[hap] = {"start_deletion": -1, "end_deletion": -1}
                                     else:
                                         deleted_nodes_dict[hap] = {"start_deletion": -1, "end_deletion": -1}
                                 dic_regions[c][g]["deleted_nodes"].append(deleted_nodes_dict)
