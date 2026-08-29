@@ -573,6 +573,12 @@ def layout():
                     "minWidth": "120px",
                     "maxWidth": "120px",
                 },
+                {
+                    "if": {"column_id": "get_sequence"},
+                    "cursor": "pointer",
+                    "color": "#2563eb",
+                    "fontWeight": "600",
+                },
             ],
             style_table={
                 "overflowX": "auto",
