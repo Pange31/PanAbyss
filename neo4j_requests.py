@@ -1369,12 +1369,9 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
             logger.debug(
                 f"genomes number : {nb_genomes} - min flow : {min_flow} - max flow : {max_flow} - min associated genomes : {min_associated_genomes}")
             if deletion:
-                min_unselected_genomes = max(1, int((
-                                                                nb_genomes - nb_associated_genomes) * min_deletion_percentage / 100))
-                global_min_flow_deletion = min(min_associated_genomes + min_unselected_genomes,
-                                               nb_genomes) / nb_genomes - 0.00000001
-                min_flow_deletion = min(1, ((
-                                                        nb_genomes - nb_associated_genomes) * min_deletion_percentage / 100) / nb_genomes - 0.00000001)
+                min_unselected_genomes = max(1, int((nb_genomes - nb_associated_genomes) * min_deletion_percentage / 100))
+                global_min_flow_deletion = min(min_associated_genomes + min_unselected_genomes, nb_genomes) / nb_genomes - 0.00000001
+                min_flow_deletion = min(1, ((nb_genomes - nb_associated_genomes) * min_deletion_percentage / 100) / nb_genomes - 0.00000001)
                 max_flow_deletion = min(1, (nb_genomes - nb_associated_genomes) / nb_genomes) + 0.00000001
                 logger.debug(
                     f"Look for deletions with parameters : global min flow : {global_min_flow_deletion} - min flow : {min_flow_deletion} - max flow :  {max_flow_deletion}")
@@ -1472,7 +1469,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                         query += f" AND n.size <= {node_max_size}"
 
                     query += f"""
-
+                        //None of the selected genomes on n node
                         AND {none_expr}
 
                         OPTIONAL CALL {{
@@ -1485,6 +1482,12 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                [g IN {genomes_list} WHERE g IN m.genomes AND NOT g IN n.genomes] AS added_genomes
                           WHERE size(added_genomes) >= {min_associated_genomes}
                             AND ALL(g IN n.genomes WHERE g IN m.genomes)
+
+                          // n must have a unique predecessor : m
+                          AND NOT EXISTS {{
+                              MATCH (other:Node)-[]->(n)
+                              WHERE other <> m
+                          }}
 
                           WITH m, n
                           WHERE COUNT {{ (m)-[]->(:Node) }} = 2
@@ -1502,7 +1505,7 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
 
                         }}
                         WITH m, n, n2
-                        WHERE m IS NOT NULL and n2 IS NOT NULL 
+                        WHERE m IS NOT NULL and n2 IS NOT NULL
 
                         OPTIONAL MATCH (n)-[]->(an:Annotation)
                         OPTIONAL MATCH (m)-[]->(am:Annotation)
@@ -1606,13 +1609,16 @@ def find_shared_regions(genomes_list, all_genomes, genome_ref=None, chromosomes=
                                     if hap in r["genomes_deleted_nodes"]:
                                         start_deletion = r["nodes"][hap + "_position"] + r["nodes"]["size"]
                                         end_deletion = r["end_deletion_nodes"][hap + "_position"]
-                                        if start_deletion > end_deletion:
-                                            end_deletion_tmp = end_deletion
-                                            end_deletion = start_deletion
-                                            start_deletion = end_deletion_tmp
-                                        gap.append(end_deletion - start_deletion)
-                                        deleted_nodes_dict[hap] = {"start_deletion": start_deletion,
-                                                                   "end_deletion": end_deletion}
+                                        if start_deletion != end_deletion:
+                                            if start_deletion > end_deletion:
+                                                end_deletion_tmp = end_deletion
+                                                end_deletion = start_deletion
+                                                start_deletion = end_deletion_tmp
+                                            gap.append(end_deletion - start_deletion)
+                                            deleted_nodes_dict[hap] = {"start_deletion": start_deletion,
+                                                                       "end_deletion": end_deletion}
+                                        else:
+                                            deleted_nodes_dict[hap] = {"start_deletion": -1, "end_deletion": -1}
                                     else:
                                         deleted_nodes_dict[hap] = {"start_deletion": -1, "end_deletion": -1}
                                 dic_regions[c][g]["deleted_nodes"].append(deleted_nodes_dict)
