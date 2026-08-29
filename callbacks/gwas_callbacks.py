@@ -308,6 +308,7 @@ def update_ref_genome_dropdown(selected_genomes, current_value, parameters_data)
     Output("gwas-poll-interval", "disabled", allow_duplicate=True),
     Output("btn-find-shared", "disabled", allow_duplicate=True),
     Output("btn-cancel-find-shared", "disabled", allow_duplicate=True),
+    Output('sequence-zone', 'children', allow_duplicate=True),
     Input('btn-find-shared', 'n_clicks'),
     State("use-cache-checkbox", "value"),
     State('genome-list', 'value'),
@@ -367,7 +368,7 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genome
     if ref_genome is not None:
         data["ref_genome"] = ref_genome
     if not selected_genomes:
-        return "❌ Choose at least one genome.", no_update, no_update, poll_enabled, find_button, cancel_button
+        return "❌ Choose at least one genome.", no_update, no_update, poll_enabled, find_button, cancel_button, ""
     data["launch_ts"] = time.time()
     gwas_data.update({
         "analyse": [],
@@ -394,16 +395,16 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, selected_genome
     job_id = submit_job_gwas(params, recompute)
     if job_id == "limit_exceeded":
         return ("❌ Too many jobs are currently running on the server, please try again later.",
-                no_update, no_update, no_update, no_update, no_update)
+                no_update, no_update, no_update, no_update, no_update, "")
     elif job_id == "blocked_functionality":
         return ("❌ This functionnality has been blocked.",
-                no_update, no_update, no_update, no_update, no_update)
+                no_update, no_update, no_update, no_update, no_update, "")
     gwas_data["job_id"] = job_id
     # Enable polling
     poll_enabled = False if job_id else True
     find_button = True
     cancel_button = False
-    return "Processing...", data, gwas_data, poll_enabled, find_button, cancel_button
+    return "Processing...", data, gwas_data, poll_enabled, find_button, cancel_button, ""
 
 
 #Callback to poll the current process
