@@ -1816,7 +1816,9 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                                             gap = []
                                             for dg in current_deletion:
                                                 if "start_deletion" in current_deletion[dg] and \
-                                                        current_deletion[dg]["start_deletion"] >= 0:
+                                                        current_deletion[dg]["start_deletion"] >= 0 and abs(
+                                                        current_deletion[dg]["end_deletion"] - current_deletion[dg][
+                                                            "start_deletion"]) > 0:
                                                     gap.append(abs(
                                                         current_deletion[dg]["end_deletion"] - current_deletion[dg][
                                                             "start_deletion"]))
