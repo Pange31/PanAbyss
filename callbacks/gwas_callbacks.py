@@ -23,6 +23,7 @@ from plotly.colors import qualitative
 
 from app import *
 from cache_manager import *
+from utils.gwas_constants import PVALUE_THRESHOLDS
 
 logger = logging.getLogger("panabyss_logger")
 
@@ -96,32 +97,6 @@ def update_genome_list(data, path, gwas_genome_state_store,
         color = COLORS.get(s, "grey")
 
         children.append(
-            # html.Div(
-            #     [
-            #         html.Span(
-            #             symbol,
-            #             id={"type": "genome-toggle", "genome": genome},
-            #             style={
-            #                 "cursor": "pointer",
-            #                 "fontSize": "18px",
-            #                 "width": "20px",
-            #                 "textAlign": "center",
-            #                 "display": "inline-block",
-            #                 "color": color,
-            #                 "userSelect": "none",
-            #             },
-            #         ),
-            #         html.Span(genome, style={"fontSize": "14px"}),
-            #     ],
-            #     style={
-            #         "display": "flex",
-            #         "alignItems": "center",
-            #         "gap": "6px",
-            #         "padding": "2px 4px",
-            #         "whiteSpace": "nowrap",
-            #     },
-            # )
-
             html.Div(
                 [
                     html.Span(
@@ -247,308 +222,23 @@ def compute_alpha(rank, transparency):
     alpha = (rank - threshold) / (1 - threshold)
     return float(np.clip(alpha, 0.05, 1.0))
 
-def build_chromosome_figure_old(data, manhattan=False, pvalue_transparency=0):
+
+def build_chromosome_figure(
+    data,
+    manhattan=False,
+    pvalue_slider_value=0,
+    node_size_filter=1
+):
     chromosome_stats = get_chromosomes_stats()
-    if not data:
-        return go.Figure()
 
-    fig = go.Figure()
-    pvalue_transparency = max(0, min(100, pvalue_transparency))
-
-    y_label = "Size of the shared region (negative = deletions)"
-    #Check data (presence of pvalues)
-    has_pvalues = all(
-        len(point) >= 3
-        for points in data.values()
-        for point in points
-    )
-    if manhattan and not has_pvalues:
-        manhattan = False
-
-    if manhattan:
-        y_label = "-log10(p-value)"
-    #Get data :
-    # If manhattan = True => x = mean position and y = pvalue
-    # Else => x = mean position and y = size
-    chrom_data = {
-        chrom: [
-            {
-                "x": point[0],
-                "size": point[1],
-                "pval": point[2] if len(point) >= 3 else None,
-                "y": -np.log10(max(point[2], 1e-300)) if manhattan and len(point) >= 3 else point[1],
-                "alpha_value": abs(point[1]) if manhattan else (-np.log10(max(point[2], 1e-300)) if len(point) >= 3 else None)
-            }
-            for point in points
-        ]
-        for chrom, points in data.items()
-        if points
-    }
-
-    if not chrom_data:
-        return go.Figure()
-
-    ######## Compute y value (p-value or size) and ranges
-    all_y = [
-        p["y"]
-        for pts in chrom_data.values()
-        for p in pts
-    ]
-
-    reference_values = [
-        p["alpha_value"]
-        for pts in chrom_data.values()
-        for p in pts
-        if p["alpha_value"] is not None
-    ]
-    sorted_values = np.sort(reference_values)
-
-    for pts in chrom_data.values():
-        for p in pts:
-            if p["alpha_value"] is not None:
-                p["rank"] = (
-                        np.searchsorted(sorted_values, p["alpha_value"], side="left")
-                        / len(sorted_values)
-                )
-
-    y_min = min(all_y)
-    y_max = max(all_y)
-
-    if manhattan:
-        y_range = [0, y_max * 1.05]
-    else:
-        y_pad = 0.1 * max(abs(y_min), abs(y_max), 1)
-        y_range = [y_min - y_pad, y_max + y_pad]
-
-
-
-    ########### Comput x value (mean position on each chromosome)
-    #Sort chromosome
-    chromosomes = sorted(chrom_data.keys(), key=chromosome_sort_key)
-
-    #Global length for each chromosome
-    chrom_max_lengths = {
-        chrom: (
-            chromosome_stats[f"{chrom}_max_position_mean"]
-            if chromosome_stats and chromosome_stats.get(f"{chrom}_max_position_mean") is not None
-            else max(p["x"] for p in chrom_data[chrom])
-        )
-        for chrom in chromosomes
-    }
-
-
-    colors = ["rgba(200,200,200,0.25)", "rgba(150,150,255,0.25)"]
-
-
-    x_offset = 0
-    chromosome_centers = []
-    chromosome_labels = []
-    total_points = sum(len(points) for points in chrom_data.values())
-    use_webgl = total_points > NB_POINTS_WEBGL
-    ScatterClass = go.Scattergl if use_webgl else go.Scatter
-    if use_webgl :
-        logger.debug("WebGL Scatter class used.")
-    else:
-        logger.debug("SVG Scatter class used.")
-
-    plotly_colors = qualitative.Plotly
-    for i, chrom in enumerate(chromosomes):
-        #get chromosome color
-        hex_color = plotly_colors[i % len(plotly_colors)]
-
-        hex_color = hex_color.lstrip("#")
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        b = int(hex_color[4:6], 16)
-        #Sort by genomic coordinates
-        points_sorted = sorted(
-            chrom_data[chrom],
-            key=lambda p: (p["x"], p.get("rank", 1))
-        )
-
-        x_local = [p["x"] for p in points_sorted]
-
-        y = [p["y"] for p in points_sorted]
-
-        real_max = chrom_max_lengths[chrom]
-
-        x_start = x_offset
-        x_end = x_offset + real_max
-
-        #global coordinates
-        x_global = [x + x_offset for x in x_local]
-
-        #chromosome area
-        fig.add_shape(
-            type="rect",
-            x0=x_start,
-            x1=x_end,
-            y0=y_range[0],
-            y1=y_range[1],
-            fillcolor=colors[i % len(colors)],
-            line_width=0,
-            layer="below"
-        )
-
-        #Line on beginning ending of chromosome
-        for x in (x_start, x_end):
-            fig.add_shape(
-                type="line",
-                x0=x, x1=x,
-                y0=y_range[0],
-                y1=y_range[1],
-                line=dict(color="black", width=1)
-            )
-
-
-        ############ Set transparency and color
-        if has_pvalues:
-
-            alpha_values = [
-                compute_alpha(p["rank"], pvalue_transparency)
-                for p in points_sorted
-            ]
-
-            marker = dict(
-                color=[
-                    f"rgba({r},{g},{b},{a})"
-                    for a in alpha_values
-                ]
-            )
-        else:
-            marker = dict(
-                color="rgba(31,119,180,0.8)"
-            )
-
-        #Points
-        if has_pvalues:
-
-            customdata = np.column_stack([
-                x_local,
-                [p["size"] for p in points_sorted],
-                [p["pval"] for p in points_sorted]
-            ])
-
-            hovertemplate = (
-                f"{chrom}<br>"
-                "Position: %{customdata[0]}<br>"
-                "Size: %{customdata[1]}<br>"
-                "p-value: %{customdata[2]:.3e}<extra></extra>"
-            )
-
-        else:
-
-            customdata = np.column_stack([
-                x_local,
-                [p["size"] for p in points_sorted]
-            ])
-
-            hovertemplate = (
-                f"{chrom}<br>"
-                "Position: %{customdata[0]}<br>"
-                "Size: %{customdata[1]}<extra></extra>"
-            )
-
-        fig.add_trace(
-            ScatterClass(
-                x=x_global,
-                y=y,
-                mode="markers",
-                marker=marker,
-                name=str(chrom),
-                customdata=customdata,
-                hovertemplate=hovertemplate
-            )
-        )
-
-        chromosome_centers.append(x_offset + real_max / 2)
-        chromosome_labels.append(str(chrom))
-
-        x_offset += real_max + 1
-
-    if manhattan:
-        fig.add_hline(
-            y=-np.log10(0.05),
-            line_dash="dash",
-            line_color="red",
-            annotation_text="p = 0.05",
-            annotation_position="top right"
-        )
-    else:
-        fig.add_hline(
-            y=0,
-            line_dash="dash",
-            line_color="black"
-        )
-
-    fig.update_layout(
-        title=dict(
-            text="Distribution of Shared Regions",
-            x=0.5,
-            xanchor="center",
-            y=0.95,
-            yanchor="top",
-            font=dict(
-                family="Inter, Arial, sans-serif",
-                size=18,
-                color="black"
-            )
-        ),
-
-        font=dict(
-            family="Inter, Arial, sans-serif",
-            size=12,
-            color="black"
-        ),
-
-        xaxis=dict(
-            tickmode="array",
-            tickvals=chromosome_centers,
-            ticktext=chromosome_labels,
-
-            title=dict(
-                text="Chromosomes and mean position",
-                font=dict(size=14, color="black")
-            ),
-
-            tickfont=dict(size=11, color="black"),
-            linecolor="black",
-            mirror=True
-        ),
-
-        yaxis=dict(
-            title=dict(
-                text=y_label,
-                font=dict(size=14, color="black")
-            ),
-
-            tickfont=dict(size=11, color="black"),
-            range=y_range,
-
-            linecolor="black",
-            mirror=True
-        ),
-
-        showlegend=False,
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-
-        margin=dict(l=60, r=20, t=90, b=60)
-    )
-    return fig
-
-
-
-def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
-    chromosome_stats = get_chromosomes_stats()
 
     if not data:
         return go.Figure()
 
     fig = go.Figure()
 
-    filter_nodes = max(0, min(100, filter_nodes))
-
+    # Conversion of pvalue filter slider to a -log10(pvalue)
+    pvalue_filter = -np.log10(PVALUE_THRESHOLDS[pvalue_slider_value])
     y_label = "Size of the shared region (negative = deletions)"
 
     # Check presence of p-values
@@ -564,7 +254,10 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
     if manhattan:
         y_label = "-log10(p-value)"
 
+    # ----------------------------------------------------------
     # Prepare data
+    # ----------------------------------------------------------
+
     chrom_data = {
         chrom: [
             {
@@ -576,10 +269,10 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
                     if manhattan and len(point) >= 3
                     else point[1]
                 ),
-                "filter_value": (
-                    abs(point[1])
-                    if manhattan
-                    else -np.log10(max(point[2], 1e-300))
+                "log_pval": (
+                    -np.log10(max(point[2], 1e-300))
+                    if len(point) >= 3
+                    else None
                 )
             }
             for point in points
@@ -591,30 +284,38 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
     if not chrom_data:
         return go.Figure()
 
-
     # ==========================================================
-    # Compute filter threshold
+    # Apply filter
     # ==========================================================
 
-    if filter_nodes < 100:
-
-        filter_values = [
-            p["filter_value"]
-            for pts in chrom_data.values()
-            for p in pts
-        ]
-
-        threshold = np.percentile(
-            filter_values,
-            100 - filter_nodes
-        )
-
+    if manhattan:
+        # Keep points whose absolute node size is >= threshold
         for chrom in chrom_data:
             chrom_data[chrom] = [
-                p for p in chrom_data[chrom]
-                if p["filter_value"] >= threshold
+                p
+                for p in chrom_data[chrom]
+                if abs(p["size"]) >= node_size_filter
             ]
 
+    else:
+        # Keep points whose -log10(p-value) is >= threshold
+        for chrom in chrom_data:
+            chrom_data[chrom] = [
+                p
+                for p in chrom_data[chrom]
+                    if p["log_pval"] is not None
+                        and p["log_pval"] >= pvalue_filter
+            ]
+
+    # Remove chromosomes that have no points left after filtering
+    chrom_data = {
+        chrom: points
+        for chrom, points in chrom_data.items()
+        if points
+    }
+
+    if not chrom_data:
+        return go.Figure()
 
     # ==========================================================
     # Y range
@@ -640,7 +341,6 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
             y_min - y_pad,
             y_max + y_pad
         ]
-
 
     # ==========================================================
     # Chromosome positions
@@ -669,17 +369,14 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
                 for p in chrom_data[chrom]
             )
 
-
     colors = [
         "rgba(200,200,200,0.25)",
         "rgba(150,150,255,0.25)"
     ]
 
-
     x_offset = 0
     chromosome_centers = []
     chromosome_labels = []
-
 
     total_points = sum(
         len(points)
@@ -694,9 +391,7 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
         else go.Scatter
     )
 
-
     plotly_colors = qualitative.Plotly
-
 
     # ==========================================================
     # Draw chromosomes
@@ -714,13 +409,10 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
         g = int(hex_color[2:4], 16)
         b = int(hex_color[4:6], 16)
 
-
-        # Sort by position
         points_sorted = sorted(
             chrom_data[chrom],
             key=lambda p: p["x"]
         )
-
 
         x_local = [
             p["x"]
@@ -732,18 +424,15 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
             for p in points_sorted
         ]
 
-
         real_max = chrom_max_lengths[chrom]
 
         x_start = x_offset
         x_end = x_offset + real_max
 
-
         x_global = [
             x + x_offset
             for x in x_local
         ]
-
 
         # Background chromosome
         fig.add_shape(
@@ -756,7 +445,6 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
             line_width=0,
             layer="below"
         )
-
 
         # Chromosome borders
         for x in (x_start, x_end):
@@ -773,12 +461,10 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
                 )
             )
 
-
         marker = dict(
             color=f"rgb({r},{g},{b})",
             size=7
         )
-
 
         # Hover data
         if has_pvalues:
@@ -824,7 +510,6 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
                 "<extra></extra>"
             )
 
-
         fig.add_trace(
             ScatterClass(
                 x=x_global,
@@ -837,7 +522,6 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
             )
         )
 
-
         chromosome_centers.append(
             x_offset + real_max / 2
         )
@@ -846,9 +530,7 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
             str(chrom)
         )
 
-
         x_offset += real_max + 1
-
 
     # ==========================================================
     # Reference line
@@ -865,13 +547,11 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
         )
 
     else:
-
         fig.add_hline(
             y=0,
             line_dash="dash",
             line_color="black"
         )
-
 
     # ==========================================================
     # Layout
@@ -916,46 +596,101 @@ def build_chromosome_figure(data, manhattan=False, filter_nodes=100):
 
     return fig
 
+
 #Switch to manhattan plot
 @app.callback(
     Output("chromosome-graph", "figure", allow_duplicate=True),
-    Output("filter-slider-label", "children"),
-    Output("filter-slider-label", "title"),
+    Output("pvalue-filter-container", "style"),
+    Output("node-size-filter-container", "style"),
     Input("manhattan-switch", "value"),
     State("gwas-page-store", "data"),
-    State('filter-slider', 'value'),
+    State("pvalue-filter-slider", "value"),
+    State("node-size-filter-slider", "value"),
     prevent_initial_call=True
 )
-def manhattan_switch(value, data, filter_level):
+def manhattan_switch(
+    value,
+    data,
+    pvalue_filter,
+    node_size_filter
+):
     if not data:
         data = {}
-    manhattan = False
-    filter_label = "p-value filter:"
-    filter_title = "Filter high p-value nodes."
-    if "on" in value:
-        manhattan = True
-        filter_label = "Nodes size filter:"
-        filter_title = "Filter small nodes."
-    gwas_points = data.get("gwas_graph_points", None)
-    if not gwas_points or len(gwas_points) == 0:
-        return no_update, filter_label, filter_title
-    return build_chromosome_figure(gwas_points,manhattan=manhattan,filter_nodes=filter_level), filter_label, filter_title
 
-#Pvalue and node size filter
+    # Switch OFF = standard node-size plot
+    # Switch ON  = Manhattan plot
+    manhattan = "on" in value
+
+    gwas_points = data.get("gwas_graph_points", None)
+
+    # Manhattan OFF/ON -> display corresponding slider
+    pvalue_style = {
+        "width": "250px",
+        "display": "none" if manhattan else "block"
+    }
+
+    node_size_style = {
+        "width": "250px",
+        "display": "block" if manhattan else "none"
+    }
+
+    if not gwas_points or len(gwas_points) == 0:
+        return (
+            no_update,
+            pvalue_style,
+            node_size_style
+        )
+
+    fig = build_chromosome_figure(
+        gwas_points,
+        manhattan=manhattan,
+        pvalue_slider_value=pvalue_filter,
+        node_size_filter=node_size_filter
+    )
+
+    return (
+        fig,
+        pvalue_style,
+        node_size_style
+    )
+
+
+"""
+Filter node when setting a new filter value
+"""
 @app.callback(
     Output("chromosome-graph", "figure", allow_duplicate=True),
-    Input('filter-slider', 'value'),
+    Input("pvalue-filter-slider", "value"),
+    Input("node-size-filter-slider", "value"),
     State("gwas-page-store", "data"),
     State("manhattan-switch", "value"),
     prevent_initial_call=True
 )
-def filter_nodes(filter_level, data, manhattan_value):
+def filter_nodes(
+    pvalue_filter,
+    node_size_filter,
+    data,
+    manhattan_value
+):
     if not data:
         data = {}
+
     gwas_points = data.get("gwas_graph_points", None)
+
     if not gwas_points or len(gwas_points) == 0:
         return no_update
-    return build_chromosome_figure(gwas_points,manhattan=("on" in manhattan_value), filter_nodes=filter_level)
+
+    # Switch OFF = node-size graph
+    # Switch ON  = Manhattan / p-value
+    manhattan = "on" in manhattan_value
+
+    return build_chromosome_figure(
+        gwas_points,
+        manhattan=manhattan,
+        pvalue_slider_value=pvalue_filter,
+        node_size_filter=node_size_filter
+    )
+
 
 #Callback triggered by clicking on the launch button
 #This callback is required to set the parameters in the store to allow further navigation
@@ -1386,10 +1121,11 @@ def handle_row_selection(selected_rows, table_data, data, home_page_data,
     Input("gwas-page-store", "data"),
     State('parameters-gwas-page-store', 'data'),
     #State("manhattan-switch", "value"),
-    State("filter-slider", "value"),
+    State("pvalue-filter-slider", "value"),
+    State("node-size-filter-slider", "value"),
     prevent_initial_call=True
 )
-def update_data(path, data, parameters_data, filter_percent):
+def update_data(path, data, parameters_data, pvalue_filter_slider, node_size_filter_slider):
     #analyse = table_data
     if path != "/gwas":
         raise exceptions.PreventUpdate
@@ -1455,7 +1191,10 @@ def update_data(path, data, parameters_data, filter_percent):
         if "gwas_graph_points" in data and len(data["gwas_graph_points"]) > 0:
             #manhattan=("on" in manhattan_switch)
             #chromosome_figure = build_chromosome_figure(data["gwas_graph_points"], manhattan=manhattan)
-            chromosome_figure = build_chromosome_figure(data["gwas_graph_points"], filter_nodes=filter_percent)
+
+            chromosome_figure = build_chromosome_figure(data["gwas_graph_points"],
+                                                        pvalue_slider_value=pvalue_filter_slider,
+                                                        node_size_filter=node_size_filter_slider)
             figure_display = {"display": "block"}
     if parameters_data is not None:
         if "min_node_size" in parameters_data:

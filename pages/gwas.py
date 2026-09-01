@@ -9,6 +9,7 @@ Created on Wed Jul  2 21:55:56 2025
 from dash import html, dcc, dash_table
 import dash_bootstrap_components as dbc
 from plotly.graph_objs.layout.ternary.aaxis import title
+from utils.gwas_constants import PVALUE_THRESHOLDS
 
 EXPORT_DIR = "./export/gwas/"
 
@@ -31,6 +32,9 @@ PARAM_STYLE = {
     "backgroundColor": "white",
     "boxShadow": "0 1px 3px rgba(0,0,0,0.05)",
 }
+
+
+
 
 def layout():
     return html.Div([
@@ -407,26 +411,72 @@ def layout():
 
                 html.Div(
                     [
-                        html.Label(
-                            id="filter-slider-label",
-                            children="p-value filter:",
-                            title="Filter small nodes."
+                        # --------------------------------------------------
+                        # P-value slider (Manhattan)
+                        # --------------------------------------------------
+                        html.Div(
+                            [
+                                html.Label(
+                                    "p-value filter:",
+                                    title="Filter points with a p-value below the selected threshold."
+                                ),
+
+                                dcc.Slider(
+                                    id="pvalue-filter-slider",
+                                    min=0,
+                                    max=7,
+                                    step=1,
+                                    value=0,
+                                    marks={
+                                        0: "1",
+                                        1: "0.05",
+                                        2: "0.01",
+                                        3: "0.005",
+                                        4: "0.001",
+                                        5: "10⁻⁴",
+                                        6: "10⁻⁵",
+                                        7: "10⁻¹⁰"
+                                    },
+                                ),
+                            ],
+                            id="pvalue-filter-container",
+                            style={
+                                "width": "275px",
+                                "display": "block",
+                            }
                         ),
 
+                        # --------------------------------------------------
+                        # Node size slider (standard graph)
+                        # --------------------------------------------------
                         html.Div(
-                            dcc.Slider(
-                                id='filter-slider',
-                                min=1,
-                                max=100,
-                                step=1,
-                                marks={
-                                    1: "1",
-                                    **{i: str(i) for i in range(10, 101, 10)}
-                                },
-                                value=100,
-                            ),
-                            style={"width": "250px"}
-                        )
+                            [
+                                html.Label(
+                                    "Nodes size filter:",
+                                    title="Filter nodes smaller than the selected size."
+                                ),
+                                dcc.Slider(
+                                    id="node-size-filter-slider",
+                                    min=1,
+                                    max=1000,
+                                    step=1,
+                                    value=1,
+                                    marks={
+                                        1: "1",
+                                        100: "100",
+                                        250: "250",
+                                        500: "500",
+                                        750: "750",
+                                        1000: "1000"
+                                    },
+                                ),
+                            ],
+                            id="node-size-filter-container",
+                            style={
+                                "width": "275px",
+                                "display": "none",
+                            }
+                        ),
                     ],
                     style={
                         "marginLeft": "40px",
@@ -435,13 +485,19 @@ def layout():
                         "alignItems": "flex-start",
                         "gap": "5px"
                     }
-                )
+                ),
             ],
             style={
                 "display": "flex",
                 "alignItems": "center"
             }
         ),
+
+
+
+
+
+
 
         dcc.Graph(
             id="chromosome-graph",
