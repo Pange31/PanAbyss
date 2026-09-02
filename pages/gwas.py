@@ -84,7 +84,7 @@ def layout():
                  html.Ul([
                      html.Li("General:"),
                          html.Ul([
-                             html.Li("A haplotype can be unselected, selected, or ignored (red cross)."),
+                             html.Li("A haplotype can be unselected, selected, or ignored (red cross). Ignored haplotypes won't be consider at all."),
                              html.Li("Size of region : this size is used to group nodes separated by less than this value (in bp)."),
                              html.Li("Limit search to chromosom : If a chromosom is selected, it will look for shared region only on this chromosom."),
                              html.Li("Reference haplotype : results will be displayed only for this haplotype, including annotations. If no one is selected then the first annotated haplotype will be displayed."
@@ -112,13 +112,13 @@ def layout():
             id="genome-list",
             style={
                 "display": "grid",
-                "gridTemplateColumns": "repeat(auto-fill, 250px)",
+                "gridTemplateColumns": "repeat(auto-fill, 150px)",
                 "columnGap": "0px",
                 "rowGap": "0px",
                 "width": "100%",
             },
         ),
-        html.Br(), 
+        html.Br(),
         html.H3("Parameters: "),
 
         #Parameters section
@@ -346,29 +346,61 @@ def layout():
         ),
 
         html.Br(),
+
         html.Label(
             "Choose a reference haplotype: ",
             title="Select the genome for which you want to view the results and obtain annotations. If no genome is selected, the result will be the first genome found with annotations. If there are no annotations, it will be the first genome found."
-            ),
-        html.Div(
-                dcc.Dropdown(id='gwas_ref_genome_dropdown',
-                    options=[],
-                    value=None,
-                    placeholder="Reference haplotype : ",
-                    clearable=False,
-                    style={
-                    "width": "250px",
-                    "minWidth": "150px",
-                    "maxWidth": "100%",
-                    "flexShrink": 0
-                })
-
         ),
 
-    
-        html.Button("Find shared regions", id='btn-find-shared', n_clicks=0, style={'margin': '15px 0', 'marginRight':'15px'}),
-        html.Button("Cancel", id='btn-cancel-find-shared', disabled=True, n_clicks=0, style={'margin': '15px 0'}),
-        html.Div(id='shared-status', style={'marginBottom': '15px'}),
+        html.Div(
+            [
+                dcc.Dropdown(
+                    id='gwas_ref_genome_dropdown',
+                    options=[],
+                    value=None,
+                    placeholder="Reference haplotype :",
+                    clearable=False,
+                    style={
+                        "width": "250px",
+                        "minWidth": "150px",
+                    }
+                ),
+
+                html.Button(
+                    "Find shared regions",
+                    id='btn-find-shared',
+                    n_clicks=0,
+                    style={
+                        'marginLeft': '15px',
+                        'padding': '8px 16px',
+                        'fontSize': '14px',
+                    }
+                ),
+
+                html.Button(
+                    "Cancel",
+                    id='btn-cancel-find-shared',
+                    disabled=True,
+                    n_clicks=0,
+                    style={
+                        'marginLeft': '10px',
+                        'padding': '8px 16px',
+                        'fontSize': '14px',
+                    }
+                ),
+            ],
+            style={
+                'display': 'flex',
+                'alignItems': 'center',
+                'marginBottom': '25px',
+            }
+        ),
+
+        html.Div(
+            id='shared-status',
+            style={'marginBottom': '15px'}
+        ),
+
         html.Div(
             id="gwas-progress-circle",
             style={"display": "none", "width": "100px", "height": "100px", "margin": "auto", "position": "relative",
@@ -619,10 +651,6 @@ def layout():
                 {"name": "Shared deleted nodes size", "id": "shared_deleted_size", 'type': 'numeric'},
                 {"name": "-log10(p-value)", "id": "pval", 'type': 'numeric'},
                 {"name": "Score", "id": "score", 'type': 'numeric'},
-                # {"name": "nodes number", "id": "nb_nodes_in_region"},
-                # {"name": "start position mean", "id": "start_position_mean"},
-                # {"name": "stop position mean", "id": "stop_position_mean"},
-                #{"name": "Sequences", "id": "get_sequence", "presentation": "markdown", "selectable": True}
                 {"name": "Sequences", "id": "get_sequence"}
             ],
             data=[],
@@ -630,7 +658,9 @@ def layout():
             filter_action='native',
             style_header={
                 'whiteSpace': 'normal',
-                'fontFamily': 'Inter, system-ui, sans-serif',
+                #'fontFamily': 'Inter, system-ui, sans-serif',
+                'fontFamily': 'Arial, Helvetica, sans-serif',
+
                 'fontWeight': '600',
                 'fontSize': '11px',
 
@@ -646,7 +676,7 @@ def layout():
             },
             cell_selectable=True,
             style_cell={
-                "whiteSpace": "pre-line",
+                'fontFamily': 'Arial, Helvetica, sans-serif',
                 'userSelect': 'text',
                 'textAlign': 'left',
                 "height": "auto",
@@ -654,7 +684,7 @@ def layout():
                 "textOverflow": "ellipsis",
                 "minWidth": "0px",
                 "maxWidth": "none",
-                'fontSize': '11px',
+                'fontSize': '13px',
                 'whiteSpace': 'normal',
                 "overflow": "hidden",
             },

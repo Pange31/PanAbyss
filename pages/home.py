@@ -1043,7 +1043,7 @@ def layout(data=None, initial_size_limit=10):
                 html.P("Display description :"),
                 html.Ul([
                     html.Li(
-                        "By clicking on a node or a link, data of this node will be displayed under the 'update graph' button."),
+                        "By clicking on a node or a link, data of this node will be displayed under the 'update graph' button. To unselect an edge or a node, click on an empty region."),
                     html.Li(
                         "If annotations exists in the visualized region they will be concatenated under the node / link description area."),
                     html.Li("Graph description :"),

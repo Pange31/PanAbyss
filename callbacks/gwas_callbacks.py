@@ -67,6 +67,7 @@ def compute_gwas_file_name(selected_genomes_list, min_node_size, max_node_size, 
 # Populates genomes list
 @app.callback(
     Output("genome-list", "children"),
+    Output("genome-list", "style"),
     Output("gwas_ref_genome_dropdown", "options", allow_duplicate=True),
     Output("gwas_ref_genome_dropdown", "value", allow_duplicate=True),
     Input("shared_storage", "data"),
@@ -123,6 +124,24 @@ def update_genome_list(data, path, gwas_genome_state_store,
 
         )
 
+    max_genome_length = max(
+        (len(genome) for genome in genomes),
+        default=0
+    )
+
+    column_width = max(
+        150,
+        max_genome_length * 9 + 30
+    )
+
+    genome_list_style = {
+        "display": "grid",
+        "gridTemplateColumns": f"repeat(auto-fill, {column_width}px)",
+        "columnGap": "10px",
+        "rowGap": "4px",
+        "width": "100%",
+    }
+
     selected_genomes = [g for g, s in gwas_genome_state_store.items() if s == "selected"]
     options = []
 
@@ -139,11 +158,9 @@ def update_genome_list(data, path, gwas_genome_state_store,
     else:
         current_ref_value = no_update
 
-    return children, options, current_ref_value
+    return children, genome_list_style, options, current_ref_value
 
 
-
-    return children
 
 #Callback to toggle genome selection state
 @app.callback(
@@ -563,6 +580,8 @@ def build_chromosome_figure(
             text="Distribution of Shared Regions",
             x=0.5,
             xanchor="center",
+            y=0.97,
+            yanchor="top",
             font=dict(size=18)
         ),
 
@@ -589,7 +608,7 @@ def build_chromosome_figure(
         margin=dict(
             l=60,
             r=20,
-            t=90,
+            t=50,
             b=60
         )
     )
