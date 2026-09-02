@@ -7,6 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ---
 
 
+## [1.5.0]
+### Added
+- 
+
+### Changed
+- Slider in shared regions discovery to filter nodes by pvalue (filter by pval from 1 to 10^-10) or size (filter from 1 to 1000)
+
+### Fixed
+- Node and edge information display
+- Remove 0 size nodes from shared regions discovery
+- Remove sequence display in shared regions discovery when launching a new search
+- New design for get sequence functionality in shared regions discovery page
+
+### Removed
+
 ## [1.4.1]
 ### Added
 - Possibility to ignore a set of haplotypes in shared region discovery page
