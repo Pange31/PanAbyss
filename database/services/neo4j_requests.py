@@ -631,7 +631,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
             else:
                 # Step 3 : the region is too wide, check if the pb is due to a small proportion of indiviudals
                 # If the nodes number of some individuals (less than 20% of the total individuals) is more than the limit
-                # or more than 10 times the median, then they will be removed from the search
+                # or more than a threshold fixed by percentile methode
                 logger.debug("Too much nodes into the region, check for individual exception.")
                 queries = []
                 for g in ranges:
