@@ -85,14 +85,16 @@ def layout():
                      html.Li("General:"),
                          html.Ul([
                              html.Li("A haplotype can be unselected, selected, or ignored (red cross). Ignored haplotypes won't be consider at all."),
-                             html.Li("Size of region : this size is used to group nodes separated by less than this value (in bp)."),
-                             html.Li("Limit search to chromosom : If a chromosom is selected, it will look for shared region only on this chromosom."),
+                             html.Li("Size of region: this size is used to group nodes separated by less than this value (in bp)."),
+                             html.Li("Limit search to chromosom: If a chromosom is selected, it will look for shared region only on this chromosom."),
                              html.Li("Reference haplotype : results will be displayed only for this haplotype, including annotations. If no one is selected then the first annotated haplotype will be displayed."
                                      "If the reference haplotype is not selected then the coordinates will be computed by selecting the first anchor node before / after the first haplotype. If no anchor is detected then the start will be set to 0 and the stop will be set to start."),
-                             html.Li("Export to csv / export to csv with sequences : it will save the result into a csv file (without or with the sequences associated to each region). The file is located in the './export/gwas' directory."),
-                             html.Li("Load csv : it allows to load the saved csv (it located in the '/gwas' directory or a selected file)."),
-                             html.Li("First column : by clicking on the first columns it will display the region in the home page."),
-                             html.Li("Sequences column : by clicking on this column it will display the sequence associated to the region."),
+                             html.Li("Export to csv / export to csv with sequences: it will save the result into a csv file (without or with the sequences associated to each region). The file is located in the './export/gwas' directory."),
+                             html.Li("Load csv: it allows to load the saved csv (it located in the '/gwas' directory or a selected file)."),
+                             html.Li("First column: by clicking on the first columns it will display the region in the home page."),
+                             html.Li("Sequences column: by clicking on this column it will display the sequence associated to the region."),
+                             html.Li(
+                                 "Highlight region: by double-clicking on a region this will highlight the corresponding region on the graph."),
                              html.Li(
                                  "Use cache: if the same search has been computed then the results will be immediately retrieved."),
                              html.Li(
