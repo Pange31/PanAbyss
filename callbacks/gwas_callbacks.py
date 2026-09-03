@@ -244,7 +244,8 @@ def build_chromosome_figure(
     data,
     manhattan=False,
     pvalue_slider_value=0,
-    node_size_filter=1
+    node_size_filter=1,
+    highlight_region=None
 ):
     chromosome_stats = get_chromosomes_stats()
 
@@ -446,6 +447,28 @@ def build_chromosome_figure(
         x_start = x_offset
         x_end = x_offset + real_max
 
+
+        # Highlight selected genomic region
+        if highlight_region is not None and str(highlight_region["chr"]) == str(chrom):
+            highlight_x_start = x_offset + highlight_region["mean_start"]
+            highlight_x_end = x_offset + highlight_region["mean_stop"]
+
+            fig.add_shape(
+                type="rect",
+                x0=highlight_x_start,
+                x1=highlight_x_end,
+                y0=y_range[0],
+                y1=y_range[1],
+                fillcolor="rgba(255, 193, 7, 0.30)",
+                line=dict(
+                    color="rgba(255, 152, 0, 1)",
+                    width=2
+                ),
+                layer="above"
+            )
+
+
+
         x_global = [
             x + x_offset
             for x in x_local
@@ -616,8 +639,205 @@ def build_chromosome_figure(
     return fig
 
 
+"""
+Function used to format result message display.
+"""
+def get_message_display(
+    message=None,
+    region_size=None,
+    selected_region=None,
+    region_highlight=None
+):
+    # ==========================================================
+    # Message
+    # ==========================================================
+
+    if message and message != "":
+        return html.Div(
+            [
+                html.Span(
+                    message,
+                    style={
+                        "fontSize": "15px",
+                        "fontWeight": "600",
+                        "color": "#111827",
+                    }
+                )
+            ],
+            style={
+                "display": "inline-flex",
+                "alignItems": "center",
+                "width": "fit-content",
+                "padding": "9px 14px",
+                "backgroundColor": "#f1f5f9",
+                "border": "1px solid #cbd5e1",
+                "borderRadius": "6px",
+            }
+        )
+
+    # ==========================================================
+    # Number of regions
+    # ==========================================================
+
+    elif not region_highlight or len(region_highlight) == 0:
+        return html.Div(
+            [
+                html.Span(
+                    f"{region_size} regions found",
+                    style={
+                        "fontSize": "15px",
+                        "fontWeight": "600",
+                        "color": "#111827",
+                    }
+                )
+            ],
+
+            style={
+                "display": "inline-flex",
+                "alignItems": "center",
+                "width": "fit-content",
+                "padding": "9px 14px",
+                "backgroundColor": "#f1f5f9",
+                "border": "1px solid #cbd5e1",
+                "borderRadius": "6px",
+            }
+
+        )
+
+
+    # ==========================================================
+    # Selected region
+    # ==========================================================
+
+    else:
+        if (
+            selected_region is not None
+            and selected_region >= 0
+            and region_highlight
+            and len(region_highlight) > 0
+        ):
+            return html.Div(
+                [
+                    html.Div(
+                        f"Region {selected_region + 1} / {region_size}",
+                        style={
+                            "fontWeight": "700",
+                            "fontSize": "17px",
+                            "color": "#111827",
+                            "marginBottom": "6px",
+                        }
+                    ),
+
+                    html.Div(
+                        [
+                            html.Span(
+                                "Haplotype: ",
+                                style={
+                                    "color": "#475569",
+                                    "fontWeight": "500",
+                                }
+                            ),
+
+                            html.Span(
+                                region_highlight.get("genome",""),
+                                style={
+                                    "fontWeight": "600",
+                                    "color": "#111827",
+                                }
+                            ),
+
+                            html.Span(
+                                "  •  Chromosome: ",
+                                style={
+                                    "color": "#475569",
+                                    "fontWeight": "500",
+                                }
+                            ),
+
+                            html.Span(
+                                str(region_highlight.get("chr", "")),
+                                style={
+                                    "fontWeight": "600",
+                                    "color": "#111827",
+                                }
+                            ),
+                        ],
+                        style={
+                            "fontSize": "14px",
+                        }
+                    ),
+
+                    html.Div(
+                        [
+                            html.Span(
+                                "Position: ",
+                                style={
+                                    "color": "#475569",
+                                    "fontWeight": "500",
+                                }
+                            ),
+
+                            html.Span(
+                                f"{region_highlight.get('start', ''):,} – "
+                                f"{region_highlight.get('stop',''):,}",
+                                style={
+                                    "fontWeight": "600",
+                                    "color": "#2563eb",
+                                    "fontSize": "14px",
+                                }
+                            ),
+                        ],
+                        style={
+                            "fontSize": "14px",
+                            "marginTop": "4px",
+                        }
+                    ),
+
+                    html.Div(
+                        [
+                            html.Span(
+                                "Mean position: ",
+                                style={
+                                    "color": "#475569",
+                                    "fontWeight": "500",
+                                }
+                            ),
+
+                            html.Span(
+                                f"{region_highlight.get('mean_start',''):,} – "
+                                f"{region_highlight.get('mean_stop',''):,}",
+                                style={
+                                    "fontWeight": "600",
+                                    "color": "#d97706",
+                                    "fontSize": "14px",
+                                }
+                            ),
+                        ],
+                        style={
+                            "fontSize": "14px",
+                            "marginTop": "3px",
+                        }
+                    ),
+                ],
+                style={
+                    "display": "inline-block",
+                    "width": "fit-content",
+                    "padding": "10px 14px",
+                    "backgroundColor": "#f8fafc",
+                    "border": "1px solid #cbd5e1",
+                    "borderLeft": "4px solid #f59e0b",
+                    "borderRadius": "6px",
+                }
+            )
+
+    return ""
+
+
+
+
 #Switch to manhattan plot
 @app.callback(
+    Output("shared-status", "children",allow_duplicate=True),
     Output("chromosome-graph", "figure", allow_duplicate=True),
     Output("pvalue-filter-container", "style"),
     Output("node-size-filter-container", "style"),
@@ -660,6 +880,8 @@ def manhattan_switch(
             node_size_style
         )
 
+    message_analyse = get_message_display(region_size=len(data.get("analyse", [])))
+
     fig = build_chromosome_figure(
         gwas_points,
         manhattan=manhattan,
@@ -668,6 +890,7 @@ def manhattan_switch(
     )
 
     return (
+        message_analyse,
         fig,
         pvalue_style,
         node_size_style
@@ -678,6 +901,7 @@ def manhattan_switch(
 Filter node when setting a new filter value
 """
 @app.callback(
+    Output("shared-status", "children",allow_duplicate=True),
     Output("chromosome-graph", "figure", allow_duplicate=True),
     Input("pvalue-filter-slider", "value"),
     Input("node-size-filter-slider", "value"),
@@ -703,7 +927,9 @@ def filter_nodes(
     # Switch ON  = Manhattan / p-value
     manhattan = "on" in manhattan_value
 
-    return build_chromosome_figure(
+    message_analyse = get_message_display(region_size=len(data.get("analyse",[])))
+
+    return message_analyse, build_chromosome_figure(
         gwas_points,
         manhattan=manhattan,
         pvalue_slider_value=pvalue_filter,
@@ -1178,20 +1404,20 @@ def update_data(path, data, parameters_data, pvalue_filter_slider, node_size_fil
         if job_id:
             job_data = get_gwas_job(job_id)  # retrieve job info from SQLite
             if job_data and job_data["status"] == "RUNNING":
-                message_analyse = "Processing..."
+                message_analyse = get_message_display(message="Processing...")
                 search_button = True
                 cancel_button = False
                 enable_poll = False
             else:
                 if "message" in data:
-                    message_analyse = data["message"]
+                    message_analyse = get_message_display(message=data["message"])
                 else:
                     if "analyse" in data:
                         len_analyse = len(analyse)
                         if MAX_GWAS_REGIONS is not None and MAX_GWAS_REGIONS > 0 and len_analyse >= MAX_GWAS_REGIONS:
-                            message_analyse = f"Too much regions found, limited to the {MAX_GWAS_REGIONS} first regions."
+                            message_analyse = get_message_display(message=f"Too much regions found, limited to the {MAX_GWAS_REGIONS} first regions.")
                         else:
-                            message_analyse = f"{len_analyse} shared regions found."
+                            message_analyse = get_message_display(region_size=len_analyse)
         # if data.get("status") == "running":
         #     progress_style = {"display": "block", "marginTop": "20px", "marginBottom": "20px"}
         #     message_analyse = "Progressing..."
@@ -1200,17 +1426,14 @@ def update_data(path, data, parameters_data, pvalue_filter_slider, node_size_fil
         else:
             if "analyse" in data:
                 if "message" in data :
-                    message_analyse = data["message"]
+                    message_analyse = get_message_display(message=data["message"])
                 else:
                     len_analyse = len(analyse)
                     if MAX_GWAS_REGIONS is not None and MAX_GWAS_REGIONS > 0 and len_analyse >= MAX_GWAS_REGIONS:
-                        message_analyse = f"Too much regions found, limited to the {MAX_GWAS_REGIONS} first regions."
+                        message_analyse = get_message_display(message=f"Too much regions found, limited to the {MAX_GWAS_REGIONS} first regions.")
                     else:
-                        message_analyse = f"{len_analyse} shared regions found."
+                        message_analyse = get_message_display(region_size=len_analyse)
         if "gwas_graph_points" in data and len(data["gwas_graph_points"]) > 0:
-            #manhattan=("on" in manhattan_switch)
-            #chromosome_figure = build_chromosome_figure(data["gwas_graph_points"], manhattan=manhattan)
-
             chromosome_figure = build_chromosome_figure(data["gwas_graph_points"],
                                                         pvalue_slider_value=pvalue_filter_slider,
                                                         node_size_filter=node_size_filter_slider)
@@ -1248,6 +1471,55 @@ def update_data(path, data, parameters_data, pvalue_filter_slider, node_size_fil
     return (message_analyse,analyse, min_node_size, max_node_size,
             min_percent_selected,tolerance_percentage,region_gap, deletion_checkbox, deletion_percentage,
             chromosome_figure, figure_display, chromosome, ref_genome,search_button, cancel_button, enable_poll)
+
+
+"""
+Callback that detect double clic on the dahs table
+and highlight the correpsonding region in the graph
+"""
+@app.callback(
+    Output("shared-status", "children",allow_duplicate=True),
+    Output("chromosome-graph", "figure", allow_duplicate=True),
+    Input("shared-region-table", "active_cell"),
+    State("gwas-page-store", "data"),
+    State("manhattan-switch", "value"),
+    State("pvalue-filter-slider", "value"),
+    State("node-size-filter-slider", "value"),
+    prevent_initial_call=True
+)
+def highlight_region(active_cell, analyse, manhattan, pvalue_filter, node_size_filter):
+
+    if active_cell is None:
+        return no_update, no_update
+
+    if not analyse:
+        return no_update, no_update
+
+    row_index = active_cell["row"]
+    if row_index is not None:
+        region = analyse["analyse"][row_index]
+        mean_start = region["mean_start"]
+        mean_stop = region["mean_stop"]
+        start = region['start']
+        stop = region['stop']
+        chr = region["chromosome"]
+        genome = region["genome"]
+        highlight_region = {"mean_start":mean_start, "mean_stop":mean_stop, "chr":chr, "start":start, "stop":stop, "genome":genome}
+        fig = build_chromosome_figure(
+            analyse["gwas_graph_points"],
+            manhattan=manhattan,
+            pvalue_slider_value=pvalue_filter,
+            node_size_filter=node_size_filter,
+            highlight_region=highlight_region
+        )
+
+        message = get_message_display(region_size=len(analyse["analyse"]), selected_region = row_index, region_highlight=highlight_region)
+
+        return message, fig
+
+    return no_update, no_update
+
+
 
 #Callback to save the gwas data table into csv file
 @app.callback(

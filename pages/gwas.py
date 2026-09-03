@@ -401,6 +401,7 @@ def layout():
             style={'marginBottom': '15px'}
         ),
 
+
         html.Div(
             id="gwas-progress-circle",
             style={"display": "none", "width": "100px", "height": "100px", "margin": "auto", "position": "relative",
