@@ -2356,8 +2356,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         alt_genome = ""
         if home_data_storage is None:
             home_data_storage = {}
-        home_data_storage["genome_zoom"] = None
-        home_data_storage["zoom"] = False
+            home_data_storage["genome_zoom"] = None
+            home_data_storage["zoom"] = False
         triggered_id = ctx.triggered_id
         if (triggered_id == "search-button" and n_clicks > 0
                 and ((start is None or start == "") or (end is None or end == ""))
@@ -2468,20 +2468,25 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         selected_nodes_name = set()
         if selected_nodes_data is not None and len(selected_nodes_data) > 0:
             selected_nodes_name = set([node['name'] for node in selected_nodes_data])
+
         if triggered_id == "btn-zoom":
             #In case of zoom => get the selected nodes to prepare a new request
             if not selected_nodes_name or len (selected_nodes_name) == 0:
                 raise PreventUpdate
-            #Check if it is the first zoom to store it
-
             if "nodes" in cached:
                 nodes = cached["nodes"]
-                if zoom_shared_storage_out or len(zoom_shared_storage_out) == 0:
+                # Check if it is the first zoom to store it
+                if (not home_data_storage
+                        or "zoom" not in home_data_storage
+                        or (home_data_storage and "zoom" in home_data_storage and home_data_storage["zoom"] == False)):
                     #First zoom => store the old data to retrieve them when reset zoom
                     cached["zoom"] = cached["nodes"]
-                zoom_shared_storage_out["start"] = home_data_storage["start"]
-                zoom_shared_storage_out["end"] = home_data_storage["end"]
+                    zoom_shared_storage_out["start"] = home_data_storage["start"]
+                    zoom_shared_storage_out["end"] = home_data_storage["end"]
+                    zoom_shared_storage_out["genome"] = genome
+                home_data_storage["zoom"] = True
 
+                #Get start and stop of the zoom
                 position_field = genome + "_position"
                 selected_positions =set()
                 for k,node in nodes.items():
@@ -2489,15 +2494,21 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                         selected_positions.add(node[position_field])
                     if alt_genome is None or alt_genome == "":
                         if node["name"] in selected_nodes_name:
-                            alt_genome = node["genomes"][0]
+                            for g in node["genomes"]:
+                                if g != genome:
+                                    alt_genome = g
+                                    break
                 if len(selected_positions) == 0 and alt_genome != "":
                     #Try to switch to another reference genome
-                    genome = alt_genome
-                    position_field = genome + "_position"
+                    position_field = alt_genome + "_position"
                     for n in nodes:
                         node = nodes[n]
                         if node["name"] in selected_nodes_name and position_field in node :
                             selected_positions.add(node[position_field])
+                    if len(selected_positions) > 0:
+                        genome = alt_genome
+                        home_data_storage["genome_zoom"] = alt_genome
+                        home_data_storage["selected_genome"] = alt_genome
                 if len(selected_positions) > 0:
                     start_value = min(selected_positions)
                     home_data_storage["start"] = start_value
@@ -2518,15 +2529,24 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             else:
                 raise PreventUpdate
         if triggered_id == "btn-reset-zoom":
-            if len(zoom_shared_storage_out) > 0:
+            if home_data_storage["zoom"] and zoom_shared_storage_out and len(zoom_shared_storage_out) > 0:
                 logger.debug(f"reset zoom to {zoom_shared_storage_out['start']} - {zoom_shared_storage_out['end']}")
                 start_value = zoom_shared_storage_out["start"]
                 end_value = zoom_shared_storage_out["end"]
+                genome = zoom_shared_storage_out["genome"]
                 home_data_storage["start"] = start_value
                 home_data_storage["end"] = end_value
+                home_data_storage["selected_genome"] = genome
+                home_data_storage["genome_zoom"] = None
+                home_data_storage["zoom"] = False
+                zoom_shared_storage_out = {}
             else:
+                home_data_storage["zoom"] = False
+                zoom_shared_storage_out = {}
                 logger.debug(f"No zoom, can't reset zoom")
-                raise PreventUpdate
+                return (no_update, "", f"❌ No zoom, can't reset zoom.", "", no_update,
+                        no_update, home_data_storage, no_update, no_update, zoom_shared_storage_out,
+                        None, None, no_update, no_update, no_update, no_update, no_update, no_update)
 
 
 
@@ -2577,12 +2597,11 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 use_anchor = True
                 if triggered_id == "btn-zoom":
                     use_anchor = False
-                    home_data_storage["zoom"] = True
-                    home_data_storage["genome_zoom"] = alt_genome
+                if home_data_storage and "zoom" in home_data_storage and home_data_storage["zoom"] == True:
+                    use_anchor = False
                 if (triggered_id == "btn-reset-zoom"
                     and "zoom" in cached
-                    and len(cached["zoom"]) > 0
-                    and home_data_storage.get("min_node_size",0) == size_slider_val):
+                    and len(cached["zoom"]) > 0):
                     new_data = cached["zoom"]
                     return_metadata["return_code"] = "OK"
                     return_metadata['nodes_number'] = len(new_data)
@@ -2605,8 +2624,9 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
 
 
 
-            if triggered_id in ["btn-reset-zoom", "search-button"] and nodes_cache_id in zoom_shared_storage_out:
+            if triggered_id in ["btn-reset-zoom", "search-button"] and cached and "zoom" in cached:
                 cached["zoom"] = {}
+                home_data_storage["zoom"] = False
             cached["min_node_size"] = size_slider_val
             cached["nodes"] = new_data
             nodes_cache.set(nodes_cache_id, cached, expire=8 * 3600)

@@ -24,6 +24,7 @@ import uuid
 from sqlite_gwas_requests import *
 from sqlite_phylo_requests import *
 import hashlib
+import numpy as np
 
 
 EXECUTOR = ThreadPoolExecutor(max_workers=4)
@@ -338,25 +339,69 @@ def construct_base_query(ranges, chromosome, min_node_size=None, flow=None, vali
 #This function filter the outliers in number of nodes to avoid limit threshold
 #counts: dict[individu] = nodes numbers
 #factor: sensitivity(1.5 = standard, 3 = less filter)
-def filter_outliers(counts, factor = 1.5, max_nodes_number=MAX_NODES_NUMBER):
-    filter_list = []
-    if counts and len(counts) > 0:
-        values = np.array(list(counts.values()))
 
-        q1 = np.percentile(values, 25)
-        q3 = np.percentile(values, 75)
+"""
+Detect statistical outliers and individuals exceeding the maximum
+allowed number of nodes.
 
-        iqr = q3 - q1
+Individuals exceeding max_nodes_number are always considered outliers,
+regardless of the statistical detection.
 
-        upper_limit = q3 + factor * iqr
+Statistical outliers are detected using the Modified Z-score, based on
+the median and Median Absolute Deviation (MAD).
+
+Parameters
+----------
+counts : dict
+    Dictionary mapping an individual to its number of nodes.
+threshold : float
+    Modified Z-score threshold. 3.5 is a commonly used threshold.
+max_nodes_number : int
+    Maximum allowed number of nodes for an individual.
+
+Returns
+-------
+list
+    Individuals identified as outliers.
+"""
+def filter_outliers(counts, threshold=3.5, max_nodes_number=MAX_NODES_NUMBER):
 
 
-        for k, v in counts.items():
-            if v > upper_limit or v > max_nodes_number:
-                filter_list.append(k)
+    if not counts:
+        return []
 
+    keys = list(counts.keys())
+    values = np.array(list(counts.values()), dtype=float)
 
-    return filter_list
+    # Individuals exceeding the maximum number of nodes
+    # are always considered outliers.
+    outliers = {
+        key
+        for key, value in counts.items()
+        if value > max_nodes_number
+    }
+
+    median = np.median(values)
+
+    # Compute the Median Absolute Deviation (MAD)
+    mad = np.median(np.abs(values - median))
+
+    if mad > 0:
+        # Compute the Modified Z-score.
+        # The constant 0.6745 makes the score comparable to a standard
+        # Z-score under a normal distribution.
+        modified_z_scores = 0.6745 * (values - median) / mad
+
+        # Only unusually large values are considered outliers.
+        statistical_outliers = {
+            key
+            for key, score in zip(keys, modified_z_scores)
+            if score > threshold
+        }
+
+        outliers.update(statistical_outliers)
+
+    return list(outliers)
 
 
 #This function take the result of neo4 request and get the different annotations
@@ -454,6 +499,51 @@ def get_nodes_data_from_record(result):
     return nodes_data
 
 
+"""
+This function returns the range for each individuals for all nodes between start and stop position on the reference genome / chromosome
+"""
+def get_ranges_by_position(ref_genome, chromosome, ref_position_start, ref_position_stop, LIMIT):
+    driver = get_driver()
+    if driver is None:
+        return None
+    ranges = {}
+    genome_position = ref_genome+"_position"
+    query_genome = """
+        MATCH (m:Node)
+        WHERE m.chromosome = "{chromosome}"
+          AND m.`{genome_position}` >= {ref_position_start}
+          AND m.`{genome_position}` <= {ref_position_stop}
+
+        WITH m 
+        LIMIT {limit}
+
+        WITH collect(m) AS nodes
+        UNWIND nodes AS n
+        UNWIND n.genomes AS g
+        WITH g AS genome, n[g + "_position"] AS pos
+        WHERE pos IS NOT NULL
+        WITH 
+            genome,
+            min(pos) AS start_pos,
+            max(pos) AS stop_pos
+        RETURN 
+            collect([genome, {{start: start_pos, stop: stop_pos}}]) AS genome_ranges
+        """.format(
+            chromosome=chromosome,
+            genome_position=genome_position,
+            ref_position_start=ref_position_start,
+            ref_position_stop=ref_position_stop,
+            limit=LIMIT + 1
+        )
+    with driver.session() as session:
+        result = session.run(query_genome)
+        record = result.single()
+    if record:
+        pairs = record["genome_ranges"]
+        ranges = {genome: data for genome, data in pairs}
+    return ranges
+
+
 # This function take a region (chromosome, start and stop) of a given haplotype (search_genome)
 # and it returns all the nodes in this region and the other related regions :
 # for each haplotype the start and stop are given by the first anchor node before the start position and the first after the end position
@@ -507,31 +597,31 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
     #                 """
 
     query_annotations = f"""
-                            MATCH (m:Node) WHERE id(m) in $ids
-                            OPTIONAL MATCH (m)-[]->(a:Annotation)
-                            OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
-                            RETURN
-                                m,
-                                substring(s.sequence, 0, {max_sequence}) AS sequence,
-                                collect(DISTINCT {{
-                                    feature:a.feature,
-                                    gene_id:a.gene_id,
-                                    gene_name:a.gene_name,
-                                    exon_id:a.exon_id,
-                                    exon_number:a.exon_number,
-                                    transcript_id:a.transcript_id,
-                                    transcript_name:a.transcript_name,
-                                    start:a.start,
-                                    end:a.end,
-                                    chromosome:a.chromosome,
-                                    genome_ref:a.genome_ref
-                                }}) AS annotations
-                            
-                            LIMIT {LIMIT + 1}
-                            """
+        MATCH (m:Node) WHERE id(m) in $ids
+        OPTIONAL MATCH (m)-[]->(a:Annotation)
+        OPTIONAL MATCH (s:Sequence {{name: m.ref_node}})
+        RETURN
+            m,
+            substring(s.sequence, 0, {max_sequence}) AS sequence,
+            collect(DISTINCT {{
+                feature:a.feature,
+                gene_id:a.gene_id,
+                gene_name:a.gene_name,
+                exon_id:a.exon_id,
+                exon_number:a.exon_number,
+                transcript_id:a.transcript_id,
+                transcript_name:a.transcript_name,
+                start:a.start,
+                end:a.end,
+                chromosome:a.chromosome,
+                genome_ref:a.genome_ref
+            }}) AS annotations
+        
+        LIMIT {LIMIT + 1}
+        """
 
     with driver.session() as session:
-
+        ranges = {}
         # Step 1 : find the anchors of the region
         genome_position = genome + "_position"
         logger.info("Look for region : " + str(start) + " - " + str(stop) + " - chromosome " + str(
@@ -540,6 +630,8 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
         anchor_start, core_genome_start = get_anchor(genome, chromosome, start, before=True,
                                                      use_anchor=use_anchor)
         anchor_stop, core_genome_stop = get_anchor(genome, chromosome, stop, before=False, use_anchor=use_anchor)
+        #Get ranges for each genome withoput using anchor (anchor will be used after to increase region if required)
+        ranges = get_ranges_by_position(genome,chromosome, start, stop, LIMIT)
         if anchor_start is None or anchor_stop is None:
             return_metadata["return_code"] = "NO_DATA"
             logger.warning("No data found")
@@ -548,48 +640,17 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
         elif not core_genome_start or not core_genome_stop:
             # No core genome anchor found => search all genomes present on the nodes to get start and stop
             return_metadata["return_code"] = "PARTIAL"
-            ref_position_start = anchor_start[genome_position]
-            ref_position_stop = anchor_stop[genome_position]
-            query_genome = """
-                MATCH (m:Node)
-                WHERE m.chromosome = "{chromosome}"
-                  AND m.`{genome_position}` >= {ref_position_start}
-                  AND m.`{genome_position}` <= {ref_position_stop}
-
-                WITH m 
-                LIMIT {limit}
-
-                WITH collect(m) AS nodes
-                UNWIND nodes AS n
-                UNWIND n.genomes AS g
-                WITH g AS genome, n[g + "_position"] AS pos
-                WHERE pos IS NOT NULL
-                WITH 
-                    genome,
-                    min(pos) AS start_pos,
-                    max(pos) AS stop_pos
-                RETURN 
-                    collect([genome, {{start: start_pos, stop: stop_pos}}]) AS genome_ranges
-                """.format(
-                chromosome=chromosome,
-                genome_position=genome_position,
-                ref_position_start=ref_position_start,
-                ref_position_stop=ref_position_stop,
-                limit=LIMIT + 1
-            )
-            result = session.run(query_genome)
-            record = result.single()
-            if record:
-                pairs = record["genome_ranges"]
-                ranges = {genome: data for genome, data in pairs}
+            if anchor_start[genome_position] != start or anchor_stop[genome_position] != stop:
+                ranges = get_ranges_by_position(genome, chromosome, anchor_start[genome_position], anchor_stop[genome_position], LIMIT)
         else:
             #Core anchors found => use them
-            ranges = {}
             for g in anchor_start["genomes"] + anchor_stop["genomes"]:
-                p_start = anchor_start[g + "_position"]
-                p_stop = anchor_stop[g + "_position"]
-                ranges[g] = {"start": min(p_start, p_stop), "stop": max(p_start, p_stop)}
-
+                p_start = min(anchor_start[g + "_position"],anchor_stop[g + "_position"])
+                p_stop = max(anchor_start[g + "_position"],anchor_stop[g + "_position"])
+                if len(ranges) > 0 and g in ranges :
+                    p_start = min(p_start, ranges[g]["start"])
+                    p_stop = max(p_start, ranges[g]["stop"])
+                ranges[g] = {"start": p_start, "stop": p_stop}
         #If not all genomes are selected, drop the non selected genomes
         if selected_genomes and len(selected_genomes) > 0:
             ranges = {g: v for g, v in ranges.items() if g in selected_genomes}
@@ -654,7 +715,7 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
                 # logger.debug(query_genome)
                 result = session.run(query_genome)
                 counts = {r["genome"]: r["nb"] for r in result}
-                # logger.debug(counts)
+                logger.debug(counts)
                 #median_value = statistics.median(counts.values())
                 individuals_exceptions = []
                 valid_individuals_exceptions = []
@@ -1660,8 +1721,6 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                 nb_regions_total += len(result)
                 #Iterate ton construct the size for each detected nodes
                 for r in result:
-                    if c == "6" and "deleted_node_size" in dict(r):
-                        print(dict(r))
                     set_node_genomes = set(r["nodes"]["genomes"])
                     #a and b are used for statistical test
                     #a = bnumber of selected genomes present on the node
