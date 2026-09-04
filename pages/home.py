@@ -2340,7 +2340,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                  graph_compression_value, min_flow_compression, nodes_names_value, global_parameters,
                  genes_color_values, genes_color_ids):
     if genome is not None and chromosome is not None:
-        if "nodes_cache_id" not in data_storage_nodes:
+        if not data_storage_nodes or "nodes_cache_id" not in data_storage_nodes:
             raise PreventUpdate
         nodes_cache_id = data_storage_nodes["nodes_cache_id"]
         cached = get_session_cache(nodes_cache_id)
