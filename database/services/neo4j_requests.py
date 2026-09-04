@@ -341,67 +341,74 @@ def construct_base_query(ranges, chromosome, min_node_size=None, flow=None, vali
 #factor: sensitivity(1.5 = standard, 3 = less filter)
 
 """
-Detect statistical outliers and individuals exceeding the maximum
-allowed number of nodes.
+    Detect the highest group in a multimodal distribution.
 
-Individuals exceeding max_nodes_number are always considered outliers,
-regardless of the statistical detection.
+    Values are sorted by node count and grouped according to the
+    logarithmic gap between consecutive values.
 
-Statistical outliers are detected using the Modified Z-score, based on
-the median and Median Absolute Deviation (MAD).
+    If multiple groups are detected, the last (highest-value) group
+    is considered the outlier group and is returned.
 
-Parameters
-----------
-counts : dict
-    Dictionary mapping an individual to its number of nodes.
-threshold : float
-    Modified Z-score threshold. 3.5 is a commonly used threshold.
-max_nodes_number : int
-    Maximum allowed number of nodes for an individual.
+    When the highest value exceeds max_nodes_number, the last group
+    is returned only if its values are sufficiently close according
+    to log_gap_threshold.
 
-Returns
--------
-list
-    Individuals identified as outliers.
-"""
-def filter_outliers(counts, threshold=3.5, max_nodes_number=MAX_NODES_NUMBER):
+    Parameters
+    ----------
+    counts : dict
+        Dictionary mapping an individual to its number of nodes.
+    max_nodes_number : int
+        Maximum allowed number of nodes.
+    log_gap_threshold : float
+        Maximum logarithmic gap allowed between consecutive values
+        within the same group. This corresponds approximately to a
+        multiplicative ratio of exp(log_gap_threshold).
+        For example, 0.5 corresponds to a ratio of approximately 1.65.
 
-
+    Returns
+    -------
+    list[str]
+        Individuals belonging to the highest-value group.
+    """
+def filter_outliers(
+    counts,
+    max_nodes_number=15000,
+    log_gap_threshold=0.5,
+):
     if not counts:
         return []
 
-    keys = list(counts.keys())
-    values = np.array(list(counts.values()), dtype=float)
+    # Sort individuals by node count
+    sorted_items = sorted(counts.items(), key=lambda item: item[1])
 
-    # Individuals exceeding the maximum number of nodes
-    # are always considered outliers.
-    outliers = {
-        key
-        for key, value in counts.items()
-        if value > max_nodes_number
-    }
+    # Build groups based on logarithmic gaps
+    groups = []
+    current_group = [sorted_items[0]]
 
-    median = np.median(values)
+    for item in sorted_items[1:]:
+        previous_value = current_group[-1][1]
+        current_value = item[1]
 
-    # Compute the Median Absolute Deviation (MAD)
-    mad = np.median(np.abs(values - median))
+        log_gap = np.log1p(current_value) - np.log1p(previous_value)
 
-    if mad > 0:
-        # Compute the Modified Z-score.
-        # The constant 0.6745 makes the score comparable to a standard
-        # Z-score under a normal distribution.
-        modified_z_scores = 0.6745 * (values - median) / mad
+        if log_gap > log_gap_threshold:
+            groups.append(current_group)
+            current_group = [item]
+        else:
+            current_group.append(item)
 
-        # Only unusually large values are considered outliers.
-        statistical_outliers = {
-            key
-            for key, score in zip(keys, modified_z_scores)
-            if score > threshold
-        }
+    groups.append(current_group)
 
-        outliers.update(statistical_outliers)
+    # No distinct groups: nothing to remove
+    if len(groups) < 2:
+        return []
 
-    return list(outliers)
+    # The highest-valued group is the last one
+    last_group = groups[-1]
+
+    # Return the individuals from the highest-valued group
+    return [individual for individual, _ in last_group]
+
 
 
 #This function take the result of neo4 request and get the different annotations
@@ -678,7 +685,6 @@ def get_nodes_by_region(genome, chromosome, start, end, use_anchor=True,
 
             result = session.run(query_genome)
             record = result.single()
-
             if not record:
                 logger.warning("Region not found")
                 return_metadata["return_code"] = "NO_DATA"
