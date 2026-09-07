@@ -216,8 +216,11 @@ def get_anchor(genome, chromosome, position, before=True, use_anchor=True, windo
         genome_position = genome + "_position"
         if use_anchor:
             attempt = 0
-            lower_bound = int(position)
-            upper_bound = int(position)
+            try:
+                lower_bound = int(position)
+                upper_bound = int(position)
+            except (TypeError, ValueError):
+                return None, core_genome
 
             while attempt < max_attemps and lower_bound > 0:
                 attempt += 1
