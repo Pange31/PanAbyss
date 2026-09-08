@@ -1666,11 +1666,48 @@ def layout(data=None, initial_size_limit=10):
                         'overflow': 'hidden',
                     }
                 ),
-                html.Div(html.Label("Annotations in the region:", title="Compiles all annotations for the displayed nodes.", style={
-                         'marginBottom': '5px'})),
-                html.Div(html.H4(id='annotations-info',
-                         style={'margin': '10px'})),
-                html.Div(id="gene-color-picker-container")
+
+                html.Div(
+                    html.Label(
+                        "Annotations in the region:",
+                        title="Compiles all annotations for the displayed nodes.",
+                        style={'marginBottom': '5px'}
+                    )
+                ),
+
+                html.Details(
+                    [
+                        html.Summary(
+                            "Display genes",
+                            style={
+                                'cursor': 'pointer',
+                                'fontWeight': 'bold',
+                                'margin': '10px'
+                            }
+                        ),
+
+                        html.Div(
+                            html.H4(
+                                id='annotations-info',
+                                style={
+                                    'margin': '10px',
+                                    'maxHeight': '300px',
+                                    'overflowY': 'auto'
+                                }
+                            )
+                        ),
+
+                        html.Div(
+                            id='gene-color-picker-container',
+                            style={
+                                'maxHeight': '300px',
+                                'overflowY': 'auto'
+                            }
+                        )
+                    ],
+                    open=False
+                )
+
             ], style={'flex': '1', 'padding': '20px', 'border': '1px solid #ccc', 'marginLeft': '20px', 'minWidth': '300px',
                       'boxSizing': 'border-box', 'display': 'flex', 'flexDirection': 'column'})
         ], style={
@@ -2187,17 +2224,6 @@ def build_annotations(nodes_data, genes_color=None):
             )
         tooltip_text = "\n".join(tooltip_lines) if tooltip_lines else "No transcripts"
 
-    #     genes_html.append(
-    #         html.Span(
-    #             gene,
-    #             title=tooltip_text,
-    #             style={
-    #                 "textDecoration": "underline",
-    #                 "cursor": "pointer",
-    #                 "whiteSpace": "nowrap"
-    #             }
-    #         )
-    #     )
 
         genes_html.append(
             html.Div(
@@ -2238,19 +2264,8 @@ def build_annotations(nodes_data, genes_color=None):
             )
         )
 
-    # annotations_html = html.Div([
-    #     html.B("Genes: "),
-    #     html.Div(
-    #         genes_html,
-    #         style={
-    #             "display": "flex",
-    #             "flexWrap": "wrap",
-    #             "gap": "6px"
-    #         }
-    #     )
-    # ])
     annotations_html = html.Div([
-        html.B("Genes: "),
+        #html.B("Genes: "),
         html.Div(
             genes_html,
             style={
