@@ -719,25 +719,21 @@ def compute_graph_elements(data, ref_genome, selected_genomes, size_min, all_gen
 
             label = ""
             label_color = "black"
-            if labels :
-                if not genes_color or len(genes_color) == 0:
-                    first_label = True
-                    for a in dic["annotations"]:
-                        if first_label:
-                            label += str(a)
-                            first_label = False
-                        else:
-                            label += ", " + str(a)
-                else :
-                    first_label = True
-                    for a in dic["annotations"]:
-                        if a.lower() in genes_color:
-                            if first_label:
-                                label += str(a)
-                            else :
-                                label += ", " + str(a)
-                            label_color = genes_color[a.lower()]
-                            break
+
+            if labels:
+                if not genes_color:
+                    label = ", ".join(str(a) for a in dic["annotations"])
+                else:
+                    colored_annotations = [
+                        str(a)
+                        for a in dic["annotations"]
+                        if a.lower() in genes_color
+                    ]
+
+                    label = ", ".join(colored_annotations)
+
+                    if colored_annotations:
+                        label_color = genes_color[colored_annotations[0].lower()]
 
             if dic["SV"]:
                 line_style = "dashed"
