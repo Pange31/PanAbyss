@@ -439,14 +439,29 @@ def plot_region(n_clicks, stored_data,
             genome = home_data_storage.get("selected_genome", None)
             if "genome_zoom" in home_data_storage and home_data_storage["genome_zoom"]:
                 genome = home_data_storage["genome_zoom"]
-            use_anchor = not home_data_storage.get("zoom", False)
 
             chromosome = home_data_storage.get("selected_chromosome", None)
             start = home_data_storage.get("start", None)
             end = home_data_storage.get("end", None)
             logger.debug(f"Phylo tree construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
             nodes, return_metadata = get_nodes_by_region(
-                genome, chromosome=chromosome, start=start, end=end, use_anchor=use_anchor, max_nodes_number=max_nodes_from_db)
+                genome, chromosome=chromosome, start=start, end=end, use_anchor=False, max_nodes_number=max_nodes_from_db)
+            print(f"return_metadata : {return_metadata}")
+            if not return_metadata or not "return_code" in return_metadata or return_metadata["return_code"] != "OK":
+                if not return_metadata or not "return_code" in return_metadata:
+                    message = "Unknown error"
+                else:
+                    match return_metadata["return_code"].lower():
+                        case "filter" | "partial":
+                            if "removed_genomes" in return_metadata and len(return_metadata["removed_genomes"]) > 0:
+                                message = f"Region too wide for these genomes: f{return_metadata['removed_genomes']}"
+                            else:
+                                message = "Region too wide"
+                        case "wide" | "zoom":
+                            message = "region too wide"
+                        case _:
+                            message = "Unknown error"
+                    return html.Div(f"❌ {message}", style=error_style), phylo_data, phylo_local_data
             cached["min_node_size"] = 1
             cached["nodes"] = nodes
             nodes_cache.set(nodes_cache_id, cached, expire=8 * 3600)

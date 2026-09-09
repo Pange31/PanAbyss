@@ -17,42 +17,53 @@ MAX_NODES_FROM_DB = get_max_nodes_from_db()
 
 def generate_sequence_table(sequences_dic):
     return html.Table([
-    html.Thead(html.Tr([
-        html.Th("Name", style={
-            'border': '1px solid black',
-            'padding': '6px',
-            'width': '20%'
-        }),
-        html.Th("Sequence", style={
-            'border': '1px solid black',
-            'padding': '6px',
-            'width': '80%',
-            'whiteSpace': 'pre-wrap',
-            'wordBreak': 'break-word'
-        })
-    ])),
-    html.Tbody([
-        html.Tr([
-            html.Td(name, style={
+        html.Thead(html.Tr([
+            html.Th("Name", style={
                 'border': '1px solid black',
                 'padding': '6px',
                 'width': '20%'
             }),
-            html.Td(seq, style={
+            html.Th("Sequence", style={
                 'border': '1px solid black',
                 'padding': '6px',
                 'width': '80%',
                 'whiteSpace': 'pre-wrap',
                 'wordBreak': 'break-word'
             })
-        ]) for name, seq in sequences_dic.items()
+        ])),
+
+        html.Tbody([
+            html.Tr([
+                html.Td(
+                    name,
+                    style={
+                        'border': '1px solid black',
+                        'padding': '6px',
+                        'width': '20%',
+                        'color': 'red' if data.get('error', False) else 'black'
+                    }
+                ),
+                html.Td(
+                    data.get('sequence', ''),
+                    style={
+                        'border': '1px solid black',
+                        'padding': '6px',
+                        'width': '80%',
+                        'whiteSpace': 'pre-wrap',
+                        'wordBreak': 'break-word',
+                        'color': 'red' if data.get('error', False) else 'black'
+                    }
+                )
+            ])
+            for name, data in sequences_dic.items()
         ])
     ], style={
-    'border': '1px solid black',
-    'borderCollapse': 'collapse',
-    'width': '100%',
-    'tableLayout': 'fixed'
+        'border': '1px solid black',
+        'borderCollapse': 'collapse',
+        'width': '100%',
+        'tableLayout': 'fixed'
     })
+
 
 
 @app.callback(
@@ -91,6 +102,7 @@ def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters)
     cached = get_session_cache(nodes_cache_id)
     min_node_size = cached.get("min_node_size", 10)
     nodes_data = cached.get("nodes", {})
+    return_metadata = None
     if not nodes_data or len(nodes_data) == 0:
         return {}, html.Div(html.P([
         "❌ No data to compute sequences. Select a region to visualise on the ",
@@ -108,14 +120,12 @@ def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters)
             genome = home_data_storage.get("selected_genome", None)
             if "genome_zoom" in home_data_storage and home_data_storage["genome_zoom"]:
                 genome = home_data_storage["genome_zoom"]
-            use_anchor = not home_data_storage.get("zoom", False)
-
             chromosome = home_data_storage.get("selected_chromosome", None)
             start = home_data_storage.get("start", None)
             end = home_data_storage.get("end", None)
             logger.debug(f"Sequences construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
             nodes_data, return_metadata = get_nodes_by_region(
-                genome, chromosome=chromosome, start=start, end=end, use_anchor=use_anchor, max_nodes_number=max_nodes_from_db)
+                genome, chromosome=chromosome, start=start, end=end, use_anchor=False, max_nodes_number=max_nodes_from_db)
             logger.debug(f"Number of nodes in the region: {len(nodes_data)}")
             cached["min_node_size"] = 1
             cached["nodes"] = nodes_data
@@ -151,8 +161,26 @@ def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters)
                     sequence += Seq(sequences_list[sorted_names_by_genome[g]["names"][i]]).reverse_complement()
                 else:
                     sequence += sequences_list[sorted_names_by_genome[g]["names"][i]]
-            sequences_dic[g] = str(sequence)
-        return sequences_dic, ""
+            sequences_dic[g] = {"sequence":str(sequence)}
+
+        html_message = ""
+        if return_metadata and "return_code" in return_metadata and return_metadata["return_code"] != "OK":
+            match return_metadata["return_code"].lower():
+                case "filter" | "partial":
+                    if "removed_genomes" in return_metadata and len(return_metadata["removed_genomes"]) > 0:
+                        message = f"Region too wide for these genomes: {return_metadata['removed_genomes']}"
+                        for k, v in sequences_dic.items():
+                            if k in return_metadata["removed_genomes"]:
+                                sequences_dic[k]["error"]=True
+                    else:
+                        message = "region too wide"
+                case "wide" | "zoom":
+                    message = "region too wide"
+                case _:
+                    message = "Unknown error"
+            html_message = html.Div(f"❌ {message}", style=error_style)
+
+        return sequences_dic, html_message
 
 
 @app.callback(
@@ -173,7 +201,9 @@ def download_fasta(n_clicks, sequences_store):
 
     fasta_lines = []
 
-    for name, seq in sequences_store.items():
+
+    for name, data in sequences_store.items():
+        seq = data.get("sequence", "")
         if not seq:
             continue
 
