@@ -6,7 +6,7 @@ import hashlib
 import csv
 from config import *
 from database.driver.neo4j_driver import get_driver, get_scoped_driver
-from auth_utils import require_authorization
+from utils.auth_utils import require_authorization
 import logging
 
 

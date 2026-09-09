@@ -14,7 +14,7 @@ from dash.exceptions import PreventUpdate
 from Bio.Seq import Seq
 from app import *
 from database.services.neo4j_requests import *
-from auth_utils import require_authorization
+from utils.auth_utils import require_authorization
 import logging
 
 from config import get_max_nodes_from_db, get_max_nodes_to_visualize

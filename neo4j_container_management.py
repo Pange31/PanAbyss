@@ -13,7 +13,7 @@ import json
 import time
 
 from config import *
-from auth_utils import require_authorization
+from utils.auth_utils import require_authorization
 import logging
 
 
