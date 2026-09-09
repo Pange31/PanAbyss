@@ -21,12 +21,12 @@ logger = logging.getLogger("panabyss_logger")
 
 # --- CONSTANTES ---
 DOCKER_IMAGE = "neo4j:2025.05-community-bullseye"
-NEO4J_BASE_DIR = os.path.abspath("../data")
+NEO4J_BASE_DIR = os.path.abspath("./data")
 CONF_FILE = os.path.abspath("./data/conf/neo4j.conf")
-CONF_SOURCE_FILE = os.path.abspath("../install/conf/neo4j.conf")
+CONF_SOURCE_FILE = os.path.abspath("./install/conf/neo4j.conf")
 CONF_FILE = os.path.abspath("./conf.json")
 DOCKER_COMPOSE_CONF_PATH = os.path.abspath("./docker-compose.yml")
-IMPORT_DIR = os.path.abspath("../data/import")
+IMPORT_DIR = os.path.abspath("./data/import")
 DUMP_FILE = os.path.join(IMPORT_DIR, "neo4j.dump")
 NEO4J_LOGS_DIR = os.path.abspath("./data/logs")
 NEO4J_RUN_DIR = os.path.abspath("./data/run")
