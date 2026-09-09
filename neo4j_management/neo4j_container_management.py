@@ -21,12 +21,12 @@ logger = logging.getLogger("panabyss_logger")
 
 # --- CONSTANTES ---
 DOCKER_IMAGE = "neo4j:2025.05-community-bullseye"
-NEO4J_BASE_DIR = os.path.abspath("./data")
+NEO4J_BASE_DIR = os.path.abspath("../data")
 CONF_FILE = os.path.abspath("./data/conf/neo4j.conf")
-CONF_SOURCE_FILE = os.path.abspath("./install/conf/neo4j.conf")
+CONF_SOURCE_FILE = os.path.abspath("../install/conf/neo4j.conf")
 CONF_FILE = os.path.abspath("./conf.json")
 DOCKER_COMPOSE_CONF_PATH = os.path.abspath("./docker-compose.yml")
-IMPORT_DIR = os.path.abspath("./data/import")
+IMPORT_DIR = os.path.abspath("../data/import")
 DUMP_FILE = os.path.join(IMPORT_DIR, "neo4j.dump")
 NEO4J_LOGS_DIR = os.path.abspath("./data/logs")
 NEO4J_RUN_DIR = os.path.abspath("./data/run")
@@ -122,7 +122,7 @@ def import_csv(docker=True):
         ])
         subprocess.run(docker_cmd, check=True)
     else:
-        data_dir = os.path.join(NEO4J_BASE_DIR, "data")
+        data_dir = os.path.join(NEO4J_BASE_DIR, "../data")
         neo4j_db_dir = os.path.join(data_dir, "databases", "neo4j")
 
         logger.info("🛠️ Preparing host directories for Apptainer...")
@@ -485,7 +485,7 @@ def create_db(container_name, docker_image=DOCKER_IMAGE, docker=True):
     # Stop container
     remove_container(container_name, docker=docker)
     
-    data_db_dir = os.path.join(NEO4J_BASE_DIR, "data", "databases", "neo4j")
+    data_db_dir = os.path.join(NEO4J_BASE_DIR, "../data", "databases", "neo4j")
     csv_nodes = os.path.join(IMPORT_DIR, "nodes.csv")
     csv_relations = os.path.join(IMPORT_DIR, "relations.csv")
     csv_sequences = os.path.join(IMPORT_DIR, "sequences.csv")

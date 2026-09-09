@@ -21,7 +21,7 @@ if root_path not in sys.path:
 from app import *
 from database.services.neo4j_requests import *
 from database.construction.neo4j_DB_construction import *
-from neo4j_container_management import *
+from neo4j_management.neo4j_container_management import *
 from config import *
 import base64
 import shutil

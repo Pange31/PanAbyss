@@ -29,4 +29,12 @@ if [ -f "./database/services/neo4j_requests.py" ]; then
     fi
 fi
 
+# auth_utils.py
+if [ -f "./utils/auth_utils.py" ]; then
+    if [ -f "./auth_utils.py" ]; then
+        echo "Removing obsolete file: ./auth_utils.py"
+        rm "./auth_utils.py"
+    fi
+fi
+
 echo "Project update check completed."
