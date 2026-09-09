@@ -1675,37 +1675,25 @@ def layout(data=None, initial_size_limit=10):
                     )
                 ),
 
-                html.Details(
+                html.Div(
                     [
-                        html.Summary(
-                            "Display genes",
+
+                        html.Div(
+                            id='annotations-info',
                             style={
-                                'cursor': 'pointer',
-                                'fontWeight': 'bold',
                                 'margin': '10px'
                             }
                         ),
 
                         html.Div(
-                            html.H4(
-                                id='annotations-info',
-                                style={
-                                    'margin': '10px',
-                                    'maxHeight': '300px',
-                                    'overflowY': 'auto'
-                                }
-                            )
-                        ),
-
-                        html.Div(
                             id='gene-color-picker-container',
                             style={
+                                'margin': '10px',
                                 'maxHeight': '300px',
                                 'overflowY': 'auto'
                             }
                         )
-                    ],
-                    open=False
+                    ]
                 )
 
             ], style={'flex': '1', 'padding': '20px', 'border': '1px solid #ccc', 'marginLeft': '20px', 'minWidth': '300px',
@@ -2263,19 +2251,62 @@ def build_annotations(nodes_data, genes_color=None):
                 }
             )
         )
+    genes_list = sorted(list(genes_set))
+    gene_count = len(genes_list)
+
+    # First 10 genes are displayed directly
+    first_genes = genes_html[:10]
+    remaining_genes = genes_html[10:]
+
+    genes_style = {
+        'display': 'flex',
+        'flexWrap': 'wrap',
+        'gap': '2px 6px'
+    }
 
     annotations_html = html.Div([
-        #html.B("Genes: "),
         html.Div(
-            genes_html,
+            f"Genes found: {gene_count}",
             style={
-                'display': 'flex',
-                'flexWrap': 'wrap',
-                'gap': '2px 6px'
-            },
-            id='gene-color-picker-container'
-        )
+                'fontWeight': 'bold',
+                'marginBottom': '5px'
+            }
+        ),
+        html.Div(
+            "First 10 genes:",
+            style={
+                'fontWeight': 'bold',
+                'marginBottom': '5px'
+            }
+        ),
+        # First 10 genes: directly visible
+        html.Div(
+            first_genes,
+            style=genes_style
+        ),
+
+        # Remaining genes: collapsed
+        html.Details(
+            [
+                html.Summary(
+                    f"Show remaining genes "
+                    f"({len(remaining_genes)} more)",
+                    style={
+                        'cursor': 'pointer',
+                        'fontWeight': 'bold',
+                        'marginTop': '8px',
+                        'marginBottom': '5px'
+                    }
+                ),
+                html.Div(
+                    remaining_genes,
+                    style=genes_style
+                )
+            ],
+            open=False
+        ) if remaining_genes else None
     ])
+
 
     return annotations_html
 
@@ -2353,6 +2384,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
     if genome is not None and chromosome is not None:
         if not data_storage_nodes or "nodes_cache_id" not in data_storage_nodes:
             raise PreventUpdate
+        use_anchor = True
         nodes_cache_id = data_storage_nodes["nodes_cache_id"]
         cached = get_session_cache(nodes_cache_id)
         ctx = dash.callback_context
@@ -2400,6 +2432,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
         if size_slider_val is not None and "current_size" in home_data_storage and home_data_storage["current_size"] > size_slider_val and cached["min_node_size"] > size_slider_val:
             logger.debug(f"Min node size has been set to {size_slider_val} and is lower than old value {home_data_storage['current_size']} - nodes will be updated from database.")
             new_request = True
+            use_anchor = False
             if "start" in home_data_storage :
                 start_value = home_data_storage["start"]
             if "end" in home_data_storage :
@@ -2605,10 +2638,8 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             if sequences_data is not None :
                 sequences_data = {}
             if start_value is not None:
-                use_anchor = True
-                if triggered_id == "btn-zoom":
-                    use_anchor = False
-                if home_data_storage and "zoom" in home_data_storage and home_data_storage["zoom"] == True:
+                if (triggered_id == "btn-zoom"
+                        or (home_data_storage and "zoom" in home_data_storage and home_data_storage["zoom"] == True)):
                     use_anchor = False
                 if (triggered_id == "btn-reset-zoom"
                     and "zoom" in cached
@@ -2672,10 +2703,10 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
                 zoom_shared_storage_out = {}
                 message = html.Div("❌ Error.", style=warning_style)
             if len(elements) == 0 and nodes_count == 0:
-                start_value = None
-                end_value = None
-                home_data_storage["start"] = start_value
-                home_data_storage["end"] = end_value
+                #start_value = None
+                #end_value = None
+                home_data_storage["start"] = None
+                home_data_storage["end"] = None
 
             if len(elements) == 0 and new_data and nodes_count > 0:
                 return_metadata["return_code"] = "WIDE"
