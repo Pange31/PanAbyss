@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 - Zoom on a single node
+- If multiple colored annotations are on the same link they are all displayed
 
 ### Removed
 
