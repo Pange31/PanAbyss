@@ -27,6 +27,9 @@ from pathlib import Path
 
 from database.services.neo4j_requests import *
 from neo4j_management.neo4j_container_management import *
+from config import *
+
+import logging
 
 from sqlite_gwas_requests import *
 from sqlite_phylo_requests import *
@@ -172,6 +175,15 @@ app.validation_layout = html.Div([
     dcc.Store(id="db-management-page-store", data={}, storage_type="memory"),
     dcc.Store(id='query-params-store')
 ])
+
+import callbacks.phylogenetic_callbacks
+import callbacks.gwas_callbacks
+import callbacks.sequences_callbacks
+import callbacks.db_management_callbacks
+import callbacks.about_callbacks
+import callbacks.gwas_management_callbacks
+import callbacks.phylo_management_callbacks
+
 
 
 @app.callback(
