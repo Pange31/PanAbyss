@@ -777,6 +777,11 @@ def create_db_launch(trigger_data, data, children):
                             "type": "danger",
                         }
                         return data, toast_message, {}
+
+            if len(selected_files) > 0:
+                if os.path.exists(IMPORT_FOLDER):
+                    shutil.rmtree(IMPORT_FOLDER)
+                    os.makedirs(IMPORT_FOLDER)
             for file_name, chromosome_file in zip(selected_files, list_chromosome_file):
                 start_time = time.time()
                 if chromosome_file != "":
