@@ -164,9 +164,9 @@ def display_sequences(n_clicks, nodes_data, home_data_storage,global_parameters)
             sequences_dic[g] = {"sequence":str(sequence)}
 
         html_message = ""
-        if return_metadata and "return_code" in return_metadata and return_metadata["return_code"] != "OK":
+        if return_metadata and "return_code" in return_metadata and return_metadata["return_code"].lower() not in ["ok", "partial"]:
             match return_metadata["return_code"].lower():
-                case "filter" | "partial":
+                case "filter":
                     if "removed_genomes" in return_metadata and len(return_metadata["removed_genomes"]) > 0:
                         message = f"Region too wide for these genomes: {return_metadata['removed_genomes']}"
                         for k, v in sequences_dic.items():

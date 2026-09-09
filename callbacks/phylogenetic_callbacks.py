@@ -446,8 +446,7 @@ def plot_region(n_clicks, stored_data,
             logger.debug(f"Phylo tree construction: getting all the nodes for the region chr {chromosome} start {start} end {end} on genome {genome}")
             nodes, return_metadata = get_nodes_by_region(
                 genome, chromosome=chromosome, start=start, end=end, use_anchor=False, max_nodes_number=max_nodes_from_db)
-            print(f"return_metadata : {return_metadata}")
-            if not return_metadata or not "return_code" in return_metadata or return_metadata["return_code"] != "OK":
+            if not return_metadata or not "return_code" in return_metadata or return_metadata["return_code"].lower() not in ["ok", "partial"]:
                 if not return_metadata or not "return_code" in return_metadata:
                     message = "Unknown error"
                 else:
