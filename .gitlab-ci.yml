@@ -1,4 +1,4 @@
-image: debian:bullseye
+image: debian:bookworm
 
 stages:
   - archive
@@ -10,7 +10,8 @@ variables:
 create_panabyss_archive:
   stage: archive
   script:
-    - apt-get update && apt-get install -y zip
+    - apt-get update
+    - apt-get install -y zip
     - mkdir -p dist
     - zip -r "./dist/$ZIP_NAME" . -x "*.git*" "./dist/*"
     - ls -lh dist/
