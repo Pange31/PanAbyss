@@ -28,4 +28,26 @@ IF EXIST ".\database\services\neo4j_requests.py" (
     )
 )
 
+IF EXIST ".\utils\auth_utils.py" (
+    IF EXIST ".\auth_utils.py" (
+        echo Removing obsolete file: .\auth_utils.py
+        del /F /Q ".\auth_utils.py"
+    )
+)
+
+IF EXIST ".\neo4j_management\neo4j_container_management.py" (
+    IF EXIST ".\neo4j_container_management.py" (
+        echo Removing obsolete file: .\neo4j_container_management.py
+        del /F /Q ".\neo4j_container_management.py"
+    )
+)
+
+IF EXIST ".\neo4j_management\neo4j_available_docker_images_conf.py" (
+    IF EXIST ".\neo4j_available_docker_images_conf.py" (
+        echo Removing obsolete file: .\neo4j_available_docker_images_conf.py
+        del /F /Q ".\neo4j_available_docker_images_conf.py"
+    )
+)
+
+
 echo Project update check completed.
