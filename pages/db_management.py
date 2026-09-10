@@ -13,7 +13,7 @@ import dash_cytoscape as cyto
 from database.services.neo4j_requests import *
 from app import DB_VERSION
 
-from neo4j_management.neo4j_available_docker_images_conf import AVAILABLE_DOCKER_IMAGES
+from docker_management.neo4j_available_docker_images_conf import AVAILABLE_DOCKER_IMAGES
 
 
 

@@ -38,7 +38,7 @@ if [ -f "./utils/auth_utils.py" ]; then
 fi
 
 #neo4j_container_management.py
-if [ -f "./neo4j_management/neo4j_container_management.py" ]; then
+if [ -f "./docker_management/neo4j_container_management.py" ]; then
     if [ -f "./neo4j_container_management.py" ]; then
         echo "Removing obsolete file: ./neo4j_container_management.py"
         rm "./neo4j_container_management.py"
@@ -46,7 +46,7 @@ if [ -f "./neo4j_management/neo4j_container_management.py" ]; then
 fi
 
 #neo4j_available_docker_images_conf.py
-if [ -f "./neo4j_management/neo4j_available_docker_images_conf.py" ]; then
+if [ -f "./docker_management/neo4j_available_docker_images_conf.py" ]; then
     if [ -f "./neo4j_available_docker_images_conf.py" ]; then
         echo "Removing obsolete file: ./neo4j_available_docker_images_conf.py"
         rm "./neo4j_available_docker_images_conf.py"

@@ -26,7 +26,7 @@ import pages.phylo_management as phylo_management
 from pathlib import Path
 
 from database.services.neo4j_requests import *
-from neo4j_management.neo4j_container_management import *
+from docker_management.neo4j_container_management import *
 from config import *
 
 import logging

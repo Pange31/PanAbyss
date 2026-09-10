@@ -21,7 +21,7 @@ if root_path not in sys.path:
 from app import *
 from database.services.neo4j_requests import *
 from database.construction.neo4j_DB_construction import *
-from neo4j_management.neo4j_container_management import *
+from docker_management.neo4j_container_management import *
 from config import *
 import base64
 import shutil
@@ -43,6 +43,7 @@ DATA_FOLDER = os.path.join(PROJECT_ROOT, "data", "data")
 ANNOTATIONS_FOLDER = os.path.join(PROJECT_ROOT, "data", "annotations")
 INSTALL_CONF_FILE = os.path.join(PROJECT_ROOT, "install", "data")
 DUMP_FILE = os.path.join(PROJECT_ROOT, "data", "import", "neo4j.dump")
+DOCKER_COMPOSE_CONF_PATH = os.path.join(PROJECT_ROOT,"docker_management", "docker-compose.yml")
 
 
 def get_container_name_no_prefix(container_name):
@@ -517,7 +518,7 @@ def confirm_delete_data(n_clicks, data):
     if not n_clicks:
         raise exceptions.PreventUpdate
     stop_container()
-    logger.info(f"Deleting following data : {DATA_FOLDER} and {IMPORT_FOLDER} directory, {CONF_FILE} file.")
+    logger.info(f"Deleting following data : {DATA_FOLDER} and {IMPORT_FOLDER} directories, {DOCKER_COMPOSE_CONF_PATH} and {CONF_FILE} files.")
     try:
         if os.path.exists(DATA_FOLDER):
             shutil.rmtree(DATA_FOLDER)
@@ -525,6 +526,9 @@ def confirm_delete_data(n_clicks, data):
         if os.path.exists(IMPORT_FOLDER):
             shutil.rmtree(IMPORT_FOLDER)
             os.makedirs(IMPORT_FOLDER)
+        if os.path.exists(DOCKER_COMPOSE_CONF_PATH):
+            os.remove(DOCKER_COMPOSE_CONF_PATH)
+
         if os.path.exists(CONF_FILE):
             #Reset container name in conf file
             keys_to_remove = ["container_name"]

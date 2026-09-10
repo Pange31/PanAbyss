@@ -15,6 +15,9 @@ import time
 from config import *
 from utils.auth_utils import require_authorization
 import logging
+from pathlib import Path
+import re
+
 
 
 logger = logging.getLogger("panabyss_logger")
@@ -25,7 +28,7 @@ NEO4J_BASE_DIR = os.path.abspath("./data")
 CONF_FILE = os.path.abspath("./data/conf/neo4j.conf")
 CONF_SOURCE_FILE = os.path.abspath("./install/conf/neo4j.conf")
 CONF_FILE = os.path.abspath("./conf.json")
-DOCKER_COMPOSE_CONF_PATH = os.path.abspath("./docker-compose.yml")
+DOCKER_COMPOSE_FILE = os.path.abspath("./docker_management/docker-compose.yml")
 IMPORT_DIR = os.path.abspath("./data/import")
 DUMP_FILE = os.path.join(IMPORT_DIR, "neo4j.dump")
 NEO4J_LOGS_DIR = os.path.abspath("./data/logs")
@@ -91,6 +94,10 @@ def import_dump():
     ])
     subprocess.run(docker_cmd, check=True)
 
+
+"""
+This function uses the neo4j import procedure
+"""
 @require_authorization
 def import_csv(docker=True):
     READ_BUFFER_SIZE = get_conf_read_buffer_size()
@@ -154,6 +161,102 @@ def import_csv(docker=True):
         ]
         subprocess.run(apptainer_cmd, check=True)
 
+
+"""
+This function checks the existence of docker-compose.yml file
+If not found it create it from conf data
+"""
+def create_docker_compose_file(
+    container_name,
+    http_port,
+    bolt_port,
+    neo4j_auth=None,
+):
+    compose_file = Path(DOCKER_COMPOSE_FILE)
+    if compose_file.exists():
+        return compose_file
+
+    if neo4j_auth:
+        auth = neo4j_auth
+    else:
+        auth = "none"
+    remove_container(container_name, docker=True)
+    compose_file.parent.mkdir(parents=True, exist_ok=True)
+
+    compose_content = f"""services:
+      neo4j:
+        container_name: {container_name}
+        image: {DOCKER_IMAGE}
+        environment:
+          NEO4J_AUTH: {auth}
+          NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+          NEO4J_apoc_export_file_enabled: "true"
+          NEO4J_apoc_import_file_enabled: "true"
+          NEO4J_apoc_import_file_use__neo4j__config: "true"
+          NEO4J_PLUGINS: '[\\"apoc\\"]'
+        ports:
+          - "{http_port}:7474"
+          - "{bolt_port}:7687"
+        volumes:
+          - "{NEO4J_BASE_DIR}/data:/data"
+          - "{NEO4J_BASE_DIR}/logs:/logs"
+          - "{NEO4J_BASE_DIR}/conf:/conf"
+          - "{NEO4J_BASE_DIR}/import:/import"
+          - "{NEO4J_BASE_DIR}/plugins:/plugins"
+    """
+
+    compose_file.write_text(compose_content, encoding="utf-8")
+
+    return compose_file
+
+
+"""
+This function checks if the container is already running
+"""
+def is_container_running(container_name: str, docker: bool = True) -> bool:
+    if docker:
+        result = subprocess.run(
+            [
+                "docker",
+                "ps",
+                "--filter",
+                f"name=^{container_name}$",
+                "--format",
+                "{{.Names}}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        return container_name in result.stdout.splitlines()
+
+    else:
+        result = subprocess.run(
+            ["apptainer", "instance", "list"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        return any(
+            container_name in line
+            for line in result.stdout.splitlines()
+        )
+
+
+
+
+def get_compose_project_name(container_name: str) -> str:
+    project_name = container_name.lower()
+    project_name = re.sub(r"[^a-z0-9_-]", "_", project_name)
+    return project_name
+
+"""
+This function checks if the container is already running
+If not, it launches the container
+According to the configuration file, the container is launched on docker or on apptainer
+"""
 def start_container():
     if not os.path.exists(CONF_FILE):
         check_conf_file()
@@ -169,76 +272,54 @@ def start_container():
 
     docker = conf.get("docker", True)
     container_name = str(conf["container_name"])
-
-    if docker:
-        result = subprocess.run(
-            ["docker", "ps", "-a", "--format", "{{.Names}} {{.Status}}"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-
-        lines = result.stdout.strip().splitlines()
-
-        for line in lines:
-            name, *status_parts = line.split()
-            status = " ".join(status_parts)
-
-            if name == container_name and status.startswith("Up"):
-                return True
-
-    else:
-        result = subprocess.run(
-            ["apptainer", "instance", "list"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-
-        for line in result.stdout.splitlines():
-            if container_name in line:
-                return True
-
-    remove_container(container_name, docker=docker)
-
     HTTP_PORT = int(conf["http_port"])
     BOLT_PORT = int(conf["bolt_port"])
     NEO4J_AUTH = conf["login"] + "/" + conf["password"]
 
+    if docker:
+        # Make sure the docker-compose.yml exists
+        compose_file = create_docker_compose_file(
+            container_name,
+            HTTP_PORT,
+            BOLT_PORT,
+            NEO4J_AUTH,
+        )
+
+
+    if is_container_running(container_name, docker):
+        logger.info(f"✅ Neo4j container '{container_name}' is already running.")
+        return True
+
+
     logger.info(
-        f"🚀 Starting Neo4j {'docker container' if docker else 'apptainer instance'}..."
+        f"🚀 Starting Neo4j "
+        f"{'docker compose' if docker else 'apptainer instance'}..."
     )
 
     if docker:
+        result = subprocess.run(
+            [
+                "docker",
+                "compose",
+                "-p",
+                str(get_compose_project_name(container_name)),
+                "-f",
+                str(compose_file),
+                "up",
+                "-d",
+            ],
+            capture_output=True,
+            text=True,
+        )
 
-        cmd = [
-            "docker", "run", "-d",
-            "--name", container_name,
-            "-e", f"NEO4J_AUTH={NEO4J_AUTH}",
-            "-e", "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes",
-            "-e", "NEO4J_apoc_export_file_enabled=true",
-            "-e", "NEO4J_apoc_import_file_enabled=true",
-            "-e", "NEO4J_apoc_import_file_use__neo4j__config=true",
-            "-e", 'NEO4J_PLUGINS=[\"apoc\"]'
-        ]
-        #Only for linux mode
-        if hasattr(os, "getuid") and hasattr(os, "getgid"):
-            cmd.extend([
-                "-u",
-                f"{os.getuid()}:{os.getgid()}"
-            ])
+        if result.returncode != 0:
+            logger.error("❌ Docker Compose failed")
+            logger.error(f"STDOUT:\n{result.stdout}")
+            logger.error(f"STDERR:\n{result.stderr}")
+            return False
 
-        cmd.extend([
-            "-p", f"{HTTP_PORT}:7474",
-            "-p", f"{BOLT_PORT}:7687",
-            "-v", f"{NEO4J_BASE_DIR}/data:/data",
-            "-v", f"{NEO4J_BASE_DIR}/logs:/logs",
-            "-v", f"{NEO4J_BASE_DIR}/conf:/conf",
-            "-v", f"{NEO4J_BASE_DIR}/import:/import",
-            "-v", f"{NEO4J_BASE_DIR}/plugins:/plugins",
-            DOCKER_IMAGE
-        ])
-        subprocess.run(cmd, check=True)
+
+
     else:
         cmd = [
             "apptainer",
@@ -265,8 +346,8 @@ def start_container():
             "neo4j",
             "console"
         ]
-        subprocess.Popen(cmd)
 
+        subprocess.Popen(cmd)
 
     time.sleep(10)
 
@@ -285,6 +366,7 @@ If the file already exists, only update specific fields:
     - login
     - password
 Otherwise, create a new configuration file with default fields.
+Create the docker compose file.
 """
 @require_authorization
 def write_config(container_name, HTTP_PORT=7474, BOLT_PORT=7687, docker=True):
@@ -310,6 +392,7 @@ def write_config(container_name, HTTP_PORT=7474, BOLT_PORT=7687, docker=True):
 
     # If the configuration file exists, load and update it
     if os.path.exists(CONF_FILE):
+        NEO4J_AUTH = NEO4J_LOGIN + "/" + NEO4J_PASSWORD
         logger.info(f"Configuration file {CONF_FILE} already exists. Updating specific fields...")
         try:
             with open(CONF_FILE, "r") as f:
@@ -337,6 +420,14 @@ def write_config(container_name, HTTP_PORT=7474, BOLT_PORT=7687, docker=True):
     else:
         logger.info(f"No existing configuration found. Creating a new one at {CONF_FILE}.")
         config = default_config
+        NEO4J_AUTH = f"{config['login']}/{config['password']}"
+    #Create docker compose file
+    compose_file = create_docker_compose_file(
+        container_name,
+        HTTP_PORT,
+        BOLT_PORT,
+        NEO4J_AUTH
+    )
 
     # Write configuration back to file
     try:
@@ -346,7 +437,10 @@ def write_config(container_name, HTTP_PORT=7474, BOLT_PORT=7687, docker=True):
     except Exception as e:
         logger.error(f"Failed to write configuration: {e}")
         
-            
+
+"""
+This function stops the container (docker or apptainer according to the conf file)
+"""
 def stop_container(container_name=None):
     if not os.path.exists(CONF_FILE):
         check_conf_file()
@@ -357,10 +451,7 @@ def stop_container(container_name=None):
     docker = conf.get("docker", True)
 
     if container_name is None:
-        if (
-            "container_name" in conf
-            and conf["container_name"]
-        ):
+        if "container_name" in conf and conf["container_name"]:
             container_name = conf["container_name"]
 
     if container_name is None:
@@ -372,44 +463,67 @@ def stop_container(container_name=None):
             # ----------------------
             # DOCKER MODE
             # ----------------------
-            result = subprocess.run(
-                ["docker", "ps", "-a", "--format", "{{.Names}}"],
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            compose_file = Path(DOCKER_COMPOSE_FILE)
 
-            existing = result.stdout.strip().splitlines()
+            if not compose_file.exists():
+                logger.info(
+                    f"ℹ️ Docker Compose file '{compose_file}' does not exist."
+                )
+                return
 
-            if container_name in existing:
-                logger.info(f"🛑 Stopping Docker container: {container_name}")
-                subprocess.run(["docker", "stop", container_name], check=True)
-                subprocess.run(["docker", "rm", container_name], check=True)
+            if is_container_running(container_name, docker):
+                logger.info(f"🛑 Stopping Docker Compose service: {container_name}")
+                result = subprocess.run(
+                    [
+                        "docker",
+                        "compose",
+                        "-p",
+                        str(get_compose_project_name(container_name)),
+                        "-f",
+                        str(compose_file),
+                        "stop",
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+
+                if result.returncode != 0:
+                    logger.error("❌ Docker Compose failed")
+                    logger.error(f"STDOUT:\n{result.stdout}")
+                    logger.error(f"STDERR:\n{result.stderr}")
+                    return False
             else:
-                logger.info(f"ℹ️ Docker container '{container_name}' does not exist.")
+                logger.info(
+                    f"ℹ️ Docker Compose service '{container_name}' "
+                    f"is not running."
+                )
 
         else:
             # ----------------------
             # APPTAINER MODE
             # ----------------------
-            result = subprocess.run(
-                ["apptainer", "instance", "list"],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-
-            if container_name in result.stdout:
+            if is_container_running(container_name, docker):
                 logger.info(f"🛑 Stopping Apptainer instance: {container_name}")
+
                 subprocess.run(
-                    ["apptainer", "instance", "stop", container_name],
+                    [
+                        "apptainer",
+                        "instance",
+                        "stop",
+                        container_name,
+                    ],
                     check=True
                 )
             else:
-                logger.info(f"ℹ️ Apptainer instance '{container_name}' does not exist.")
+                logger.info(
+                    f"ℹ️ Apptainer instance "
+                    f"'{container_name}' does not exist."
+                )
 
     except subprocess.CalledProcessError as e:
-        logger.error(f"❌ Error while stopping container/instance: {e}")
+        logger.error(
+            f"❌ Error while stopping container/instance: {e}"
+        )
 
 
 
@@ -418,13 +532,6 @@ This function Stops and removes a Docker container or Apptainer instance if it e
 Does nothing if it does not exist.
 """
 def remove_container(container_name: str, docker=True):
-
-    # docker = True
-    # # --- Load config ---
-    # if os.path.exists(CONF_FILE):
-    #     with open(CONF_FILE) as f:
-    #         conf = json.load(f)
-    #     docker = conf.get("docker", True)
 
     try:
         # -----------------------
@@ -469,11 +576,12 @@ def remove_container(container_name: str, docker=True):
         logger.error(f"❌ Error while removing container/instance: {e}")
 
 
-
-#This function create a docker neo4j database
-#If a dump file exists in ./data/import directory it will load the data into database
-#If no dump but nodes.csv, sequences.csv and relations.csv exists in ./data/import directory it will load these data into database
-#In other cases it will create an empty database
+"""
+This function creates a docker neo4j database
+If a dump file exists in ./data/import directory it will load the data into database
+If no dump but nodes.csv, sequences.csv and relations.csv exists in ./data/import directory it will load these data into database
+In other cases it will create an empty database
+"""
 @require_authorization
 def create_db(container_name, docker_image=DOCKER_IMAGE, docker=True):
     creation_mode = "empty" 
