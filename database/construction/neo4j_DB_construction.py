@@ -2279,6 +2279,7 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
                                 f"(region or length > {MAX_ANNOTATION_LENGTH} bp)"
                             )
 
+
                         annotations_for_linking = [
                             annot
                             for annot in annotations
