@@ -183,12 +183,19 @@ def create_docker_compose_file(
     remove_container(container_name, docker=True)
     compose_file.parent.mkdir(parents=True, exist_ok=True)
 
+    docker_user = (
+        f"{os.getuid()}:{os.getgid()}"
+        if hasattr(os, "getuid") and hasattr(os, "getgid")
+        else None
+    )
+
     compose_content = f"""services:
       neo4j:
         container_name: {container_name}
         image: {DOCKER_IMAGE}
+        user: "{docker_user}"
         environment:
-          NEO4J_AUTH: {auth}
+          NEO4J_AUTH: "{auth}"
           NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
           NEO4J_apoc_export_file_enabled: "true"
           NEO4J_apoc_import_file_enabled: "true"
