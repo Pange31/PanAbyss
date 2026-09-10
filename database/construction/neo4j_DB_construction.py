@@ -1648,10 +1648,10 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
                 else:
                     attr = parse_gff_attributes(cols[8])
 
-                name = hashlib.sha256(line.encode("utf-8")).hexdigest()
+                line_hash = hashlib.sha256(line.encode("utf-8")).hexdigest()
 
                 node = {
-                    "name": name,
+                    "name": line_hash,
                     "chromosome": chromosome,
                     "genome_ref": genome_ref,
                     "source": cols[1],
@@ -1753,8 +1753,8 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
                         node["transcript_id"] = transcript_id
                         if transcript_id in transcript_info:
                             node.update(transcript_info[transcript_id])
-
-                nodes_dic[name] = node
+                node["name"] = line_hash
+                nodes_dic[line_hash] = node
 
 
     #Check the case of non ordered (i.e. exon before the gene definition)
@@ -1787,7 +1787,7 @@ def load_annotations_neo4j(annotations_file_name, genome_ref,node_name="Annotati
 
 #Simple annotations are annotations that starts before node start position and end is greater than node start position
 @require_authorization
-def process_annotation_simple_batch(tx, annotations, genome_ref):
+def process_annotation_simple_batch(session, annotations, genome_ref):
     query = f"""
         UNWIND $annotations AS annot
 
@@ -1799,23 +1799,31 @@ def process_annotation_simple_batch(tx, annotations, genome_ref):
           AND n1.`{genome_ref}_position` <= annot.end
 
         CREATE (n1)-[:annotation_link]->(a1)
-
-        RETURN count(*) AS nb_relations
     """
 
-    result = tx.run(query, annotations=annotations)
-    nb_relations = result.single()["nb_relations"]
+    result = session.run(
+        query,
+        annotations=annotations
+    )
 
+    summary = result.consume()
+
+    #nb_relations = summary.counters.relationships_created
     #logger.debug(f"Simple relations created: {nb_relations}")
 
 
-#Complex annotations are annotations that starts after node start position but max 10000 bp after
-@require_authorization    
-def process_annotation_complex_batch(tx, annotations, genome_ref, annotation_search_limit=10000):
 
+
+#Complex annotations are annotations that starts after node start position but max 10000 bp after
+@require_authorization
+def process_annotation_complex_batch(
+    session,
+    annotations,
+    genome_ref,
+    annotation_search_limit=10000
+):
     query = f"""
         UNWIND $annotations AS annot
-        
         CALL {{
             WITH annot
             MATCH (n1:Node)
@@ -1826,27 +1834,28 @@ def process_annotation_complex_batch(tx, annotations, genome_ref, annotation_sea
             LIMIT 1
             RETURN n1
         }}
-        
         WITH annot, n1
         WHERE n1.`{genome_ref}_position` + n1.size >= annot.start
-        
         MATCH (a1:Annotation {{name: annot.name}})
         MERGE (n1)-[:annotation_link]->(a1)
     """
 
-                
-    #logger.debug(query)
+    result = session.run(
+        query,
+        annotations=annotations
+    )
 
-    result = tx.run(query, annotations=annotations)
     summary = result.consume()
 
-    #logger.debug("Complex relations created: ", summary.counters.relationships_created)
-    #logger.debug("Complex relations update: ", summary.counters.relationships_created)
-    
+    #nb_relations_created = summary.counters.relationships_created
+    #logger.debug(f"Complex relations created: {nb_relations_created}")
+
+
+
 #This step will get annotation for nodes greater than 10000 bp and that can starts more than 10000 bp before annotation start
 #This is required for performance
 @require_authorization    
-def process_annotation_last_complex_batch(tx, genome_ref, annotation_search_limit=10000, batch_limit=10000):
+def process_annotation_last_complex_batch(session, genome_ref, annotation_search_limit=10000, batch_limit=10000):
 
     query="""
         MATCH (n:Node)
@@ -1854,7 +1863,10 @@ def process_annotation_last_complex_batch(tx, genome_ref, annotation_search_limi
         AND n.`{genome_ref}_position` is not null
         return count(n) as nodes_number
     """
-    result = tx.run(query,annotation_search_limit=annotation_search_limit) 
+    result = session.run(
+        query,
+        annotation_search_limit=annotation_search_limit
+    )
     record = result.single()
     nodes_nb = record["nodes_number"]
     
@@ -1877,10 +1889,13 @@ def process_annotation_last_complex_batch(tx, genome_ref, annotation_search_limi
             MERGE (n)-[:annotation_link]->(a)
         """
         current_nodes += 1
-        result = tx.run(query,annotation_search_limit=annotation_search_limit) 
-    
+        result = session.run(
+            query,
+            annotation_search_limit=annotation_search_limit
+        )
 
-#This function will create relationships between nodes and annotations in the database. 
+
+#This function will create relationships between nodes and annotations in the database.
 #processing is divided into two types of relationships:   
 #- Simple relationships, where the position of a node (for a reference genome) lies between the start and end of an annotation.
 #- Complex relationships, where the start/end of an annotation lies between the start/end of a node
@@ -1894,6 +1909,7 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
         return None
     last_id = -1
     batch_size = 2000
+    MAX_ANNOTATION_LENGTH = 10_000_000
     total_annotations = 0
     WARN = False
     WARN_message = ""
@@ -1931,90 +1947,175 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
             liste_genomes = [genome_ref]
 
         logger.info("Haplotypes list : " + str(liste_genomes))
+        with driver.session() as session:
+            for g in liste_genomes:
 
-        for g in liste_genomes :
-            logger.info(f"Linking annotation for genome {g}")
-            query = f"""
-                MATCH (a:Annotation) where a.genome_ref = "{g}"  AND NOT (a)<-[:annotation_link]-() return collect(distinct(a.chromosome)) as annotations_chromosomes
-            """
-            result = session.run(query)
-            for record in result:
-                annotations_chromosomes_set = set(record["annotations_chromosomes"])
-            query = f"""
-            MATCH (a:Annotation) where a.genome_ref = "{g}"  AND NOT (a)<-[:annotation_link]-() return min(ID(a)) as min_id, max(ID(a)) as max_id, count(a) as annotations_count
-            """
-            #logger.debug(query)
-            result = session.run(query)
-            for record in result:
-                min_id = record["min_id"]
-                max_id = record["max_id"]
-                annotations_count = record["annotations_count"]
+                logger.info(f"Linking annotation for genome {g}")
 
-            intersection_chromosomes_set = graph_chromosomes_set & annotations_chromosomes_set
-            if len(intersection_chromosomes_set) == 0:
-                WARN = True
-                continue
-            else:
+                # ---------------------------------------------------------
+                # Chromosomes with unlinked annotations
+                # ---------------------------------------------------------
+                result = session.run(
+                    """
+                    MATCH (a:Annotation)
+                    WHERE a.genome_ref = $genome
+                      AND NOT (a)<-[:annotation_link]-()
+                    RETURN collect(DISTINCT a.chromosome) AS chromosomes
+                    """,
+                    genome=g
+                )
+
+                record = result.single()
+                annotations_chromosomes_set = set(record["chromosomes"] or [])
+
+                intersection_chromosomes_set = (graph_chromosomes_set & annotations_chromosomes_set)
+
+                if not intersection_chromosomes_set:
+                    WARN = True
+                    continue
+
                 WARN = False
-            if min_id is None or max_id is None or min_id == max_id :
-                continue
-            batch_number = ceil((max_id-min_id)/batch_size)
-            current_id = min_id
-            all_genomes.add(g)
-            i = 0
+                all_genomes.add(g)
 
-            with tqdm(total=annotations_count, desc=f"Haplotype {g}") as pbar:
-                while current_id < max_id:
-                    i+=1
-                    #logger.debug("Batch nb " + str(i) + "/" + str(batch_number) + " Current id : " + str(current_id) + " max id : " + str(max_id) + " - haplotype : " + str(g))
-                    annotations_nb = 0
-                    if chromosome is None :
-                        annotations = session.run(
-                            """
-                            MATCH (a:Annotation)
-                            WHERE ID(a) >= $min_id AND ID(a) < $max_id AND a.genome_ref = $genome
-                            AND NOT (a)<-[:annotation_link]-() 
-                            RETURN a.name AS name, a.chromosome AS chromosome, a.start AS start, a.end AS end
-                            """,
-                            min_id=current_id,
-                            max_id=min(max_id,current_id+batch_size),
-                            genome=g
-                            ).data()
-                    else:
-                        annotations = session.run(
-                            """
-                            MATCH (a:Annotation)
-                            WHERE ID(a) >= $min_id AND ID(a) < $max_id and a.chromosome = $chromosome AND a.genome_ref = $genome
-                            AND NOT (a)<-[:annotation_link]-() 
-                            RETURN a.name AS name, a.chromosome AS chromosome, a.start AS start, a.end AS end
-                            """,
-                            min_id=current_id,
-                            max_id=min(max_id,current_id+batch_size),
-                            chromosome=chromosome,
-                            genome=g
-                            ).data()
-                    annotations_nb += len(annotations)
-                    total_annotations += len(annotations)
-                    if annotations and len(annotations) > 0:
-                        with session.begin_transaction() as tx:
-                            #logger.info("creating annotations batch " + str(i) + "/"+str(batch_number))
-                            process_annotation_simple_batch(tx,annotations, g)
-                            #logger.info("creating complexe annotations")
-                            #Handling complex annotations: those for which the start and end of a node are before and after the annotation
-                            #the volume is much lower (less than 1%)
-                            process_annotation_complex_batch(tx, annotations, g, annotation_search_limit=10000)
-                            tx.commit()
+                # ---------------------------------------------------------
+                # Total unlinked annotations
+                # ---------------------------------------------------------
+                result = session.run(
+                    """
+                    MATCH (a:Annotation)
+                    WHERE a.genome_ref = $genome
+                      AND NOT (a)<-[:annotation_link]-()
+                    RETURN count(a) AS count
+                    """,
+                    genome=g
+                )
 
-                    #logger.debug("Annotations nb : " + str(annotations_nb) + " - Annotations already treated : " + str(total_annotations))
-                    pbar.update(annotations_nb)
-                    current_id += batch_size
+                annotations_count = result.single()["count"]
+
+                if annotations_count == 0:
+                    continue
+
+                # ---------------------------------------------------------
+                # Browse by id
+                # ---------------------------------------------------------
+                last_id = -1
+
+                with tqdm(total=annotations_count, desc=f"Haplotype {g}") as pbar:
+
+                    while True:
+                        if chromosome is None:
+                            result = session.run(
+                                """
+                                MATCH (a:Annotation)
+                                WHERE a.genome_ref = $genome
+                                  AND ID(a) > $last_id
+                                  AND NOT (a)<-[:annotation_link]-()
+    
+                                RETURN
+                                    ID(a) AS id,
+                                    a.name AS name,
+                                    a.chromosome AS chromosome,
+                                    a.start AS start,
+                                    a.end AS end
+    
+                                ORDER BY ID(a)
+                                LIMIT $batch_size
+                                """,
+                                genome=g,
+                                last_id=last_id,
+                                batch_size=batch_size
+                            )
+
+                        else:
+                            result = session.run(
+                                """
+                                MATCH (a:Annotation)
+                                WHERE a.genome_ref = $genome
+                                  AND a.chromosome = $chromosome
+                                  AND ID(a) > $last_id
+                                  AND NOT (a)<-[:annotation_link]-()
+    
+                                RETURN
+                                    ID(a) AS id,
+                                    a.name AS name,
+                                    a.chromosome AS chromosome,
+                                    a.start AS start,
+                                    a.end AS end
+    
+                                ORDER BY ID(a)
+                                LIMIT $batch_size
+                                """,
+                                genome=g,
+                                chromosome=chromosome,
+                                last_id=last_id,
+                                batch_size=batch_size
+                            )
+
+                        annotations = result.data()
+
+                        if not annotations:
+                            break
+
+                        last_id = annotations[-1]["id"]
+
+                        annotations_for_processing = [
+                            {
+                                "name": a["name"],
+                                "chromosome": a["chromosome"],
+                                "start": a["start"],
+                                "end": a["end"]
+                            }
+                            for a in annotations
+                        ]
+
+                        # Filter annotations to avoid linking large regions like chromosomes
+                        annotations_for_processing = [
+                            {
+                                "name": a["name"],
+                                "chromosome": a["chromosome"],
+                                "start": a["start"],
+                                "end": a["end"]
+                            }
+                            for a in annotations
+                            if (a["feature"] != "region"and (a["end"] - a["start"] + 1) <= MAX_ANNOTATION_LENGTH)
+                        ]
+
+                        excluded_count = len(annotations) - len(annotations_for_processing)
+
+                        if excluded_count > 0:
+                            logger.debug(
+                                f"Excluded {excluded_count} annotations from linking "
+                                f"(region or length > {MAX_ANNOTATION_LENGTH} bp)"
+                            )
+
+                        annotations_for_linking = [
+                            annot
+                            for annot in annotations
+                            if (annot["feature"] != "region" and (annot["end"] - annot["start"] + 1) <= MAX_ANNOTATION_LENGTH)
+                        ]
+
+                        excluded_count = len(annotations) - len(annotations_for_linking)
+
+                        if excluded_count > 0:
+                            logger.debug(
+                                f"Excluded {excluded_count} annotations from linking "
+                                f"(region or length > {MAX_ANNOTATION_LENGTH} bp)"
+                            )
+                        if annotations_for_linking:
+                            process_annotation_simple_batch(session, annotations_for_linking, g)
+                            # Handling complex annotations: those for which the start and end of a node are before and after the annotation
+                            # the volume is much lower (less than 1%)
+                            process_annotation_complex_batch(session,annotations_for_processing,g,annotation_search_limit=10000)
+
+                        n = len(annotations)
+
+                        total_annotations += n
+                        pbar.update(n)
 
 
-        for g in all_genomes:
-            with session.begin_transaction() as tx:
+            for g in all_genomes:
                 logger.info(f"processing complex annotations for genome {g}")
-                process_annotation_last_complex_batch(tx, g, annotation_search_limit=10000)
-                tx.commit()
+                process_annotation_last_complex_batch(session, g, annotation_search_limit=10000)
     if WARN:
         WARN_message = "Chromosome names mismatch between annotation file and graph."
     logger.info(f"End of relationships creation, {total_annotations} annotations analysed. {WARN_message} Total time : " + str(time.time()-temps_depart))
