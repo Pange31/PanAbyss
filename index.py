@@ -197,17 +197,12 @@ import callbacks.phylo_management_callbacks
 def init_data(pathname,shared_storage, shared_storage_nodes):
     if shared_storage_nodes is None:
         shared_storage_nodes = {"nodes_cache_id": str(uuid.uuid4())}
-
-    if (shared_storage is None or "genomes" not in shared_storage or len(shared_storage["genomes"]) == 0
-        or "chromosomes" not in shared_storage or len(shared_storage["chromosomes"]) == 0):
-        update_storage = {
-            "genomes": get_genomes(),
-            "chromosomes": get_chromosomes(),
-            "features": get_annotations_features()
-        }
-        if update_storage["genomes"] is not None and len(update_storage["genomes"]) > 0 :
-            logger.debug(f"Data : {update_storage}")
-        shared_storage.update(update_storage)
+    if "genomes" not in shared_storage or not shared_storage["genomes"] or len(shared_storage["genomes"]) == 0:
+        shared_storage["genomes"] = get_genomes()
+    if "chromosomes" not in shared_storage or not shared_storage["chromosomes"] or len(shared_storage["chromosomes"]) == 0:
+        shared_storage["chromosomes"] = get_chromosomes()
+    if "features" not in shared_storage or not shared_storage["features"] or len(shared_storage["features"]) == 0:
+        shared_storage["features"] = get_annotations_features()
     return shared_storage, shared_storage_nodes
 
 #callback to display toast

@@ -1206,13 +1206,6 @@ def layout(data=None, initial_size_limit=10):
                                                     {'label': f, 'value': f}
                                                     for f in features
                                                 ],
-                                                # options=[
-                                                #             {'label': f"{feature}_name", 'value': f"{feature}_name"}
-                                                #             for feature in features
-                                                #         ] + [
-                                                #             {'label': f"{feature}_id", 'value': f"{feature}_id"}
-                                                #             for feature in features
-                                                #         ],
                                                 value='gene' if 'gene' in features else None,
                                                 clearable=False,
                                                 placeholder="Feature",
@@ -2900,7 +2893,9 @@ def update_parameters_on_page_load(pathname,data,
 
     features = shared_data.get("features", None)
 
-    if features is not None and "gene" in features:
+    if data and features and data.get("feature_name") in features:
+        feature_name = data["feature_name"]
+    elif features and "gene" in features:
         feature_name = "gene"
     else:
         feature_name = None
@@ -2967,11 +2962,6 @@ def update_parameters_on_page_load(pathname,data,
                 selected_chromosome = options_chromosomes[0]["value"]
         start_input = None
         end_input = None
-        if features is not None and "gene" in features:
-            feature_name = "gene"
-        else:
-            feature_name = None
-        feature_value = ""
 
     return (slider_value, selected_chromosome, selected_genome, start_input,
         end_input, feature_name, feature_value, shared_regions_link_color,
