@@ -200,7 +200,7 @@ def create_docker_compose_file(
           NEO4J_apoc_export_file_enabled: "true"
           NEO4J_apoc_import_file_enabled: "true"
           NEO4J_apoc_import_file_use__neo4j__config: "true"
-          NEO4J_PLUGINS: '[\\"apoc\\"]'
+          NEO4J_PLUGINS: '["apoc"]'
         ports:
           - "{http_port}:7474"
           - "{bolt_port}:7687"
