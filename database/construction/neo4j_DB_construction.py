@@ -2199,7 +2199,7 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
                 # Browse by id
                 # ---------------------------------------------------------
                 last_id = -1
-
+                excluded_annotations = []
                 with tqdm(total=annotations_count, desc=f"Haplotype {g}") as pbar:
 
                     while True:
@@ -2216,7 +2216,8 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
                                     a.name AS name,
                                     a.chromosome AS chromosome,
                                     a.start AS start,
-                                    a.end AS end
+                                    a.end AS end,
+                                    a.feature AS feature
 
                                 ORDER BY ID(a)
                                 LIMIT $batch_size
@@ -2240,7 +2241,8 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
                                     a.name AS name,
                                     a.chromosome AS chromosome,
                                     a.start AS start,
-                                    a.end AS end
+                                    a.end AS end,
+                                    a.feature AS feature
 
                                 ORDER BY ID(a)
                                 LIMIT $batch_size
@@ -2259,41 +2261,29 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
                         last_id = annotations[-1]["id"]
 
                         # Filter annotations to avoid linking large regions like chromosomes
-                        annotations_for_processing = [
-                            {
+                        # Filter annotations to avoid linking large regions like chromosomes
+                        annotations_for_processing = []
+                        annotations_for_linking = []
+
+                        for a in annotations:
+                            if a.get("feature", "") == "region" or (a.get("end", 0) - a.get("start", 0) + 1) > MAX_ANNOTATION_LENGTH :
+                                excluded_annotations.append({
+                                    "feature": a.get("feature"),
+                                    "chromosome": a.get("chromosome"),
+                                    "start": a.get("start"),
+                                    "end": a.get("end")
+                                })
+                                continue
+
+                            annotations_for_processing.append({
                                 "name": a["name"],
                                 "chromosome": a["chromosome"],
                                 "start": a["start"],
                                 "end": a["end"]
-                            }
-                            for a in annotations
-                            if (a.get("feature", "") != "region" and (
-                                        a.get("end", 0) - a.get("start", 0) + 1) <= MAX_ANNOTATION_LENGTH)
-                        ]
+                            })
 
-                        excluded_count = len(annotations) - len(annotations_for_processing)
+                            annotations_for_linking.append(a)
 
-                        if excluded_count > 0:
-                            logger.debug(
-                                f"Excluded {excluded_count} annotations from linking "
-                                f"(region or length > {MAX_ANNOTATION_LENGTH} bp)"
-                            )
-
-
-                        annotations_for_linking = [
-                            annot
-                            for annot in annotations
-                            if (annot.get("feature", "") != "region" and (
-                                        annot.get("end", 0) - annot.get("start", 0) + 1) <= MAX_ANNOTATION_LENGTH)
-                        ]
-
-                        excluded_count = len(annotations) - len(annotations_for_linking)
-
-                        if excluded_count > 0:
-                            logger.debug(
-                                f"Excluded {excluded_count} annotations from linking "
-                                f"(region or length > {MAX_ANNOTATION_LENGTH} bp)"
-                            )
                         if annotations_for_linking:
                             process_annotation_simple_batch(session, annotations_for_linking, g)
                             # Handling complex annotations: those for which the start and end of a node are before and after the annotation
@@ -2305,6 +2295,16 @@ def creer_relations_annotations_neo4j(genome_ref=None, chromosome=None):
 
                         total_annotations += n
                         pbar.update(n)
+
+                    if excluded_annotations:
+                        logger.info(f"Excluded annotations (regions and annotations larger than {MAX_ANNOTATION_LENGTH}) for genome {g}:")
+                        for a in excluded_annotations:
+                            logger.info(
+                                f"feature={a['feature']}, "
+                                f"chromosome={a['chromosome']}, "
+                                f"start={a['start']}, "
+                                f"end={a['end']}"
+                            )
 
             for g in all_genomes:
                 logger.info(f"processing complex annotations for genome {g}")

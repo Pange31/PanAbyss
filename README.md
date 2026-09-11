@@ -21,7 +21,7 @@ It allows the following functionalities:
 
 ## Installation 
 ### Requirements
-* Docker available: see docker documentation if not installed. Docker must be able to be launched by the $USER user; otherwise, see the procedure for launching Docker in non-root mode:
+* Docker and docker compose available: see docker documentation if not installed. Docker must be able to be launched by the $USER user; otherwise, see the procedure for launching Docker in non-root mode:
 ```
 sudo groupadd docker
 sudo usermod -aG docker $USER
@@ -58,6 +58,7 @@ newgrp docker
 ## Important notes
   - To launch multiple Neo4j instances, it is required to change Neo4j ports. These ports are defined in the db_conf.json and can be updated here.
   - On Windows system, raxml-ng must be installed manually, see raxml documentation. If not installed, then the global phylogenetic tree could not be computed with this method (but the neighbor joining method will work).
+  - Large pangenomes are not recommended to load on Windows systems because WSL can significantly slow down file I/O operations during the Neo4j Docker import.
   - The default memory used by the Neo4j database is defined into the data/conf/Neo4j.conf file, it requires at least 20 Go, if the system (and docker configuration) doesn't have this memory available it will be necessary to tune these values.
   - The GFA file must be properly structured for the application to correctly identify the individual name and chromosome. We strongly recommend to use W lines but according to the GFA format:
     - **For GFA files with `W` lines:**  
