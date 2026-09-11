@@ -1467,6 +1467,7 @@ def update_data(path, data, parameters_data, pvalue_filter_slider, node_size_fil
         if analyse is not None:
             for i, row in enumerate(analyse):
                 row['get_sequence'] = "Get sequence"
+                row['region_index'] = i
 
     return (message_analyse,analyse, min_node_size, max_node_size,
             min_percent_selected,tolerance_percentage,region_gap, deletion_checkbox, deletion_percentage,
@@ -1481,13 +1482,14 @@ and highlight the correpsonding region in the graph
     Output("shared-status", "children",allow_duplicate=True),
     Output("chromosome-graph", "figure", allow_duplicate=True),
     Input("shared-region-table", "active_cell"),
+    State("shared-region-table", "derived_virtual_data"),
     State("gwas-page-store", "data"),
     State("manhattan-switch", "value"),
     State("pvalue-filter-slider", "value"),
     State("node-size-filter-slider", "value"),
     prevent_initial_call=True
 )
-def highlight_region(active_cell, analyse, manhattan, pvalue_filter, node_size_filter):
+def highlight_region(active_cell, table_data, analyse, manhattan, pvalue_filter, node_size_filter):
 
     if active_cell is None:
         return no_update, no_update
@@ -1496,8 +1498,11 @@ def highlight_region(active_cell, analyse, manhattan, pvalue_filter, node_size_f
         return no_update, no_update
 
     row_index = active_cell["row"]
+
     if row_index is not None:
-        region = analyse["analyse"][row_index]
+        row = table_data[row_index]
+        region_index = row.get("region_index", row_index)
+        region = analyse["analyse"][region_index]
         mean_start = region["mean_start"]
         mean_stop = region["mean_stop"]
         start = region['start']
