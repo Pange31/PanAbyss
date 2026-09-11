@@ -192,7 +192,6 @@ def create_docker_compose_file(
         f"    image: {DOCKER_IMAGE}",
     ]
 
-    # Ajout de user uniquement sous Linux
     if hasattr(os, "getuid") and hasattr(os, "getgid"):
         compose_lines.append(
             f'    user: "{os.getuid()}:{os.getgid()}"'
