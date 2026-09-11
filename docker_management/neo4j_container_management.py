@@ -183,36 +183,46 @@ def create_docker_compose_file(
     remove_container(container_name, docker=True)
     compose_file.parent.mkdir(parents=True, exist_ok=True)
 
-    docker_user = (
-        f"{os.getuid()}:{os.getgid()}"
-        if hasattr(os, "getuid") and hasattr(os, "getgid")
-        else None
+    neo4j_base_dir = str(NEO4J_BASE_DIR).replace("\\", "/")
+
+    compose_lines = [
+        "services:",
+        "  neo4j:",
+        f"    container_name: {container_name}",
+        f"    image: {DOCKER_IMAGE}",
+    ]
+
+    # Ajout de user uniquement sous Linux
+    if hasattr(os, "getuid") and hasattr(os, "getgid"):
+        compose_lines.append(
+            f'    user: "{os.getuid()}:{os.getgid()}"'
+        )
+
+    compose_lines.extend([
+        "    environment:",
+        f'      NEO4J_AUTH: "{auth}"',
+        '      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"',
+        '      NEO4J_apoc_export_file_enabled: "true"',
+        '      NEO4J_apoc_import_file_enabled: "true"',
+        '      NEO4J_apoc_import_file_use__neo4j__config: "true"',
+        """      NEO4J_PLUGINS: '["apoc"]'""",
+        "    ports:",
+        f'      - "{http_port}:7474"',
+        f'      - "{bolt_port}:7687"',
+        "    volumes:",
+        f'      - "{neo4j_base_dir}/data:/data"',
+        f'      - "{neo4j_base_dir}/logs:/logs"',
+        f'      - "{neo4j_base_dir}/conf:/conf"',
+        f'      - "{neo4j_base_dir}/import:/import"',
+        f'      - "{neo4j_base_dir}/plugins:/plugins"',
+    ])
+
+    compose_content = "\n".join(compose_lines) + "\n"
+
+    compose_file.write_text(
+        compose_content,
+        encoding="utf-8",
     )
-
-    compose_content = f"""services:
-      neo4j:
-        container_name: {container_name}
-        image: {DOCKER_IMAGE}
-        user: "{docker_user}"
-        environment:
-          NEO4J_AUTH: "{auth}"
-          NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
-          NEO4J_apoc_export_file_enabled: "true"
-          NEO4J_apoc_import_file_enabled: "true"
-          NEO4J_apoc_import_file_use__neo4j__config: "true"
-          NEO4J_PLUGINS: '["apoc"]'
-        ports:
-          - "{http_port}:7474"
-          - "{bolt_port}:7687"
-        volumes:
-          - "{NEO4J_BASE_DIR}/data:/data"
-          - "{NEO4J_BASE_DIR}/logs:/logs"
-          - "{NEO4J_BASE_DIR}/conf:/conf"
-          - "{NEO4J_BASE_DIR}/import:/import"
-          - "{NEO4J_BASE_DIR}/plugins:/plugins"
-    """
-
-    compose_file.write_text(compose_content, encoding="utf-8")
 
     return compose_file
 
