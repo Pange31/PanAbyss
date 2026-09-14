@@ -1640,7 +1640,7 @@ def layout(data=None, initial_size_limit=10):
                         }, id='color-picker-container')
 
                 ], id='sample-controls'),
-                html.Button("Update graph", id="update-btn",
+                html.Button("Update graph / Compact selected nodes", id="update-btn",
                             n_clicks=0, style={'marginTop': '10px'}),
 
                 html.Div(
