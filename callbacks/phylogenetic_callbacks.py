@@ -8,8 +8,9 @@ Created on Wed Jul  2 22:08:19 2025
 
 import base64
 import dash
-from dash import html, Input, Output, callback, State, callback_context, dcc, ctx, exceptions, no_update
+from dash import html, Input, Output, callback, State, callback_context, dcc, ctx, exceptions, no_update, ALL
 from dash.exceptions import PreventUpdate
+import dash_bootstrap_components as dbc
 
 from cache_manager import *
 
@@ -26,156 +27,176 @@ from app import *
 from database.services.neo4j_requests import *
 import logging
 
+from pages.phylo_styles import stylesheet
+
 logger = logging.getLogger("panabyss_logger")
 
 EXPORT_DIR = "./export/phylo/"
 MAX_NODES_FROM_DB = get_max_nodes_from_db()
 
+def generate_elements(
+    newick_str,
+    xlen=30,
+    ylen=30,
+    grabbable=False,
+    colors=None,
+    root=None
+):
+    if colors is None:
+        colors = {}
 
-def generate_elements(newick_str, xlen=30, ylen=30, grabbable=False):
     tree = Phylo.read(io.StringIO(newick_str), "newick")
+
+    if root == "midpoint":
+        tree.root_at_midpoint()
+
+    elif root:
+        outgroup = next(
+            (
+                terminal
+                for terminal in tree.get_terminals()
+                if terminal.name == root
+            ),
+            None
+        )
+
+        if outgroup is not None:
+            tree.root_with_outgroup(outgroup)
+
     def get_col_positions(tree, column_width=80):
         taxa = tree.get_terminals()
 
-        # Some constants for the drawing calculations
         max_label_width = max(len(str(taxon)) for taxon in taxa)
         drawing_width = column_width - max_label_width - 1
-    
-        """Create a mapping of each clade to its column position."""
+
         depths = tree.depths()
-        # If there are no branch lengths, assume unit branch lengths
+
         if not max(depths.values()):
             depths = tree.depths(unit_branch_lengths=True)
+
         fudge_margin = int(math.ceil(math.log(len(taxa), 2)))
-        cols_per_branch_unit = ((drawing_width - fudge_margin) /
-                                float(max(depths.values())))
-        return dict((clade, int(blen * cols_per_branch_unit + 1.0))
-                    for clade, blen in depths.items())
+
+        cols_per_branch_unit = (
+            (drawing_width - fudge_margin) /
+            float(max(depths.values()))
+        )
+
+        return {
+            clade: int(blen * cols_per_branch_unit + 1.0)
+            for clade, blen in depths.items()
+        }
 
     def get_row_positions(tree):
         taxa = tree.get_terminals()
-        positions = dict((taxon, 2 * idx) for idx, taxon in enumerate(taxa))
-    
+
+        positions = {
+            taxon: 2 * idx
+            for idx, taxon in enumerate(taxa)
+        }
+
         def calc_row(clade):
             for subclade in clade:
                 if subclade not in positions:
                     calc_row(subclade)
-            positions[clade] = ((positions[clade.clades[0]] +
-                                 positions[clade.clades[-1]]) // 2)
-    
+
+            positions[clade] = (
+                positions[clade.clades[0]] +
+                positions[clade.clades[-1]]
+            ) // 2
+
         calc_row(tree.root)
+
         return positions
-    
+
     def add_to_elements(clade, clade_id):
         children = clade.clades
-    
+
         pos_x = col_positions[clade] * xlen
         pos_y = row_positions[clade] * ylen
-    
+
         cy_source = {
-            "data": {"id": clade_id},
-            'position': {'x': pos_x, 'y': pos_y},
-            'classes': 'nonterminal',
-            'grabbable': grabbable
+            "data": {
+                "id": clade_id
+            },
+            "position": {
+                "x": pos_x,
+                "y": pos_y
+            },
+            "classes": "nonterminal",
+            "grabbable": grabbable
         }
+
         nodes.append(cy_source)
-    
+
         if clade.is_terminal():
             cy_source['data']['name'] = clade.name
             cy_source['classes'] = 'terminal'
-    
+
+            if clade.name in colors:
+                cy_source['data']['individualColor'] = colors[clade.name]
+                cy_source['classes'] = 'colored-terminal'
+            else:
+                cy_source['classes'] = 'terminal'
+
         for n, child in enumerate(children):
-            support_id = clade_id + 's' + str(n)
-            child_id = clade_id + 'c' + str(n)
+
+            support_id = clade_id + "s" + str(n)
+            child_id = clade_id + "c" + str(n)
+
             pos_y_child = row_positions[child] * ylen
-    
+
             cy_support_node = {
-                'data': {'id': support_id},
-                'position': {'x': pos_x, 'y': pos_y_child},
-                'grabbable': grabbable,
-                'classes': 'support'
+                "data": {
+                    "id": support_id
+                },
+                "position": {
+                    "x": pos_x,
+                    "y": pos_y_child
+                },
+                "grabbable": grabbable,
+                "classes": "support"
             }
-    
+
             cy_support_edge = {
                 'data': {
                     'source': clade_id,
                     'target': support_id,
-                    'sourceCladeId': clade_id
+                    'sourceCladeId': clade_id,
+                    'targetCladeId': child_id,
+                    'parentCladeId': clade_id,
                 },
+                'classes': ''
             }
-    
+
             cy_edge = {
                 'data': {
                     'source': support_id,
                     'target': child_id,
                     'length': clade.branch_length,
-                    'sourceCladeId': clade_id
+                    'sourceCladeId': clade_id,
+                    'targetCladeId': child_id,
+                    'parentCladeId': clade_id,
                 },
+                'classes': ''
             }
-    
+
             if clade.confidence and clade.confidence.value:
-                cy_source['data']['confidence'] = clade.confidence.value
-    
+                cy_source["data"]["confidence"] = clade.confidence.value
+
             nodes.append(cy_support_node)
             edges.extend([cy_support_edge, cy_edge])
-    
+
             add_to_elements(child, child_id)
 
     col_positions = get_col_positions(tree)
     row_positions = get_row_positions(tree)
-    
+
     nodes = []
     edges = []
-    
-    add_to_elements(tree.clade, 'r')
-    
-    return nodes+edges
 
+    add_to_elements(tree.clade, "r")
 
-
-
-stylesheet = [
-    {
-        'selector': '.nonterminal',
-        'style': {
-            'label': 'data(confidence)',
-            'background-opacity': 0,
-            "text-halign": "left",
-            "text-valign": "top",
-        }
-    },
-    {
-        'selector': 'node',
-        'style': {
-            'label': 'data(name)',
-            'font-size':'50px',
-            "text-halign": "left",
-            "text-valign": "center"
-        }
-    },
-    {
-        'selector': '.support',
-        'style': {'background-opacity': 0}
-    },
-    {
-        'selector': 'edge',
-        'style': {
-            "source-endpoint": "inside-to-node",
-            "target-endpoint": "inside-to-node",
-        }
-    },
-    {
-        'selector': '.terminal',
-        'style': {
-            'label': 'data(name)',
-            'width': 10,
-            'height': 10,
-            "text-valign": "center",
-            "text-halign": "right",
-            'background-color': '#222222'
-        }
-    }
-]
+    return nodes + edges
 
 
 #Populate chromosome droplist
@@ -199,34 +220,51 @@ def update_dropdown(data):
     Output("phylogenetic-page-store", "data", allow_duplicate=True),
     Input('upload-newick', 'contents'),
     Input('btn-plot-global-tree', 'n_clicks'),
-    Input("btn-force-compute-tree", "n_clicks"),
+    State("use-cache-checkbox", "value"),
     State('method-dropdown', 'value'),
     State("phylogenetic_chromosomes_dropdown", 'value'),
     State("phylogenetic-page-store", "data"),
+    State('upload-newick', 'filename'),
+    State('upload-newick', 'last_modified'),
+
     prevent_initial_call=True
 )
-def start_phylo_job(contents, n_clicks, n_clicks_force, method, chromosome, phylo_data):
+def start_phylo_job(
+        contents,
+        n_clicks,
+        use_cache_checkbox_value,
+        method,
+        chromosome,
+        phylo_data,
+    filename,
+    last_modified
+):
 
     triggered_id = ctx.triggered_id
-
-    if triggered_id not in ["upload-newick", "btn-plot-global-tree", "btn-force-compute-tree"]:
+    if triggered_id not in ["upload-newick", "btn-plot-global-tree"]:
         raise exceptions.PreventUpdate
-
     if phylo_data is None:
         phylo_data = {}
+
+    use_cache = True
+    if "use_cache" not in use_cache_checkbox_value:
+        use_cache = False
 
     phylo_data.pop("newick_global", None)
 
     c = chromosome if chromosome else None
-
     # Upload of a newick file
     if triggered_id == "upload-newick":
-        if contents is None:
+
+
+        if contents is None or filename is None or last_modified is None:
+            raise exceptions.PreventUpdate
+
+        if (phylo_data.get("_upload_filename") == filename and phylo_data.get("_upload_last_modified") == last_modified):
             raise exceptions.PreventUpdate
 
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string)
-
         try:
             newick_str = decoded.decode('utf-8')
         except Exception as e:
@@ -238,19 +276,17 @@ def start_phylo_job(contents, n_clicks, n_clicks_force, method, chromosome, phyl
             )
 
         phylo_data["newick_global"] = newick_str
-
         return (
             {"status": "done"},
             {"display": "none"},
             True,
             phylo_data
         )
-
     # Launch the tree computation
     results = compute_global_phylo_tree_from_nodes_wrapper(
         method=method,
         chromosome=c,
-        force_reload=(triggered_id == "btn-force-compute-tree")
+        force_reload=(not use_cache)
     )
 
     if results["status"] == "SUCCESS":
@@ -356,28 +392,110 @@ def handle_cancel_click(n_clicks, status_data):
 
 
 
+# @app.callback(
+#     Output('cytoscape-phylo','stylesheet',allow_duplicate=True),
+#     Input('cytoscape-phylo','selectedEdgeData'),
+#     prevent_initial_call=True
+# )
+# def color_children(selected_edges):
+#
+#     if not selected_edges:
+#         return stylesheet
+#
+#     # On ne veut qu'un seul lien sélectionné
+#     edgeData = selected_edges[-1]
+#
+#     source = edgeData['source']
+#
+#     if 's' in source:
+#         val = source.split('s')[0]
+#     else:
+#         val = source
+#
+#     children_style = {
+#         'selector': f'edge[source *= "{val}"]',
+#         'style': {
+#             'line-color': 'blue'
+#         }
+#     }
+#
+#     return stylesheet + [children_style]
+from dash import ctx
+
 @app.callback(
-    Output('cytoscape-phylo', 'stylesheet', allow_duplicate=True),
-    Input('cytoscape-phylo', 'mouseoverEdgeData'),
+    Output('cytoscape-phylo','stylesheet',allow_duplicate=True),
+    Output('cytoscape-phylo-region','stylesheet',allow_duplicate=True),
+    Input('cytoscape-phylo','selectedEdgeData'),
+    Input('cytoscape-phylo-region','selectedEdgeData'),
     prevent_initial_call=True
-    )
-def color_children(edgeData):
-    if edgeData is None:
-        return stylesheet
+)
+def color_children(selected_edges_global, selected_edges_region):
 
-    if 's' in edgeData['source']:
-        val = edgeData['source'].split('s')[0]
-    else:
-        val = edgeData['source']
+    triggered_id = ctx.triggered_id
 
-    children_style = [{
-        'selector': 'edge[source *= "{}"]'.format(val),
-        'style': {
-            'line-color': 'blue'
+    # ------------------------------------------------------------
+    # Global tree
+    # ------------------------------------------------------------
+
+    if triggered_id == 'cytoscape-phylo':
+
+        if not selected_edges_global:
+            return stylesheet, no_update
+
+        edge_data = selected_edges_global[-1]
+
+        source = edge_data['source']
+
+        if 's' in source:
+            val = source.split('s')[0]
+        else:
+            val = source
+
+        children_style = {
+            'selector': f'edge[source *= "{val}"]',
+            'style': {
+                'line-color': 'blue'
+            }
         }
-    }]
 
-    return stylesheet + children_style
+        return (
+            stylesheet + [children_style],
+            no_update
+        )
+
+    # ------------------------------------------------------------
+    # Region tree
+    # ------------------------------------------------------------
+
+    if triggered_id == 'cytoscape-phylo-region':
+
+        if not selected_edges_region:
+            return no_update, stylesheet
+
+        edge_data = selected_edges_region[-1]
+
+        source = edge_data['source']
+
+        if 's' in source:
+            val = source.split('s')[0]
+        else:
+            val = source
+
+        children_style = {
+            'selector': f'edge[source *= "{val}"]',
+            'style': {
+                'line-color': 'blue'
+            }
+        }
+
+        return (
+            no_update,
+            stylesheet + [children_style]
+        )
+
+    return no_update, no_update
+
+
 
 #Callback to plot tree of the current displayed region
 @app.callback(
@@ -406,7 +524,7 @@ def plot_region(n_clicks, stored_data,
     if ctx.triggered_id == "btn-plot-region" and n_clicks == 0:
         raise PreventUpdate
     nodes = no_update
-
+    message = ""
     weighted = False
     if "weight_by_size" in weighted_checkbox_value:
         weighted = True
@@ -453,14 +571,17 @@ def plot_region(n_clicks, stored_data,
                     match return_metadata["return_code"].lower():
                         case "filter" | "partial":
                             if "removed_genomes" in return_metadata and len(return_metadata["removed_genomes"]) > 0:
-                                message = f"Region too wide for these genomes: f{return_metadata['removed_genomes']}"
+                                message = html.Div(f"Warning: incomplete region for these genomes: {return_metadata['removed_genomes']}", style=warning_style)
                             else:
                                 message = "Region too wide"
+                                return html.Div(f"❌ {message}", style=error_style), phylo_data, phylo_local_data
                         case "wide" | "zoom":
                             message = "region too wide"
+                            return html.Div(f"❌ {message}", style=error_style), phylo_data, phylo_local_data
                         case _:
                             message = "Unknown error"
-                    return html.Div(f"❌ {message}", style=error_style), phylo_data, phylo_local_data
+                            return html.Div(f"❌ {message}", style=error_style), phylo_data, phylo_local_data
+
             cached["min_node_size"] = 1
             cached["nodes"] = nodes
             nodes_cache.set(nodes_cache_id, cached, expire=8 * 3600)
@@ -479,7 +600,7 @@ def plot_region(n_clicks, stored_data,
 
             # Step 3: draw tree
             phylo_local_data = {"status": "done"}
-            return "", phylo_data, phylo_local_data
+            return message, phylo_data, phylo_local_data
         else:
             phylo_local_data = {"status": "done"}
             return html.Div(html.P([
@@ -551,53 +672,222 @@ def save_global_tree(n_clicks, phylo_data, method, chromosome):
         return f"File saved : {save_path}", None
     else:
         return "File downloaded.", dcc.send_string(newick_content, "global_tree_"+datetime.now().strftime("%Y_%m_%d_%H_%M_%S")+".nwk")
-    
+
+
+
+"""
+This function returns the div color picker option
+"""
+def build_color_picker(shared_store):
+    genomes = []
+    color_pickers = no_update
+    if shared_store:
+        genomes = shared_store.get("genomes", []) or []
+
+        color_pickers = [
+            html.Div(
+                [
+                    dbc.Input(
+                        id={
+                            'type': 'color-picker',
+                            'index': genome
+                        },
+                        type='color',
+                        value="#000000",
+                        style={
+                            'width': '22px',
+                            'height': '22px',
+                            'minWidth': '22px',
+                            'padding': '0',
+                            'border': 'none',
+                            'borderRadius': '5px',
+                            'overflow': 'hidden',
+                            'cursor': 'pointer'
+                        }
+                    ),
+
+                    html.Label(
+                        genome,
+                        style={
+                            "marginLeft": "5px",
+                            "fontSize": "12px",
+                            "whiteSpace": "nowrap"
+                        }
+                    )
+                ],
+
+                style={
+                    'display': 'flex',
+                    'alignItems': 'center',
+                    'width': '165px',
+                    'padding': '1px 2px',
+                    "marginBottom": "5px",
+                    "overflow": "visible"
+                }
+            )
+
+            for i, genome in enumerate(genomes)
+        ]
+
+    return color_pickers
+
+
+"""
+Callback launched on url change, data change or option selection
+"""
 @app.callback(
     Output('upload-status', 'children'),
     Output('cytoscape-phylo', 'elements'),
     Output('cytoscape-phylo-region', 'elements'),
     Output("phylo-spinner-container", "style"),
     Output("btn-plot-global-tree", "disabled"),
-    Output("btn-force-compute-tree", "disabled"),
     Output("btn-cancel-plot-global-tree", "disabled"),
-    #Output('phylogenetic-page-store', 'data'),
+    Output("individual-color-pickers", "children"),
+    Output('root-tree-dropdown', 'options'),
     Input('url', 'pathname'),
     Input("phylo-job-status", "data"),
     Input("phylo-local-tree-job-status", "data"),
+    Input({'type': 'color-picker', 'index': ALL},'value'),
+    Input('root-tree-dropdown', 'value'),
+    State({'type': 'color-picker', 'index': ALL},'id'),
     State('phylogenetic-page-store', 'data'),
     State('method-dropdown', 'value'),
     State("phylogenetic_chromosomes_dropdown", 'value'),
-    #prevent_initial_call='initial_duplicate'
+    State("shared_storage", "data"),
     prevent_initial_call=False
-
 )
-def update_graph_on_page_load(pathname, status_data, local_tree_status, phylo_data, method, chromosome ):
+def update_graph(
+    pathname,
+    status_data,
+    local_tree_status,
+    selected_colors,
+    root,
+    color_picker_ids,
+    phylo_data,
+    method,
+    chromosome,
+    shared_store
+):
+
     if pathname != "/phylogenetic":
         raise PreventUpdate
+
     button_search = False
-    button_load = False
     button_cancel = True
-    spinner_container = {"display": "none", "marginTop": "20px"}
-    if status_data and "status" in status_data and status_data["status"] == "running":
-        button_search = True
-        button_load = True
+
+    spinner_container = {
+        "display": "none",
+        "marginTop": "20px"
+    }
+
+    if (
+        status_data
+        and "status" in status_data
+        and status_data["status"] == "running"
+    ):
         button_cancel = False
-        spinner_container = {"display": "block", "marginTop": "20px"}
+        spinner_container = {
+            "display": "block",
+            "marginTop": "20px"
+        }
+
     elements_region = []
     elements_global = []
-    #Get the tree for the first page loading
+
+    # ============================================================
+    # COLOR PICKERS
+    # ============================================================
+
+    genomes = []
+    root_options = no_update
+    if shared_store:
+        genomes = shared_store.get("genomes", []) or []
+        root_options = [
+            {
+                "label": "No rooting",
+                "value": None
+            },
+            {
+                "label": "Midpoint",
+                "value": "midpoint"
+            }
+        ]
+
+        root_options += [
+            {
+                "label": genome,
+                "value": genome
+            }
+            for genome in genomes
+        ]
+
+    existing_genomes = [
+        picker_id["index"]
+        for picker_id in color_picker_ids
+        if isinstance(picker_id, dict)
+        and picker_id.get("type") == "color-picker"
+    ]
+
+    if existing_genomes != genomes:
+
+        color_pickers = build_color_picker(shared_store)
+
+    else:
+
+        color_pickers = no_update
+        root_options = no_update
+
+    # ============================================================
+    # BUILD COLOR DICTIONARY
+    # ============================================================
+
+    colors = {}
+
+    for picker_id, color in zip(color_picker_ids, selected_colors):
+
+        if (isinstance(picker_id, dict) and picker_id.get("type") == "color-picker"):
+            genome = picker_id.get("index")
+
+            if (
+                    genome is not None
+                    and color
+                    and color.lower() != "#000000"
+            ):
+                colors[genome] = color
+
+    # ============================================================
+    # TREE DATA
+    # ============================================================
     if phylo_data is None:
         phylo_data = {}
-    #Update to load automatically the last computed global graph
-    if "newick_global" not in phylo_data and status_data is None or "status" not in status_data or status_data["status"] != "running":
-        global_newick = get_existing_global_tree(method=method,  chromosome=chromosome)
+
+    if (
+        "newick_global" not in phylo_data
+        and (
+            status_data is None
+            or "status" not in status_data
+            or status_data["status"] != "running"
+        )
+    ):
+        global_newick = get_existing_global_tree(method=method,chromosome=chromosome)
+
         if global_newick:
             phylo_data["newick_global"] = global_newick
-    message = phylo_data.get("message", "")
-    if "newick_region" in phylo_data and phylo_data["newick_region"] is not None:
-        elements_region = generate_elements(phylo_data["newick_region"])
-    if "newick_global" in phylo_data:
-        elements_global = generate_elements(phylo_data["newick_global"])
-    #Display last tree button if a tree has already been computed
 
-    return message, elements_global, elements_region, spinner_container, button_search, button_load, button_cancel
+    message = phylo_data.get("message", "")
+    if ("newick_region" in phylo_data and phylo_data["newick_region"] is not None):
+        elements_region = generate_elements(phylo_data["newick_region"],colors=colors,root=root)
+
+    if "newick_global" in phylo_data:
+        elements_global = generate_elements(phylo_data["newick_global"],colors=colors,root=root)
+
+    return (
+        message,
+        elements_global,
+        elements_region,
+        spinner_container,
+        button_search,
+        button_cancel,
+        color_pickers,
+        root_options
+    )

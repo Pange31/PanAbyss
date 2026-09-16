@@ -10,11 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [1.5.0]
 ### Added
 - Highlight selected region on the graph in the shared regions discovery page (double click on a region)
+- Add rooting on phylogenetic tree page
+- Add coloration on phylogenetic tree page
 
 ### Changed
 - Slider in shared regions discovery to filter nodes by pvalue (filter by pval from 1 to 10^-10) or size (filter from 1 to 1000)
 - Use docker compose instead of docker to launch neo4j db
-- Annotations loading: excluse large region like chromosome
+- Annotations loading: exclude large region like chromosome
+- Phylogenetic page design
 
 ### Fixed
 - Node and edge information display
