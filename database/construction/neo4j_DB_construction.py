@@ -529,7 +529,8 @@ def create_indexes(base=True, extend=False, genomes_index=False):
                 "CREATE INDEX AnnotationIndexGeneName IF NOT EXISTS FOR (a:Annotation) ON (a.gene_name)",
                 "CREATE INDEX AnnotationIndexGenomeRef IF NOT EXISTS FOR (a:Annotation) ON (a.genome_ref)",
                 "CREATE INDEX AnnotationIndexAnnotationSearch IF NOT EXISTS FOR (a:Annotation) ON (a.genome_ref, a.chromosome, a.start, a.end)",
-                "CREATE INDEX SequenceIndexName IF NOT EXISTS FOR (s:Sequence) ON (s.name)"
+                "CREATE INDEX SequenceIndexName IF NOT EXISTS FOR (s:Sequence) ON (s.name)",
+                "CREATE INDEX NodeIndexMeanPosition IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.position_mean)"
             ]
         with session.begin_transaction() as tx:
             for query in indexes_queries:
@@ -554,9 +555,6 @@ def create_indexes(base=True, extend=False, genomes_index=False):
                 all_genomes = record["all_genomes"]
             nb_genomes = len(all_genomes)
             logger.info(all_genomes)
-            logger.info("creating indexes for position_mean ")
-            indexes_queries = [
-                "CREATE INDEX NodeIndexMeanPosition IF NOT EXISTS FOR (n:Node) ON (n.chromosome, n.position_mean)"]
             for g in all_genomes:
                 logger.info(
                     "creating indexes for genome " + g + " (" + str(current_genome + 1) + "/" + str(nb_genomes) + ")")
