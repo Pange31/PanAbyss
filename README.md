@@ -16,8 +16,17 @@ It allows the following functionalities:
 - Compute a global phylogenetic tree or a local phylogenetic tree from a selected region (neighbour joining with a distance matrix based on Jaccard index)
 - Visualize a region and annotation of the pangenome
 
+## Demo
+
+Two demos are available:
+
+- **Bovine - chr6**: [Open demo](https://panabyss-dev.toulouse.inrae.fr/)
+- **HPRC pangenome**: [Open demo](https://panabys.toulouse.inrae.fr/)
+
+
 ![TP53 Gene visualization](assets/images/TP53_gene.png)
-*Figure 1 – Visualization of TP53 gene on HPRC pangenome (orange path is GRCh38 path, exons are shown in green).*
+*Figure 1 – Visualization of TP53 gene on HPRC pangenome (red path is GRCh38 path, exons are shown in green).*
+
 
 ## Installation 
 ### Requirements
