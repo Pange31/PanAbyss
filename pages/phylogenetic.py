@@ -319,7 +319,7 @@ def layout():
                 })
 
             ], style={
-                "width": "48%",
+                "width": "calc(50% - 1px)",
                 "minWidth": "0",
                 "boxSizing": "border-box"
             }),
@@ -430,9 +430,8 @@ def layout():
                 })
 
             ], style={
-                "width": "48%",
+                "width": "calc(50% - 1px)",
                 "minWidth": "0",
-                "marginLeft": "4%",
                 "boxSizing": "border-box"
             })
 
@@ -440,7 +439,7 @@ def layout():
             "width": "100%",
             "display": "flex",
             "alignItems": "flex-start",
-            "gap": "4%",
+            "gap": "2px",
             "boxSizing": "border-box",
             "minWidth": "0"
         }),
@@ -659,29 +658,36 @@ def layout():
                     }
                 ),
 
-                cyto.Cytoscape(
-                    id='cytoscape-phylo',
-                    elements=[],
-                    stylesheet=stylesheet,
-                    layout={
-                        'name': 'preset'
-                    },
+                html.Div(
+                    cyto.Cytoscape(
+                        id='cytoscape-phylo',
+                        elements=[],
+                        stylesheet=stylesheet,
+                        layout={
+                            'name': 'preset'
+                        },
+                        style={
+                            "width": "100%",
+                            "height": "1000px"
+                        },
+                        zoomingEnabled=True,
+                        userZoomingEnabled=True,
+                        wheelSensitivity=0.1,
+                        autounselectify=False,
+                        boxSelectionEnabled=True,
+                    ),
                     style={
-                        "width": "100%",
-                        "height": "1000px"
-                    },
-                    zoomingEnabled=True,
-                    userZoomingEnabled=True,
-                    wheelSensitivity=0.1,
-                    autounselectify=False,
-                    boxSelectionEnabled=True,
-                )
+                        'width': '100%',
+                        'boxSizing': 'border-box',
+                    }
+                ),
 
             ], style={
-                "width": "48%",
+                "width": "calc(50% - 1px)",
                 "minWidth": "0",
                 "boxSizing": "border-box"
             }),
+
 
 
             # ========================================================
@@ -723,29 +729,34 @@ def layout():
                         "marginBottom": "8px"
                     }
                 ),
-
-                cyto.Cytoscape(
-                    id='cytoscape-phylo-region',
-                    elements=[],
-                    stylesheet=stylesheet,
-                    layout={
-                        'name': 'preset'
-                    },
+                html.Div(
+                    cyto.Cytoscape(
+                        id='cytoscape-phylo-region',
+                        elements=[],
+                        stylesheet=stylesheet,
+                        layout={
+                            'name': 'preset'
+                        },
+                        style={
+                            "width": "100%",
+                            "height": "1000px"
+                        },
+                        zoomingEnabled=True,
+                        userZoomingEnabled=True,
+                        wheelSensitivity=0.1,
+                        autounselectify=False,
+                        boxSelectionEnabled=True,
+                    ),
                     style={
-                        "width": "100%",
-                        "height": "1000px"
-                    },
-                    zoomingEnabled=True,
-                    userZoomingEnabled=True,
-                    wheelSensitivity=0.1,
-                    autounselectify=False,
-                    boxSelectionEnabled=True,
-                )
+                        'width': '100%',
+                        'boxSizing': 'border-box',
+                    }
+                ),
+
 
             ], style={
-                "width": "48%",
+                "width": "calc(50% - 1px)",
                 "minWidth": "0",
-                "marginLeft": "4%",
                 "boxSizing": "border-box"
             })
 
@@ -753,7 +764,7 @@ def layout():
             "width": "100%",
             "display": "flex",
             "alignItems": "flex-start",
-            "gap": "4%",
+            "gap": "13px",
             "boxSizing": "border-box",
             "minWidth": "0"
         })
