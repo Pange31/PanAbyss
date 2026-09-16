@@ -510,14 +510,6 @@ def layout():
                                     multiple=False
                                 ),
 
-                                html.Div(
-                                    id='upload-status',
-                                    style={
-                                        "marginTop": "4px",
-                                        "lineHeight": "15px"
-                                    }
-                                )
-
                             ],
                             style={
                                 "marginBottom": "15px"
@@ -654,7 +646,13 @@ def layout():
                 #         "marginBottom": "8px"
                 #     }
                 # ),
-
+                html.Div(
+                    id='upload-status',
+                    style={
+                        "marginTop": "4px",
+                        "lineHeight": "15px"
+                    }
+                ),
                 html.Div(
                     cyto.Cytoscape(
                         id='cytoscape-phylo',
