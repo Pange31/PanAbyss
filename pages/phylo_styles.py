@@ -39,6 +39,9 @@ stylesheet = [
         'selector': '.terminal',
         'style': {
             'label': 'data(name)',
+            "font-family": "Arial, Helvetica, sans-serif",
+            "font-size": 60,
+            "font-weight": 500,
             'width': 10,
             'height': 10,
             "text-valign": "center",
@@ -50,6 +53,9 @@ stylesheet = [
         'selector': '.colored-terminal',
         'style': {
             'label': 'data(name)',
+            "font-family": "Arial, Helvetica, sans-serif",
+            "font-size": 60,
+            "font-weight": 500,
             'width': 10,
             'height': 10,
             "text-valign": "center",

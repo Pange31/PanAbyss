@@ -40,9 +40,9 @@ PARAM_CONTAINER_STYLE = {
 PARAM_STYLE = {
     "display": "flex",
     "flexDirection": "column",
-    "gap": "6px",
+    "gap": "4px",
     "minWidth": "130px",
-    "padding": "10px",
+    "padding": "6px",
     "border": "1px solid #e5e5e5",
     "borderRadius": "8px",
     "backgroundColor": "white",
@@ -50,10 +50,11 @@ PARAM_STYLE = {
     "boxSizing": "border-box",
 }
 
+
 ACTION_BUTTON_STYLE = {
-    "padding": "10px 18px",
-    "fontSize": "15px",
-    "minHeight": "42px",
+    "padding": "5px 12px",
+    "fontSize": "14px",
+    "minHeight": "28px",
 }
 
 
@@ -135,10 +136,10 @@ def layout():
             html.Div([
 
                 html.H3(
-                    "Global tree parameters",
+                    "Global tree",
                     style={
                         "marginTop": "0",
-                        "marginBottom": "8px"
+                        "marginBottom": "4px"
                     }
                 ),
 
@@ -309,8 +310,6 @@ def layout():
                 ], style={
                     **PARAM_CONTAINER_STYLE,
                     "width": "calc(100% - 10px)",
-                    "minHeight": "165px",
-                    "height": "auto",
                     "padding": "10px",
                     "gap": "6px",
                     "alignContent": "flex-start",
@@ -332,10 +331,10 @@ def layout():
             html.Div([
 
                 html.H3(
-                    "Local tree parameters",
+                    "Local tree",
                     style={
                         "marginTop": "0",
-                        "marginBottom": "8px"
+                        "marginBottom": "4px"
                     }
                 ),
 
@@ -420,8 +419,6 @@ def layout():
                 ], style={
                     **PARAM_CONTAINER_STYLE,
                     "width": "calc(100% - 10px)",
-                    "minHeight": "165px",
-                    "height": "auto",
                     "padding": "10px",
                     "gap": "6px",
                     "alignContent": "flex-start",
@@ -622,7 +619,7 @@ def layout():
             style={
                 "width": "100%",
                 "marginTop": "2px",
-                "marginBottom": "10px"
+                "marginBottom": "5px"
             }
         ),
 
@@ -650,13 +647,13 @@ def layout():
 
             html.Div([
 
-                html.H3(
-                    "Global tree",
-                    style={
-                        "marginTop": "2px",
-                        "marginBottom": "8px"
-                    }
-                ),
+                # html.H3(
+                #     "Global tree",
+                #     style={
+                #         "marginTop": "2px",
+                #         "marginBottom": "8px"
+                #     }
+                # ),
 
                 html.Div(
                     cyto.Cytoscape(
@@ -722,13 +719,13 @@ def layout():
                 # Local tree
                 # ----------------------------------------------------
 
-                html.H3(
-                    "Local tree",
-                    style={
-                        "marginTop": "2px",
-                        "marginBottom": "8px"
-                    }
-                ),
+                # html.H3(
+                #     "Local tree",
+                #     style={
+                #         "marginTop": "2px",
+                #         "marginBottom": "8px"
+                #     }
+                # ),
                 html.Div(
                     cyto.Cytoscape(
                         id='cytoscape-phylo-region',

@@ -40,12 +40,14 @@ def generate_elements(
     ylen=30,
     grabbable=False,
     colors=None,
-    root=None
+    root=None,
+    branch_depth_ratio=1
 ):
     if colors is None:
         colors = {}
 
     tree = Phylo.read(io.StringIO(newick_str), "newick")
+
 
     if root == "midpoint":
         tree.root_at_midpoint()
@@ -67,7 +69,7 @@ def generate_elements(
         taxa = tree.get_terminals()
 
         max_label_width = max(len(str(taxon)) for taxon in taxa)
-        drawing_width = column_width - max_label_width - 1
+        drawing_width = (column_width - max_label_width - 1)*branch_depth_ratio
 
         depths = tree.depths()
 
