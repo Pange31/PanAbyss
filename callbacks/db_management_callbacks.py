@@ -743,6 +743,7 @@ def create_db_launch(trigger_data, data, children):
         chromosomes_stats = {}
         #Check if gfa files are selected
         selected_files = [c_id['index'] for c_val, c_id in zip(checkbox_values, checkbox_ids) if c_val]
+        start_time = time.time()
         if selected_files:
 
             invalid_files = [f for f in selected_files if not f.lower().endswith(".gfa")]
@@ -781,7 +782,7 @@ def create_db_launch(trigger_data, data, children):
                     shutil.rmtree(IMPORT_FOLDER)
                     os.makedirs(IMPORT_FOLDER)
             for file_name, chromosome_file in zip(selected_files, list_chromosome_file):
-                start_time = time.time()
+
                 if chromosome_file != "":
                     chrom = chromosome_file
                 else:
@@ -796,7 +797,7 @@ def create_db_launch(trigger_data, data, children):
                 genomes_set = genomes_set | genomes_analysed
                 chromosomes_stats = chromosomes_stats | chromosomes_analysed
                 logger.info(f"CSV generation from {file_name} loaded in {time.time() - start_time:.2f} s")
-        logger.info("All import files have been generated from gfa files in {time.time() - start_time:.2f} s, creating database.")
+        logger.info(f"All import files have been generated from gfa files in {time.time() - start_time:.2f} s, creating database.")
         creation_mode = create_db(container_name_prefixed, docker_image)
         # If creation by importing csv files it is necessary to create stats and indexes
         if creation_mode == "csv":
