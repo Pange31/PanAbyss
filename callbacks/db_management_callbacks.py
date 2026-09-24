@@ -798,7 +798,8 @@ def create_db_launch(trigger_data, data, children):
                 chromosomes_stats = chromosomes_stats | chromosomes_analysed
                 logger.info(f"CSV generation from {file_name} loaded in {time.time() - start_time:.2f} s")
         logger.info(f"All import files have been generated from gfa files in {time.time() - start_time:.2f} s, creating database.")
-        creation_mode = create_db(container_name_prefixed, docker_image)
+        docker = get_docker()
+        creation_mode = create_db(container_name_prefixed, docker_image, docker)
         # If creation by importing csv files it is necessary to create stats and indexes
         if creation_mode == "csv":
             stats = False
