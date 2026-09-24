@@ -26,12 +26,11 @@ Check and apply required updates for retrocompatibility.
 """
 def check_updates():
     migrate_neo4j_directory_structure()
-    deactivate_neo4j_auth()
 
 """
     For migration from <= 1.5.0 to >= 1.6.0 versions
     Migrate the old Neo4j directory structure.
-    
+    And deactivate neo4j authentification.
     Old structure:
         data/
             data/
@@ -86,7 +85,7 @@ def migrate_neo4j_directory_structure():
             "No migration required."
         )
         return
-
+    deactivate_neo4j_auth()
     logger.info(
         "🔄 Old Neo4j directory structure detected. "
         "Starting migration..."
