@@ -215,7 +215,7 @@ if [ "${CREATE_DATABASE:-0}" -eq 1 ]; then
     fi
 
     python3 - << EOF
-from neo4j_container_management import create_db
+from docker_management.neo4j_container_management import create_db
 create_db("${DATABASE_NAME}", docker=$DOCKER)
 EOF
 
