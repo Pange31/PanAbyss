@@ -362,7 +362,7 @@ def start_container():
             "--bind", f"{NEO4J_BASE_DIR}/logs:/var/lib/neo4j/logs",
             "--bind", f"{DATA_BASE_DIR}/conf:/conf",
             "--bind", f"{DATA_BASE_DIR}/import:/import",
-            "--bind", f"{DATA_BASE_DIR}/run:/var/lib/neo4j/run",
+            "--bind", f"{NEO4J_RUN_DIR}:/var/lib/neo4j/run",
             "--bind", f"{NEO4J_BASE_DIR}/plugins:/var/lib/neo4j/plugins",
 
             f"docker://{DOCKER_IMAGE}",
@@ -445,12 +445,13 @@ def write_config(container_name, HTTP_PORT=7474, BOLT_PORT=7687, docker=True):
         config = default_config
         NEO4J_AUTH = f"{config['login']}/{config['password']}"
     #Create docker compose file
-    compose_file = create_docker_compose_file(
-        container_name,
-        HTTP_PORT,
-        BOLT_PORT,
-        NEO4J_AUTH
-    )
+    if docker :
+        compose_file = create_docker_compose_file(
+            container_name,
+            HTTP_PORT,
+            BOLT_PORT,
+            NEO4J_AUTH
+        )
 
     # Write configuration back to file
     try:
