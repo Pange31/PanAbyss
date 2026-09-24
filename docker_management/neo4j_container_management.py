@@ -19,20 +19,23 @@ from pathlib import Path
 import re
 
 
-
 logger = logging.getLogger("panabyss_logger")
 
 # --- CONSTANTES ---
 DOCKER_IMAGE = "neo4j:2025.05-community-bullseye"
-NEO4J_BASE_DIR = os.path.abspath("./data")
-CONF_FILE = os.path.abspath("./data/conf/neo4j.conf")
-CONF_SOURCE_FILE = os.path.abspath("./install/conf/neo4j.conf")
-CONF_FILE = os.path.abspath("./conf.json")
-DOCKER_COMPOSE_FILE = os.path.abspath("./docker_management/docker-compose.yml")
-IMPORT_DIR = os.path.abspath("./data/import")
-DUMP_FILE = os.path.join(IMPORT_DIR, "neo4j.dump")
-NEO4J_LOGS_DIR = os.path.abspath("./data/logs")
-NEO4J_RUN_DIR = os.path.abspath("./data/run")
+APP_DIR = Path(__file__).resolve().parents[1]
+DATA_BASE_DIR = APP_DIR / "data"
+NEO4J_BASE_DIR = APP_DIR / "data" / "database"
+NEO4J_CONF_SOURCE_FILE = APP_DIR / "install" / "conf" / "neo4j.conf"
+NEO4J_CONF_FILE = APP_DIR / "data" / "conf" / "neo4j.conf"
+CONF_FILE = APP_DIR / "conf.json"
+DOCKER_COMPOSE_FILE = APP_DIR / "docker_management" / "docker-compose.yml"
+IMPORT_DIR = DATA_BASE_DIR / "import"
+DUMP_FILE = IMPORT_DIR / "neo4j.dump"
+NEO4J_LOGS_DIR = NEO4J_BASE_DIR / "logs"
+NEO4J_PLUGINS_DIR = NEO4J_BASE_DIR / "plugins"
+NEO4J_RUN_DIR = NEO4J_BASE_DIR / "run"
+
 
 
 #MAX_MEM = "24g"
@@ -45,33 +48,38 @@ NEO4J_PASSWORD = "Administrateur"
 
 MAX_TIME_INDEX = 7200
 
-@require_authorization
-def prepare_data_directories_in_container():
-    """
-    Ensure /data/databases/neo4j exists inside the container (run as root to avoid permission issues).
-    """
-    logger.info("🛠️ Preparing data directories inside container...")
-    subprocess.run([
-        "docker", "run", "--rm",
-        "--entrypoint", "mkdir",
-        "--user=root",
-        "-v", f"{NEO4J_BASE_DIR}/data:/data",
-        DOCKER_IMAGE,
-        "-p", "/data/databases/neo4j"
-    ], check=True)
-    logger.info("🛠️ ########## Preparing data directories inside container...")
 
-@require_authorization
-def remove_directories():
-    for folder in ["data", "logs", "plugins"]:
-        path = os.path.join(NEO4J_BASE_DIR, folder)
-        if os.path.exists(path):
-            shutil.rmtree(path)
+"""
+This function will delete neo4j directories and configuration
+"""
+def reset_neo4j_data(delete_import_dir=False):
+
+    if os.path.exists(NEO4J_BASE_DIR):
+        shutil.rmtree(NEO4J_BASE_DIR)
+    if delete_import_dir:
+        if os.path.exists(IMPORT_DIR):
+            shutil.rmtree(IMPORT_DIR)
+    if os.path.exists(DOCKER_COMPOSE_FILE):
+        os.remove(DOCKER_COMPOSE_FILE)
+
+
+
+"""
+This function creates the base neo4j directories
+"""
+def create_neo4j_base_dir():
+    for d in ["database", "conf", "import", "gfa", "annotations"]:
+        path = os.path.join(DATA_BASE_DIR, d)
+        os.makedirs(path, exist_ok=True)
+        os.chmod(path, 0o777)
+    for d in ["data", "logs", "plugins"]:
+        path = os.path.join(NEO4J_BASE_DIR, d)
+        os.makedirs(path, exist_ok=True)
+        os.chmod(path, 0o777)
 
 @require_authorization
 def import_dump():
     logger.info("📂 Importing dump...")
-    prepare_data_directories_in_container()
 
     docker_cmd = [
         "docker", "run", "--rm",
@@ -101,21 +109,22 @@ This function uses the neo4j import procedure
 @require_authorization
 def import_csv(docker=True):
     READ_BUFFER_SIZE = get_conf_read_buffer_size()
-    logger.info(f"📂 Importing CSV - data dir : {NEO4J_BASE_DIR}/data with read buffer size :  {READ_BUFFER_SIZE}...")
+    logger.info(f"📂 Importing CSV - data dir : {DATA_BASE_DIR}/data with read buffer size :  {READ_BUFFER_SIZE}...")
 
     if docker:
-        prepare_data_directories_in_container()
+        data_path = os.path.abspath(os.path.join(NEO4J_BASE_DIR, "data"))
+        import_path = os.path.abspath(IMPORT_DIR)
 
         docker_cmd = [
             "docker", "run", "--rm",
             #f"--cpus={MAX_CPU}",
-            "-v", f"{NEO4J_BASE_DIR}/data:/data",
-            "-v", f"{IMPORT_DIR}:/import",
+            "-v", f"{data_path}:/data",
+            "-v", f"{import_path}:/import",
             "-e", f"NEO4J_AUTH={NEO4J_AUTH}"
         ]
         # Linux/macOS :
-        if hasattr(os, "getuid") and hasattr(os, "getgid"):
-            docker_cmd.extend(["-u", f"{os.getuid()}:{os.getgid()}"])
+        # if hasattr(os, "getuid") and hasattr(os, "getgid"):
+        #     docker_cmd.extend(["-u", f"{os.getuid()}:{os.getgid()}"])
 
         docker_cmd.extend([
             DOCKER_IMAGE,
@@ -129,19 +138,20 @@ def import_csv(docker=True):
         ])
         subprocess.run(docker_cmd, check=True)
     else:
-        data_dir = os.path.join(NEO4J_BASE_DIR, "../data")
+        data_dir = os.path.join(DATA_BASE_DIR, "../data")
         neo4j_db_dir = os.path.join(data_dir, "databases", "neo4j")
 
         logger.info("🛠️ Preparing host directories for Apptainer...")
 
-        os.makedirs(neo4j_db_dir, exist_ok=True)
-        os.makedirs(IMPORT_DIR, exist_ok=True)
-        os.makedirs(NEO4J_LOGS_DIR, exist_ok=True)
-        os.makedirs(NEO4J_RUN_DIR, exist_ok=True)
+        os.makedirs(NEO4J_BASE_DIR, mode=0o777, exist_ok=True)
+        os.makedirs(IMPORT_DIR, mode=0o777, exist_ok=True)
+        os.makedirs(NEO4J_LOGS_DIR, mode=0o777, exist_ok=True)
+        os.makedirs(NEO4J_PLUGINS_DIR, mode=0o777, exist_ok=True)
+        os.makedirs(NEO4J_RUN_DIR, mode=0o777, exist_ok=True)
         logger.info("🛠️ Directories ready on host filesystem.")
 
         logger.info(
-            f"📂 Importing CSV - data dir : {NEO4J_BASE_DIR}/data with read buffer size :  {READ_BUFFER_SIZE}...")
+            f"📂 Importing CSV - data dir : {DATA_BASE_DIR}/data with read buffer size :  {READ_BUFFER_SIZE}...")
 
         apptainer_cmd = [
             "apptainer", "exec",
@@ -183,8 +193,6 @@ def create_docker_compose_file(
     remove_container(container_name, docker=True)
     compose_file.parent.mkdir(parents=True, exist_ok=True)
 
-    neo4j_base_dir = str(NEO4J_BASE_DIR).replace("\\", "/")
-
     compose_lines = [
         "services:",
         "  neo4j:",
@@ -192,11 +200,10 @@ def create_docker_compose_file(
         f"    image: {DOCKER_IMAGE}",
     ]
 
-    if hasattr(os, "getuid") and hasattr(os, "getgid"):
-        compose_lines.append(
-            f'    user: "{os.getuid()}:{os.getgid()}"'
-        )
-
+    # if hasattr(os, "getuid") and hasattr(os, "getgid"):
+    #     compose_lines.append(
+    #         f'    user: "{os.getuid()}:{os.getgid()}"'
+    #     )
     compose_lines.extend([
         "    environment:",
         f'      NEO4J_AUTH: "{auth}"',
@@ -209,11 +216,11 @@ def create_docker_compose_file(
         f'      - "{http_port}:7474"',
         f'      - "{bolt_port}:7687"',
         "    volumes:",
-        f'      - "{neo4j_base_dir}/data:/data"',
-        f'      - "{neo4j_base_dir}/logs:/logs"',
-        f'      - "{neo4j_base_dir}/conf:/conf"',
-        f'      - "{neo4j_base_dir}/import:/import"',
-        f'      - "{neo4j_base_dir}/plugins:/plugins"',
+        '      - "../data/database/data:/data"',
+        '      - "../data/database/logs:/logs"',
+        '      - "../data/conf:/conf"',
+        '      - "../data/import:/import"',
+        '      - "../data/database/plugins:/plugins"',
     ])
 
     compose_content = "\n".join(compose_lines) + "\n"
@@ -353,9 +360,9 @@ def start_container():
 
             "--bind", f"{NEO4J_BASE_DIR}/data:/var/lib/neo4j/data",
             "--bind", f"{NEO4J_BASE_DIR}/logs:/var/lib/neo4j/logs",
-            "--bind", f"{NEO4J_BASE_DIR}/conf:/conf",
-            "--bind", f"{NEO4J_BASE_DIR}/import:/import",
-            "--bind", f"{NEO4J_BASE_DIR}/run:/var/lib/neo4j/run",
+            "--bind", f"{DATA_BASE_DIR}/conf:/conf",
+            "--bind", f"{DATA_BASE_DIR}/import:/import",
+            "--bind", f"{DATA_BASE_DIR}/run:/var/lib/neo4j/run",
             "--bind", f"{NEO4J_BASE_DIR}/plugins:/var/lib/neo4j/plugins",
 
             f"docker://{DOCKER_IMAGE}",
@@ -609,23 +616,22 @@ def create_db(container_name, docker_image=DOCKER_IMAGE, docker=True):
     # Stop container
     remove_container(container_name, docker=docker)
     
-    data_db_dir = os.path.join(NEO4J_BASE_DIR, "../data", "databases", "neo4j")
+    #data_db_dir = os.path.join(DATA_BASE_DIR, "../data", "databases", "neo4j")
     csv_nodes = os.path.join(IMPORT_DIR, "nodes.csv")
     csv_relations = os.path.join(IMPORT_DIR, "relations.csv")
     csv_sequences = os.path.join(IMPORT_DIR, "sequences.csv")
     
-    if os.path.exists(data_db_dir) and os.listdir(data_db_dir):
-        remove_directories()
-    for d in ["data", "logs", "conf", "import", "plugins", "gfa", "annotations", "data/databases", "data/databases/neo4j"]:
-        os.makedirs(os.path.join(NEO4J_BASE_DIR, d), exist_ok=True)
-   
+    #if os.path.exists(data_db_dir) and os.listdir(data_db_dir):
+    reset_neo4j_data()
+    create_neo4j_base_dir()
+
     # copy conf file
-    if not os.path.isfile(CONF_FILE) and os.path.isfile(CONF_SOURCE_FILE):
-        shutil.copy(CONF_SOURCE_FILE, os.path.join(NEO4J_BASE_DIR, "conf"))
+    if not os.path.isfile(NEO4J_CONF_FILE) and os.path.isfile(NEO4J_CONF_SOURCE_FILE):
+        shutil.copy(NEO4J_CONF_SOURCE_FILE, os.path.join(DATA_BASE_DIR, "conf"))
         logger.info("🔧 Config file copied")
     else:
-        if not os.path.isfile(CONF_SOURCE_FILE):
-            logger.warning(f"⚠️ Config file {CONF_SOURCE_FILE} not found")
+        if not os.path.isfile(NEO4J_CONF_SOURCE_FILE):
+            logger.warning(f"⚠️ Config file {NEO4J_CONF_SOURCE_FILE} not found")
     
     # --- Import via dump ---
     if os.path.isfile(DUMP_FILE):
@@ -637,12 +643,6 @@ def create_db(container_name, docker_image=DOCKER_IMAGE, docker=True):
         logger.info("📥 Detected CSV files for import")
         import_csv(docker=docker)
         csv_import_mode = True
-    # --- New databse creation --- #
-    else :
-        remove_directories()
-        # Directories creation
-        for d in ["data", "logs", "conf", "import", "plugins", "gfa", "annotations"]:
-            os.makedirs(os.path.join(NEO4J_BASE_DIR, d), exist_ok=True)
     
     
     # Save container conf in db_conj.json

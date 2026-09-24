@@ -33,6 +33,7 @@ import logging
 
 from sqlite_gwas_requests import *
 from sqlite_phylo_requests import *
+from scripts.update_retrocompatibility import *
 
 app.config.suppress_callback_exceptions = True
 logger = logging.getLogger("panabyss_logger")
@@ -58,8 +59,8 @@ signal.signal(signal.SIGTERM, clean_exit)
 
 logger.info(f"Server mode : {SERVER_MODE} - Admin mode : {ADMIN_MODE}")
 
-
-
+print("Checking retrocompatibility...")
+check_updates()
 start_container()
 init_gwas_db()
 init_phylo_db()
@@ -364,6 +365,7 @@ def run():
     logger.info(
         f"all genomes: {get_genomes()} - chromosomes: {get_chromosomes()} - features: {get_annotations_features()}")
     purge_running_gwas_jobs()
+
     port = args.port or int(8050)
     print("SERVER START")
     app.run(debug=True, port = port)

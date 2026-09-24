@@ -520,14 +520,8 @@ def confirm_delete_data(n_clicks, data):
     stop_container()
     logger.info(f"Deleting following data : {DATA_FOLDER} and {IMPORT_FOLDER} directories, {DOCKER_COMPOSE_CONF_PATH} and {CONF_FILE} files.")
     try:
-        if os.path.exists(DATA_FOLDER):
-            shutil.rmtree(DATA_FOLDER)
-            os.makedirs(DATA_FOLDER)
-        if os.path.exists(IMPORT_FOLDER):
-            shutil.rmtree(IMPORT_FOLDER)
-            os.makedirs(IMPORT_FOLDER)
-        if os.path.exists(DOCKER_COMPOSE_CONF_PATH):
-            os.remove(DOCKER_COMPOSE_CONF_PATH)
+        reset_neo4j_data(delete_import_dir=True)
+        create_neo4j_base_dir()
 
         if os.path.exists(CONF_FILE):
             #Reset container name in conf file
