@@ -370,7 +370,27 @@ def start_container():
             "console"
         ]
 
-        subprocess.Popen(cmd)
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        logger.info(f"Neo4j Apptainer PID: {process.pid}")
+
+        time.sleep(2)
+
+        if process.poll() is not None:
+            stdout, stderr = process.communicate()
+
+            logger.error(
+                f"Neo4j exited immediately with code {process.returncode}"
+            )
+            logger.error(f"STDOUT:\n{stdout}")
+            logger.error(f"STDERR:\n{stderr}")
+
+            return False
 
     time.sleep(10)
 
@@ -556,7 +576,6 @@ This function Stops and removes a Docker container or Apptainer instance if it e
 Does nothing if it does not exist.
 """
 def remove_container(container_name: str, docker=True):
-
     try:
         # -----------------------
         # DOCKER MODE
@@ -595,7 +614,6 @@ def remove_container(container_name: str, docker=True):
                     ["apptainer", "instance", "stop", container_name],
                     check=True
                 )
-
     except subprocess.CalledProcessError as e:
         logger.error(f"❌ Error while removing container/instance: {e}")
 

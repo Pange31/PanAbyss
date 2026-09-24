@@ -269,6 +269,9 @@ def get_max_nodes_from_db():
     conf=get_conf()
     return conf["MAX_NODES_FROM_DB"]
 
+def get_docker():
+    conf=get_conf()
+    return conf["DOCKER"]
 
 def get_gwas_conf():
     if CONF:
