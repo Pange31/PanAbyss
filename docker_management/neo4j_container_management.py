@@ -120,7 +120,7 @@ def import_csv(docker=True):
             #f"--cpus={MAX_CPU}",
             "-v", f"{data_path}:/data",
             "-v", f"{import_path}:/import",
-            "-e", f"NEO4J_AUTH={NEO4J_AUTH}"
+            #"-e", f"NEO4J_AUTH={NEO4J_AUTH}"
         ]
         # Linux/macOS :
         # if hasattr(os, "getuid") and hasattr(os, "getgid"):
@@ -159,7 +159,7 @@ def import_csv(docker=True):
             "--bind", f"{NEO4J_BASE_DIR}/data:/data",
             "--bind", f"{IMPORT_DIR}:/import",
             "--bind", f"{NEO4J_BASE_DIR}/logs:/var/lib/neo4j/logs",
-            "--env", f"NEO4J_AUTH={NEO4J_AUTH}",
+            #"--env", f"NEO4J_AUTH={NEO4J_AUTH}",
             f"docker://{DOCKER_IMAGE}",
 
             "neo4j-admin", "database", "import", "full",
@@ -304,8 +304,7 @@ def start_container():
         compose_file = create_docker_compose_file(
             container_name,
             HTTP_PORT,
-            BOLT_PORT,
-            NEO4J_AUTH,
+            BOLT_PORT
         )
 
 
@@ -348,7 +347,7 @@ def start_container():
             "apptainer",
             "exec",
 
-            "--env", f"NEO4J_AUTH={NEO4J_AUTH}",
+            #"--env", f"NEO4J_AUTH={NEO4J_AUTH}",
             "--env", "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes",
             "--env", "NEO4J_apoc_export_file_enabled=true",
             "--env", "NEO4J_apoc_import_file_enabled=true",
@@ -360,7 +359,7 @@ def start_container():
 
             "--bind", f"{NEO4J_BASE_DIR}/data:/var/lib/neo4j/data",
             "--bind", f"{NEO4J_BASE_DIR}/logs:/var/lib/neo4j/logs",
-            "--bind", f"{DATA_BASE_DIR}/conf:/conf",
+            "--bind", f"{DATA_BASE_DIR}/conf:/var/lib/neo4j/conf",
             "--bind", f"{DATA_BASE_DIR}/import:/import",
             "--bind", f"{NEO4J_RUN_DIR}:/var/lib/neo4j/run",
             "--bind", f"{NEO4J_BASE_DIR}/plugins:/var/lib/neo4j/plugins",
@@ -469,8 +468,7 @@ def write_config(container_name, HTTP_PORT=7474, BOLT_PORT=7687, docker=True):
         compose_file = create_docker_compose_file(
             container_name,
             HTTP_PORT,
-            BOLT_PORT,
-            NEO4J_AUTH
+            BOLT_PORT
         )
 
     # Write configuration back to file

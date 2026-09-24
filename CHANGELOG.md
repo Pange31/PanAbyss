@@ -13,7 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 - Neo4j data directories moved => data/data, data/logs and data/plugins moved into data/database directory
 - No user used to launch docker compose to improve compatibility with external SSD
-
+- Deactivate neo4 authentification
+- 
 ### Fixed
 - 
 

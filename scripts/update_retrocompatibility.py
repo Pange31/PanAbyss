@@ -6,6 +6,7 @@ import platform
 import shutil
 import logging
 from pathlib import Path
+import re
 
 
 logger = logging.getLogger("panabyss_logger")
@@ -16,10 +17,6 @@ def check_updates():
 
 # This file defines functions used for retrocompatibility
 
-import os
-import shutil
-import logging
-from pathlib import Path
 
 
 logger = logging.getLogger("panabyss_logger")
@@ -29,6 +26,7 @@ Check and apply required updates for retrocompatibility.
 """
 def check_updates():
     migrate_neo4j_directory_structure()
+    deactivate_neo4j_auth()
 
 """
     For migration from <= 1.5.0 to >= 1.6.0 versions
@@ -289,3 +287,49 @@ def migrate_neo4j_directory_structure():
         "✅ Neo4j directory migration completed."
     )
 
+"""
+    For migration from <= 1.5.0 to >= 1.6.0 versions
+    deactivate neo4j authentification
+    dbms.security.auth_enabled is set to false
+"""
+def deactivate_neo4j_auth():
+    app_dir = Path(__file__).resolve().parents[1]
+    neo4j_conf_file = app_dir / "data" / "conf" / "neo4j.conf"
+    conf_file = Path(neo4j_conf_file)
+    parameter = "dbms.security.auth_enabled"
+
+    if not conf_file.exists():
+        logger.error(f"❌ Neo4j config file not found: {conf_file}")
+        return False
+
+    try:
+        content = conf_file.read_text(encoding="utf-8")
+        pattern = re.compile(
+            rf"^(\s*#?\s*{re.escape(parameter)}\s*=).*$",
+            re.MULTILINE
+        )
+
+        if pattern.search(content):
+            content = pattern.sub(
+                rf"\1false",
+                content
+            )
+        else:
+            if content and not content.endswith("\n"):
+                content += "\n"
+
+            content += f"{parameter}=false\n"
+
+        conf_file.write_text(content, encoding="utf-8")
+
+        logger.info(
+            f"🔓 Neo4j authentication disabled in {conf_file}"
+        )
+
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"❌ Failed to disable Neo4j authentication: {e}"
+        )
+        return False

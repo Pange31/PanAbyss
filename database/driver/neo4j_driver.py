@@ -42,7 +42,6 @@ def get_driver(max_retries=5, retry_delay=10):
             try:
                 driver = GraphDatabase.driver(
                     DB_URL,
-                    auth=AUTH,
                     max_connection_lifetime=3600,
                     liveness_check_timeout=10,
                     max_connection_pool_size=100,
@@ -99,14 +98,12 @@ def get_scoped_driver(max_retries=5, retry_delay=10):
         try:
             driver = GraphDatabase.driver(
                 DB_URL,
-                auth=AUTH,
                 max_connection_lifetime=3600,
                 liveness_check_timeout=10,
                 max_connection_pool_size=20,
                 connection_acquisition_timeout=30,
             )
 
-            # 🔥 test immédiat
             with driver.session() as session:
                 session.run("RETURN 1").consume()
 
