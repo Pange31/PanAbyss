@@ -7,7 +7,7 @@ import shutil
 import logging
 from pathlib import Path
 import re
-
+from utils.base_utils import get_current_version
 
 logger = logging.getLogger("panabyss_logger")
 
@@ -15,11 +15,6 @@ def check_updates():
     #check required update scripts to update from <= 1.5.0 to > 1.6.0 versions
     migrate_neo4j_directory_structure()
 
-# This file defines functions used for retrocompatibility
-
-
-
-logger = logging.getLogger("panabyss_logger")
 
 """
 Check and apply required updates for retrocompatibility.
@@ -74,11 +69,12 @@ def migrate_neo4j_directory_structure():
     old_data_dir = base_dir / "data"
     old_logs_dir = base_dir / "logs"
     old_plugins_dir = base_dir / "plugins"
-
+    old_run_dir = base_dir / "run"
     if not (
             old_data_dir.is_dir()
             or old_logs_dir.is_dir()
             or old_plugins_dir.is_dir()
+            or old_run_dir.is_dir()
     ):
         logger.debug(
             "✅ No old Neo4j directories found. "
@@ -109,7 +105,7 @@ def migrate_neo4j_directory_structure():
             database_dir / "plugins",
         ),
         (
-            old_plugins_dir,
+            old_run_dir,
             database_dir / "run",
         ),
     ]
