@@ -667,8 +667,7 @@ def create_db(container_name, docker_image=DOCKER_IMAGE, docker=True):
     logger.info(f"writing conf for container name : {container_name}")
     write_config(container_name, docker=docker)
     
-    # Launch the container
-    start_container()
+
 
     if csv_import_mode:
         creation_mode = "csv"

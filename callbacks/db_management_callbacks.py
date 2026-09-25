@@ -800,6 +800,8 @@ def create_db_launch(trigger_data, data, children):
         logger.info(f"All import files have been generated from gfa files in {time.time() - start_time:.2f} s, creating database.")
         docker = get_docker()
         creation_mode = create_db(container_name_prefixed, docker_image, docker)
+        # Launch the container
+        start_container()
         # If creation by importing csv files it is necessary to create stats and indexes
         if creation_mode == "csv":
             stats = False
