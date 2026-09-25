@@ -72,10 +72,11 @@ def create_neo4j_base_dir():
         path = os.path.join(DATA_BASE_DIR, d)
         os.makedirs(path, exist_ok=True)
         os.chmod(path, 0o777)
-    for d in ["data", "logs", "plugins"]:
+    for d in ["data", "logs", "plugins","run"]:
         path = os.path.join(NEO4J_BASE_DIR, d)
         os.makedirs(path, exist_ok=True)
         os.chmod(path, 0o777)
+
 
 @require_authorization
 def import_dump():

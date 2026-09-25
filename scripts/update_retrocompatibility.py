@@ -108,6 +108,10 @@ def migrate_neo4j_directory_structure():
             old_plugins_dir,
             database_dir / "plugins",
         ),
+        (
+            old_plugins_dir,
+            database_dir / "run",
+        ),
     ]
 
     # ------------------------------------------------------------------
