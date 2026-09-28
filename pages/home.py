@@ -2566,7 +2566,7 @@ def update_graph(selected_genomes, shared_mode, specifics_genomes, color_genomes
             else:
                 raise PreventUpdate
         if triggered_id == "btn-reset-zoom":
-            if home_data_storage["zoom"] and zoom_shared_storage_out and len(zoom_shared_storage_out) > 0:
+            if "zoom" in home_data_storage and home_data_storage["zoom"] and zoom_shared_storage_out and len(zoom_shared_storage_out) > 0:
                 logger.debug(f"reset zoom to {zoom_shared_storage_out['start']} - {zoom_shared_storage_out['end']}")
                 start_value = zoom_shared_storage_out["start"]
                 end_value = zoom_shared_storage_out["end"]
