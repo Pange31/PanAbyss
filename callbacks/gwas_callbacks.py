@@ -987,6 +987,10 @@ def handle_shared_region_search_click(n_clicks, recompute_chkbx, gwas_genome_sta
         if s == "ignored"
     ]
 
+    if len(selected_genomes) <= 1:
+        return ("❌ At least 2 individuals must be selected.",
+                no_update, no_update, no_update, no_update, no_update, "")
+
     all_genomes = data["genomes"] if data and "genomes" in data else get_genomes()
     if min_node_size is None or min_node_size == "" or not isinstance(min_node_size, int):
         min_node_size = 0
