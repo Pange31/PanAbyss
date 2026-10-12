@@ -1837,7 +1837,7 @@ def find_shared_regions(genomes_list, all_genomes, ignored_genomes=[], genome_re
                     gap = []
                     if is_deletion:
                         for hap in all_genomes:
-                            if hap in r["genomes_deleted_nodes"]:
+                            if hap in r["genomes_deleted_nodes"] and hap + "_position" in r["nodes"]:
                                 start_deletion = min(r["nodes"][hap + "_position"] + r["nodes"]["size"],r["end_deletion_nodes"][hap + "_position"])
                                 end_deletion = max(r["nodes"][hap + "_position"] + r["nodes"]["size"],r["end_deletion_nodes"][hap + "_position"])
                                 mean_start_deletion = min(r["mean_start_deletion"],r["end_deletion_nodes"]["position_mean"])
