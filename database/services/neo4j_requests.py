@@ -469,6 +469,7 @@ def get_nodes_data_from_record(result):
                     transcripts_map[transcript_id] = {
                         "transcript_id": transcript_id,
                         "gene_name": a.get("gene_name"),
+                        "genome_ref":a.get("genome_ref"),
                         "start": a.get("start"),
                         "end": a.get("end"),
                         "exons": []
@@ -490,6 +491,7 @@ def get_nodes_data_from_record(result):
                         "exon_id": exon_id,
                         "start": a.get("start"),
                         "end": a.get("end"),
+                        "genome_ref": a.get("genome_ref"),
                         "transcript_ids": []
                     }
 
@@ -502,6 +504,7 @@ def get_nodes_data_from_record(result):
             for transcript_id in exon["transcript_ids"]:
                 if transcript_id in transcripts_map:
                     transcripts_map[transcript_id]["exons"].append({
+                        "genome_ref": exon["genome_ref"],
                         "exon_id": exon["exon_id"],
                         "start": exon["start"],
                         "end": exon["end"]

@@ -1928,7 +1928,7 @@ def display_element_data(selected_nodes, selected_edges):
                 )
 
             tooltip_lines.append(
-                f"{exon.get('start')} - {exon.get('end')}"
+                f"{exon.get('genome_ref')}:{exon.get('start')} - {exon.get('end')}"
             )
 
             exon_spans.append(
@@ -2125,6 +2125,7 @@ def build_annotations(nodes_data, genes_color=None):
                     transcript_gene = transcript_gene.upper()
 
                 region_transcripts[transcript_id] = {
+                    "genome_ref": transcript["genome_ref"],
                     "start": transcript["start"],
                     "end": transcript["end"],
                     "exons": [],
@@ -2143,19 +2144,20 @@ def build_annotations(nodes_data, genes_color=None):
             exon_id = exon.get("exon_id")
             if exon_id is None:
                 continue
-            exon_id = exon_id.upper()
+            exon_id = exon_id.lower()
             transcript_ids = exon.get("transcript_ids", [])
 
             for transcript_id in transcript_ids:
 
                 if transcript_id is None:
                     continue
-
+                transcript_id = transcript_id.upper()
                 if transcript_id not in region_transcripts:
                     continue
 
                 region_transcripts[transcript_id]["exons"].append({
                     "exon_id": exon_id,
+                    "genome_ref": exon["genome_ref"],
                     "start": exon["start"],
                     "end": exon["end"]
                 })
@@ -2180,10 +2182,13 @@ def build_annotations(nodes_data, genes_color=None):
         exons = list(unique_exons.values())
 
         # sort
-        exons.sort(key=lambda x: (x["start"], x["end"], x["exon_id"]))
+        exons.sort(key=lambda x: (x["genome_ref"], x["start"], x["end"], x["exon_id"]))
 
         exon_ids = [e["exon_id"] for e in exons]
-        transcript_data["exon_chain"] = " - ".join(exon_ids)
+        if len(exon_ids) > 0:
+            transcript_data["exon_chain"] = "\n" + " - ".join(exon_ids)
+        else:
+            transcript_data["exon_chain"] = ""
         transcript_data["exons"] = exon_ids
 
     genes_list = sorted(list(genes_set))
@@ -2196,12 +2201,11 @@ def build_annotations(nodes_data, genes_color=None):
         tooltip_lines = ["transcript_id (start - end) exon_id"]
         for tid in transcripts_for_gene:
             t = region_transcripts.get(tid)
-
             if t is None:
                 continue
 
             tooltip_lines.append(
-                f"{tid} ({t['start']}-{t['end']}) {t.get('exon_chain', '')}"
+                f"{tid} ({t['genome_ref']}:{t['start']}-{t['end']}){t.get('exon_chain', '')}"
             )
         tooltip_text = "\n".join(tooltip_lines) if tooltip_lines else "No transcripts"
 
