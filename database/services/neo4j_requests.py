@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Wed May  7 16:03:15 2025
 
@@ -1238,6 +1236,25 @@ def get_sequence_from_names(names):
             result = session.run(query, names=names)
             return {record["name"]: record["sequence"] for record in result}
 
+
+# This function get a sequence from a list of nodes names list
+def get_sequence_from_ids(ids):
+    driver = get_driver()
+    if driver is None:
+        return None
+
+    if len(ids) == 0:
+        return {}
+    else:
+        query = """
+        MATCH (s:Sequence)
+        WHERE id(s) IN $ids
+        RETURN id(s) as id, s.sequence as sequence
+        """
+
+        with driver.session() as session:
+            result = session.run(query, ids=ids)
+            return {record["id"]: record["sequence"] for record in result}
 
 # This function get a sequence from a start - end / chromosome position for a given genome
 def get_sequence_from_position(genome, chromosome, start, end):
