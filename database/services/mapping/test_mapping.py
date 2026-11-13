@@ -492,7 +492,7 @@ def mutate_dna(sequence, mutation_rate, seed=None):
 
 
 """
-This function will charge a selected csv file containing entries like : gene_name;sequence
+This function will charge a selected csv file containing entries like : gene_name;chromosome;start;stop;sequence
 Then it will search for gene into the gene names of this csv file
 Then if mutation_rate is not None it will mutate the sequence with the desired mutation rate
 Then it will search this sequence into the pangenome graph
@@ -531,15 +531,16 @@ def search_gene(gene, mutation_rate=None):
     if not filepath:
         raise FileNotFoundError("No CSV file was selected.")
 
-
     # --------------------------------------------------
     # 3. Load available genes and search for the requested gene
     # --------------------------------------------------
 
     available_genes = []
     query = None
-    # Increase the maximum CSV field size.
+    gene_metadata = None
+
     csv.field_size_limit(10 ** 8)
+
     with open(filepath, "r", encoding="utf-8-sig", newline="") as csvfile:
 
         reader = csv.DictReader(csvfile, delimiter=";")
@@ -555,49 +556,70 @@ def search_gene(gene, mutation_rate=None):
         if "sequence" not in columns:
             raise ValueError("The CSV file must contain a 'sequence' column.")
 
-        gene_column = columns.get("gene") or columns.get("gene_name")
+        gene_column = (
+            columns.get("gene")
+            or columns.get("gene_name")
+            or columns.get("nom_gene")
+        )
 
         if gene_column is None:
             raise ValueError(
-                "The CSV file must contain a 'gene' or 'nom_gene' column."
+                "The CSV file must contain a 'gene', 'gene_name' or 'nom_gene' column."
             )
 
         sequence_column = columns["sequence"]
 
+        chr_column = columns.get("chr") or columns.get("chromosome")
+        start_column = columns.get("start")
+        stop_column = columns.get("stop")
+
         for row in reader:
 
-            row_gene = row[gene_column].strip()
-            available_genes.append(row_gene)
+            row_gene = (row.get(gene_column) or "").strip()
+
+            if not row_gene:
+                continue
+
+            chromosome = (
+                (row.get(chr_column) or "").strip()
+                if chr_column else None
+            )
+
+            start = (
+                (row.get(start_column) or "").strip()
+                if start_column else None
+            )
+
+            stop = (
+                (row.get(stop_column) or "").strip()
+                if stop_column else None
+            )
+
+            available_genes.append({
+                "gene": row_gene,
+                "chromosome": chromosome or None,
+                "start": start or None,
+                "stop": stop or None,
+            })
 
             if row_gene.lower() == gene.strip().lower():
-                query = row[sequence_column].strip()
+                query = (row.get(sequence_column) or "").strip()
+
+                gene_metadata = {
+                    "chromosome": chromosome or None,
+                    "start": start or None,
+                    "stop": stop or None,
+                }
 
     # --------------------------------------------------
-    # 4. Display available genes
-    # --------------------------------------------------
-
-    print("\n========== AVAILABLE GENES ==========")
-
-    columns_per_row = 4
-
-    for i in range(0, len(available_genes), columns_per_row):
-        row_genes = available_genes[i:i + columns_per_row]
-
-        print(" | ".join(f"{name:<20}" for name in row_genes))
-
-    print(f"\nTotal genes: {len(available_genes)}")
-    print("=====================================\n")
-
-    # --------------------------------------------------
-    # 5. Check requested gene
+    # 4. Check requested gene
     # --------------------------------------------------
 
     if query is None:
         raise ValueError(f"Gene '{gene}' was not found in the CSV file.")
 
-
     # --------------------------------------------------
-    # 6. Apply mutations if requested
+    # 5. Apply mutations if requested
     # --------------------------------------------------
 
     if mutation_rate is not None:
@@ -611,9 +633,56 @@ def search_gene(gene, mutation_rate=None):
         mutate_sequence = query
 
     # --------------------------------------------------
-    # 7. Find regions
+    # 6. Find regions
     # --------------------------------------------------
 
     regions, selected_seeds, all_seeds = find_regions(mutate_sequence)
+
+    # --------------------------------------------------
+    # 7. Display available genes
+    # --------------------------------------------------
+
+    print("\n========== AVAILABLE GENES ==========")
+
+    for metadata in available_genes:
+
+        gene_name = metadata["gene"]
+        chromosome = metadata["chromosome"]
+        start = metadata["start"]
+        stop = metadata["stop"]
+
+        info = []
+
+        if chromosome is not None:
+            info.append(f"chr {chromosome}")
+
+        if start is not None:
+            info.append(f"start {start}")
+
+        if stop is not None:
+            info.append(f"stop {stop}")
+
+        if info:
+            print(f"{gene_name:<25} | {' | '.join(info)}")
+        else:
+            print(gene_name)
+
+    print(f"\nTotal genes: {len(available_genes)}")
+    print("=====================================\n")
+
+    # --------------------------------------------------
+    # 8. Display metadata for the requested gene
+    # --------------------------------------------------
+
+    print(f"Selected gene: {gene}")
+
+    if gene_metadata["chromosome"] is not None:
+        print(f"Chromosome: {gene_metadata['chromosome']}")
+
+    if gene_metadata["start"] is not None:
+        print(f"Start: {gene_metadata['start']}")
+
+    if gene_metadata["stop"] is not None:
+        print(f"Stop: {gene_metadata['stop']}")
 
     return regions, selected_seeds, all_seeds
