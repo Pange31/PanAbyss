@@ -26,7 +26,7 @@ import random
 
 import numpy as np
 
-from database.services.mapping.index_kmer_requests import get_encoded_kmer_node_counts_batch, get_node_sizes_batch
+from database.services.mapping.index_kmer_requests import get_encoded_kmer_node_counts_batch, get_node_sizes_batch, encode_kmers
 from database.services.neo4j_requests import get_nodes_from_sequence_id, get_sequence_from_ids
 
 from database.services.mapping.Query import Query
@@ -790,6 +790,7 @@ float
 """
 def calculate_cluster_synteny(
     seeds,
+    total_query_kmer_count,
     max_kmer_distance=20,
 ):
 
@@ -916,12 +917,12 @@ def calculate_cluster_synteny(
     # --------------------------------------------------------
     # Calculate global synteny.
     # --------------------------------------------------------
-
     synteny, _ = calculate_chains_numba(
         np.ascontiguousarray(anchor_query),
         np.ascontiguousarray(anchor_node),
         np.ascontiguousarray(anchor_orientation),
         max_kmer_distance,
+        total_query_kmer_count
     )
 
     return float(synteny)
@@ -1382,9 +1383,10 @@ def cluster_selected_seeds(
                 for sequence_id in sequence_ids
                 if sequence_id in selected_seeds
             ]
-
+            total_query_kmer_count = len(query.sequence) - query.k + 1
             region_score = calculate_cluster_synteny(
                 seeds=cluster_seeds,
+                total_query_kmer_count = total_query_kmer_count,
                 max_kmer_distance=max_kmer_distance,
             )
 

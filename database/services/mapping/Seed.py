@@ -202,15 +202,15 @@ def build_anchors_numba(
 
 
 """
-Chaining algorithm on a node
-Calculate a chain consistency score from a set of anchor correspondences.
+Synteny scoring algorithm on a node
+Calculate a normalized synteny score from a set of anchor correspondences.
 
 The function identifies coherent chains of anchors by grouping them
 according to their diagonal positions and orientations, then computing
 the Longest Increasing Subsequence (LIS) within each group.
 
-Anchors are grouped dynamically
-based on the distance between consecutive diagonal values.
+Anchors are grouped dynamically based on the distance between
+consecutive diagonal values.
 
 Two consecutive anchors belong to the same cluster if the absolute
 difference between their diagonal values is less than or equal to
@@ -232,8 +232,36 @@ Reverse-oriented anchors are handled by negating their query positions
 before LIS computation, allowing both orientations to use the same
 increasing subsequence algorithm.
 
-The final score is calculated as the square root of the sum of squared
-LIS lengths divided by the total number of input anchors.
+The final synteny score combines three complementary components:
+
+    1. Query coverage:
+       Measures the fraction of the query spanned by the LIS.
+
+    2. Chain confidence:
+       Rewards longer LIS chains using a saturating exponential
+       function. This reduces the contribution of very short chains.
+
+    3. Chain density:
+       Measures how densely the LIS anchors are distributed within
+       their query span, penalizing chains containing large gaps.
+
+The contribution of each LIS is calculated as:
+
+    contribution = coverage * confidence * density_score
+
+where:
+
+    coverage = query_span / total_query_kmer_count
+
+    confidence = (1 - exp(-(LIS_length - 1) / tau)) / (1 - exp(-(total_query_kmer_count - 1) / tau))
+
+    density_score = sqrt(LIS_length / query_span)
+
+The final score is:
+
+    score = sqrt(sum(contribution_i))
+
+The score is capped at 1.0.
 
 Parameters
 ----------
@@ -257,22 +285,34 @@ max_kmer_distance : int
     Maximum allowed difference between the diagonal values of two
     consecutive anchors belonging to the same cluster.
 
+total_query_kmer_count : int
+    Total number of possible k-mer positions in the query sequence.
+
+    Usually calculated as:
+
+        len(query_sequence) - k + 1
+
+    This value is used to normalize the query coverage and chain
+    confidence components.
+
 Returns
 -------
-score : float
-    Chain consistency score calculated as:
+synteny_score : float
+    Normalized synteny score ranging from 0.0 to 1.0.
 
-        score = sqrt(sum(LIS_length ** 2) / n_anchors)
+    A score close to 1.0 indicates a long, dense and coherent chain
+    covering a large fraction of the query.
 
-    where:
-        - LIS_length is the length of the longest increasing
-          subsequence identified within a cluster.
-        - n_anchors is the total number of input anchors.
+    A score close to 0.0 indicates the absence of meaningful
+    collinear chains.
 
-    Only clusters containing at least two anchors are considered
-    when accumulating the score.
+anchor_scores : numpy.ndarray
+    One-dimensional array containing the LIS length assigned to
+    each anchor belonging to a selected LIS.
 
-    Returns 0.0 if the input contains no anchors.
+    Anchors not belonging to a selected LIS retain a score of zero.
+
+    The array has dtype int64.
 
 Notes
 -----
@@ -287,9 +327,19 @@ Notes
 
       diagonal = node_position + query_position
 
+- Only LIS containing at least two anchors contribute to the
+  final synteny score.
+- The query span is calculated from the minimum and maximum query
+  positions in the LIS, including both endpoints.
+- The confidence parameter uses a fixed exponential saturation
+  constant tau = 5.0.
+- The final score is capped at 1.0 to ensure normalization.
+- If no valid chains are detected, the function returns a score
+  of 0.0.
+
 Algorithm
 ---------
-The function consists of four main steps:
+The function consists of five main steps:
 
 1. Orientation separation
    Anchors are processed independently for forward (+1) and reverse
@@ -306,10 +356,25 @@ The function consists of four main steps:
 
    A new cluster is created whenever this condition is not satisfied.
 
-4. Longest Increasing Subsequence and score aggregation
+4. Longest Increasing Subsequence detection
    Within each cluster, anchors are sorted by node position.
    The LIS of their corresponding query positions is computed using
    a binary search approach.
+
+   Reverse-oriented anchors use negated query positions to ensure
+   that the same increasing subsequence algorithm can be applied.
+
+5. Synteny score calculation
+   For each valid LIS:
+
+       a. Determine its query span.
+       b. Calculate its query coverage.
+       c. Calculate its length-dependent confidence.
+       d. Calculate its anchor density.
+       e. Combine these components into a contribution.
+
+   The final score is obtained by taking the square root of the
+   sum of all LIS contributions and limiting the result to 1.0.
 
 """
 @njit(cache=True)
@@ -318,19 +383,27 @@ def calculate_chains_numba(
     anchor_node,
     anchor_orientation,
     max_kmer_distance,
+    total_query_kmer_count,
 ):
     n = anchor_query.size
 
-    if n == 0:
+    if n == 0 or total_query_kmer_count <= 1:
         return 0.0, np.empty(0, dtype=np.int64)
 
     diagonals = np.empty(n, dtype=np.int64)
     anchor_indices = np.empty(n, dtype=np.int64)
 
-    total_squared_size = 0.0
+    # Accumulate the contributions of all LIS.
+    total_score = 0.0
 
     # Store the local synteny score of each anchor.
     anchor_scores = np.zeros(n, dtype=np.int64)
+
+    # Parameters controlling the confidence function.
+    tau = 5.0
+    expected_kmer_count = total_query_kmer_count
+
+    confidence_denominator = (1.0 - np.exp(-(expected_kmer_count - 1) / tau))
 
     # =========================================================
     # STEP 1: Process each orientation independently.
@@ -369,8 +442,6 @@ def calculate_chains_numba(
         # =====================================================
         cluster_start = 0
 
-        # The last iteration ensures that the final cluster
-        # is also processed.
         for i in range(1, orientation_count + 1):
 
             if (
@@ -412,14 +483,10 @@ def calculate_chains_numba(
 
                     lis_length = 0
 
-                    # -------------------------------------------------
                     # Compute the LIS and store its predecessors.
-                    # -------------------------------------------------
                     for j in range(cluster_size):
 
-                        anchor_index = cluster_anchor_indices[
-                            node_order[j]
-                        ]
+                        anchor_index = cluster_anchor_indices[node_order[j]]
 
                         query_position = anchor_query[anchor_index]
 
@@ -434,9 +501,7 @@ def calculate_chains_numba(
 
                         while search_start < search_end:
 
-                            search_middle = (
-                                search_start + search_end
-                            ) // 2
+                            search_middle = (search_start + search_end) // 2
 
                             if tails[search_middle] < query_position:
                                 search_start = search_middle + 1
@@ -445,9 +510,7 @@ def calculate_chains_numba(
 
                         # Store the predecessor of the current anchor.
                         if search_start > 0:
-                            predecessors[j] = tails_indices[
-                                search_start - 1
-                            ]
+                            predecessors[j] = tails_indices[search_start - 1]
 
                         # Update the LIS.
                         tails[search_start] = query_position
@@ -456,43 +519,84 @@ def calculate_chains_numba(
                         if search_start == lis_length:
                             lis_length += 1
 
-                    # -------------------------------------------------
-                    # Calculate the global synteny score.
-                    # -------------------------------------------------
+                    # =================================================
+                    # STEP 4: Calculate the contribution of this LIS.
+                    # =================================================
                     if lis_length >= 2:
 
-                        total_squared_size += (
-                            lis_length * lis_length
-                        )
+                        current_index = tails_indices[lis_length - 1]
 
-                        # -------------------------------------------------
+                        min_query_position = np.iinfo(np.int64).max
+                        max_query_position = np.iinfo(np.int64).min
+
                         # Reconstruct the selected LIS.
-                        # -------------------------------------------------
-                        current_index = tails_indices[
-                            lis_length - 1
-                        ]
-
                         while current_index != -1:
 
-                            anchor_index = cluster_anchor_indices[
-                                node_order[current_index]
-                            ]
+                            anchor_index = cluster_anchor_indices[node_order[current_index]]
 
-                            # All anchors belonging to this LIS
-                            # receive the same local score.
+                            query_position = anchor_query[anchor_index]
+
+                            if query_position < min_query_position:
+                                min_query_position = query_position
+
+                            if query_position > max_query_position:
+                                max_query_position = query_position
+
+                            # Preserve the original local anchor score.
                             anchor_scores[anchor_index] = lis_length
 
-                            current_index = predecessors[
-                                current_index
-                            ]
+                            current_index = predecessors[current_index]
+
+                        # -------------------------------------------------
+                        # A. Calculate the query span of the LIS.
+                        # -------------------------------------------------
+                        span = (
+                            max_query_position
+                            - min_query_position
+                            + 1
+                        )
+
+                        if span > 0:
+
+                            # -------------------------------------------------
+                            # B. Calculate the coverage contribution.
+                            # -------------------------------------------------
+                            coverage = (span / expected_kmer_count)
+
+                            # -------------------------------------------------
+                            # C. Calculate the confidence of the LIS.
+                            # -------------------------------------------------
+                            confidence = ( 1.0 - np.exp(-(lis_length - 1) / tau)) / confidence_denominator
+
+                            # -------------------------------------------------
+                            # D. Calculate the density of the LIS.
+                            # -------------------------------------------------
+                            density = lis_length / span
+
+                            density_score = np.sqrt(density)
+
+                            # -------------------------------------------------
+                            # E. Calculate the LIS contribution.
+                            # -------------------------------------------------
+                            lis_contribution = (
+                                coverage
+                                * confidence
+                                * density_score
+                            )
+
+                            total_score += lis_contribution
 
                 # Start the next cluster.
                 cluster_start = i
 
     # =========================================================
-    # STEP 4: Calculate the final global chain consistency score.
+    # STEP 5: Calculate the final synteny score.
     # =========================================================
-    synteny = np.sqrt(total_squared_size / n)
+    synteny = np.sqrt(total_score)
+
+    # Keep the score within the [0, 1] interval.
+    if synteny > 1.0:
+        synteny = 1.0
 
     return synteny, anchor_scores
 
@@ -695,12 +799,13 @@ class Seed:
         # ----------------------------------------------------
 
         t0 = time.perf_counter()
-
+        total_query_kmer_count = len(query.sequence) - query.k + 1
         self.synteny, self.anchor_scores = calculate_chains_numba(
             self.anchor_query,
             self.anchor_node,
             self.anchor_orientation,
-            max_kmer_distance
+            max_kmer_distance,
+            total_query_kmer_count
         )
 
         if timings is not None:
