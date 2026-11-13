@@ -1115,9 +1115,12 @@ max_distance : int, default=10000
     Maximum allowed genomic distance between consecutive intervals
     when building clusters independently for each genome.
 
-min_nodes : int, default=5
+min_nodes : int, default=1
     Minimum number of physical Neo4j node occurrences required
     for a region to be retained.
+
+min_nodes : int, default=0.1
+    Minimum synteny score for a region to be retained.
 
 max_kmer_distance : int, default=100
     Maximum allowed diagonal distance passed to
@@ -1142,7 +1145,8 @@ def cluster_selected_seeds(
     selected_seeds,
     query,
     max_distance=10000,
-    min_nodes=5,
+    min_nodes=1,
+    min_synteny_score = 0.1,
     max_kmer_distance=100,
     min_overlap=0.10,
     print_chr_stats=False,
@@ -1153,6 +1157,9 @@ def cluster_selected_seeds(
 
     if min_nodes < 1:
         raise ValueError("min_nodes must be >= 1.")
+
+    if not 0.0 <= min_synteny_score <= 1.0:
+        raise ValueError("min_synteny_score must be between 0 and 1")
 
     if not 0 <= min_overlap <= 1:
         raise ValueError("min_overlap must be between 0 and 1.")
@@ -1389,6 +1396,9 @@ def cluster_selected_seeds(
                 max_kmer_distance=max_kmer_distance,
             )
 
+            #Filter low synteny score
+            if region_score < min_synteny_score:
+                continue
 
             # ------------------------------------------------
             # Calculate region position boundaries.
@@ -1650,10 +1660,14 @@ max_distance : int, default=10000
     Maximum genomic distance, in base pairs, between consecutive
     intervals for them to belong to the same genomic cluster.
 
-min_nodes : int, default=5
+min_nodes : int, default=1
     Minimum number of distinct physical Neo4j occurrences
     required for a genomic region to be retained.
-
+    
+min_synteny_score : int, default=0.1 (min 0, max 1)
+    Minimum of synteny score
+    required for a genomic region to be retained.
+    
 max_kmer_distance : int, default=20
     Maximum k-mer distance allowed when evaluating synteny
     between candidate seeds.
@@ -1722,7 +1736,8 @@ def find_regions(
     min_node_size: int = None,
     max_selected_seeds: int = 10000,
     max_distance: int = 10000,
-    min_nodes: int = 5,
+    min_nodes: int = 1,
+    min_synteny_score=0.1,
     max_kmer_distance: int = 20,
     max_query_occurrences: int = 50,
     print_stats: bool = True,
@@ -1763,6 +1778,7 @@ def find_regions(
         query=query,
         max_distance=max_distance,
         min_nodes=min_nodes,
+        min_synteny_score=min_synteny_score,
         max_kmer_distance=max_kmer_distance,
         print_chr_stats=print_stats
     )
