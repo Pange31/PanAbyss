@@ -1111,7 +1111,7 @@ query : Query
     Query object providing the total number of unique query k-mers
     through its n_unique_kmers attribute.
 
-max_distance : int, default=10000
+max_distance : int, default (None) = 10% of query length
     Maximum allowed genomic distance between consecutive intervals
     when building clusters independently for each genome.
 
@@ -1144,7 +1144,7 @@ list of dict
 def cluster_selected_seeds(
     selected_seeds,
     query,
-    max_distance=10000,
+    max_distance=None,
     min_nodes=1,
     min_synteny_score = 0.1,
     max_kmer_distance=100,
@@ -1152,8 +1152,12 @@ def cluster_selected_seeds(
     print_chr_stats=False,
 ):
 
-    if max_distance < 0:
-        raise ValueError("max_distance must be >= 0.")
+    if max_distance is None or max_distance < 0:
+        if max_distance is None:
+            min_d = min(len(query.sequence), 1000)
+            max_distance = max(min_d, 0.1 * len(query.sequence))
+        else:
+            raise ValueError("max_distance must be >= 0.")
 
     if min_nodes < 1:
         raise ValueError("min_nodes must be >= 1.")
@@ -1466,9 +1470,7 @@ def cluster_selected_seeds(
 
             if sequence_kmers:
 
-                all_region_kmers = np.concatenate(
-                    sequence_kmers
-                )
+                all_region_kmers = np.concatenate(sequence_kmers)
 
                 unique_region_kmers, kmer_sequence_counts = (
                     np.unique(
@@ -1478,19 +1480,11 @@ def cluster_selected_seeds(
                 )
 
                 n_kmers = len(unique_region_kmers)
-
-                n_shared_kmers = int(
-                    np.count_nonzero(
-                        kmer_sequence_counts > 1
-                    )
-                )
+                n_shared_kmers = int(np.count_nonzero(kmer_sequence_counts > 1))
 
             else:
 
-                unique_region_kmers = np.empty(
-                    0,
-                    dtype=np.uint32,
-                )
+                unique_region_kmers = np.empty(0,dtype=np.uint32,)
 
                 n_kmers = 0
                 n_shared_kmers = 0
@@ -1656,7 +1650,7 @@ max_selected_seeds : int, default=10000
     Maximum number of candidate seeds retained for further
     analysis.
 
-max_distance : int, default=10000
+max_distance : int, default (None) = 10% of query length
     Maximum genomic distance, in base pairs, between consecutive
     intervals for them to belong to the same genomic cluster.
 
@@ -1735,7 +1729,7 @@ def find_regions(
     min_coverage: float = 20,
     min_node_size: int = None,
     max_selected_seeds: int = 10000,
-    max_distance: int = 10000,
+    max_distance: int = None,
     min_nodes: int = 1,
     min_synteny_score=0.1,
     max_kmer_distance: int = 20,
