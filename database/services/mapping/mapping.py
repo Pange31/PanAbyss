@@ -22,7 +22,6 @@ Notes
 """
 import logging
 import time
-import random
 
 import numpy as np
 
@@ -1784,127 +1783,7 @@ def find_regions(
             f"{time.perf_counter() - t_total:.3f} s"
         )
 
-    return regions, selected_seeds, all_seeds, query
+    return regions, selected_seeds, all_seeds
 
 
 
-"""
-Transform a DNA sequence through mutations, deletions, insertions,
-and inversions.
-
-Parameters
-----------
-sequence : str
-    DNA sequence containing A, C, G, and T.
-rate : float
-    Percentage of bases to modify, between 0 and 100.
-    For example, 10 means approximately 10%.
-seed : int, optional
-    Random seed to make the result reproducible.
-
-Returns
--------
-str
-    Transformed DNA sequence.
-"""
-def mutate_dna(sequence, rate, seed=None):
-
-    if seed is not None:
-        random.seed(seed)
-
-    sequence = sequence.upper()
-
-    # Validate the sequence
-    if not all(base in "ACGT" for base in sequence):
-        raise ValueError("The sequence must contain only A, C, G, and T.")
-
-    if not 0 <= rate <= 100:
-        raise ValueError("The rate must be between 0 and 100.")
-
-    if len(sequence) == 0:
-        return sequence
-
-    # Approximate number of operations to perform
-    num_operations = round(len(sequence) * rate / 100)
-
-    bases = "ACGT"
-
-    for _ in range(num_operations):
-
-        # Randomly select an operation
-        operation = random.choice([
-            "mutation",
-            "deletion",
-            "insertion",
-            "inversion"
-        ])
-
-        if len(sequence) == 0:
-            break
-
-        # ---------------------------------------------------------
-        # MUTATION: A -> C, for example
-        # ---------------------------------------------------------
-        if operation == "mutation":
-
-            position = random.randrange(len(sequence))
-            old_base = sequence[position]
-
-            possible_bases = [
-                base for base in bases
-                if base != old_base
-            ]
-
-            new_base = random.choice(possible_bases)
-
-            sequence = (
-                    sequence[:position]
-                    + new_base
-                    + sequence[position + 1:]
-            )
-
-        # ---------------------------------------------------------
-        # DELETION: remove a base
-        # ---------------------------------------------------------
-        elif operation == "deletion":
-
-            position = random.randrange(len(sequence))
-
-            sequence = (
-                    sequence[:position]
-                    + sequence[position + 1:]
-            )
-
-        # ---------------------------------------------------------
-        # INSERTION: add a random base
-        # ---------------------------------------------------------
-        elif operation == "insertion":
-
-            position = random.randrange(len(sequence) + 1)
-            new_base = random.choice(bases)
-
-            sequence = (
-                    sequence[:position]
-                    + new_base
-                    + sequence[position:]
-            )
-
-        # ---------------------------------------------------------
-        # INVERSION: reverse a segment
-        # ---------------------------------------------------------
-        elif operation == "inversion":
-
-            if len(sequence) >= 2:
-                start = random.randrange(len(sequence))
-                end = random.randrange(start + 1, len(sequence) + 1)
-
-                segment = sequence[start:end]
-                reversed_segment = segment[::-1]
-
-                sequence = (
-                        sequence[:start]
-                        + reversed_segment
-                        + sequence[end:]
-                )
-
-    return sequence
