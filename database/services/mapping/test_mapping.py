@@ -615,3 +615,5 @@ def search_gene(gene, mutation_rate=None):
     # --------------------------------------------------
 
     regions, selected_seeds, all_seeds = find_regions(mutate_sequence)
+
+    return regions, selected_seeds, all_seeds
