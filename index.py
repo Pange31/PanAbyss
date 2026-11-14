@@ -32,6 +32,7 @@ from config import *
 import logging
 
 from sqlite_gwas_requests import *
+from sqlite_management_requests import init_management_db
 from sqlite_phylo_requests import *
 from scripts.update_retrocompatibility import *
 
@@ -64,6 +65,7 @@ check_updates()
 start_container()
 init_gwas_db()
 init_phylo_db()
+init_management_db()
 
 if SERVER_MODE and ADMIN_MODE:
     USERS = get_users()

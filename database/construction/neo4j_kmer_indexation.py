@@ -36,7 +36,8 @@ from pathlib import Path
 import numpy as np
 from utils.base_utils import get_current_version
 from utils.kmer import encode_kmers
-from services.mapping.index_kmer_requests import load_index_catalog, unload_index
+from database.services.mapping.index_kmer_requests import load_index_catalog, unload_index
+from sqlite_management_requests import *
 
 
 
@@ -226,8 +227,15 @@ def build_chunked_direct_index(
         max_postings=MAX_POSTINGS,
         fetch_size=20000,
         pair_buffer_size=2_000_000,
-        canonical=True
+        canonical=True,
+        job_id=None
 ):
+
+    def check_cancellation():
+        if job_id is not None:
+            if is_index_cancellation_requested(job_id):
+                raise InterruptedError("Index creation cancelled by user.")
+
     # =========================================================
     # Validation
     # =========================================================
@@ -400,7 +408,8 @@ def build_chunked_direct_index(
                 fetch_size=fetch_size,
                 k=k,
         ):
-
+            if sequence_count % 1000 == 0:
+                check_cancellation()
             sequence_count += 1
 
             # -------------------------------------------------
@@ -687,7 +696,7 @@ def build_chunked_direct_index(
     try:
 
         for p, path in enumerate(partition_paths):
-
+            check_cancellation()
             partition_start_time = time.perf_counter()
 
             logger.info(f"Processing partition {p + 1}/{num_partitions}...")
@@ -785,6 +794,8 @@ def build_chunked_direct_index(
             # -------------------------------------------------
 
             for group_index in range(n_groups):
+                if group_index % 10000 == 0:
+                    check_cancellation()
                 start = int(group_starts[group_index])
                 if group_index + 1 < n_groups:
                     end = int(group_starts[group_index + 1])

@@ -14,6 +14,7 @@ from database.services.neo4j_requests import *
 from app import DB_VERSION
 
 from docker_management.neo4j_available_docker_images_conf import AVAILABLE_DOCKER_IMAGES
+from docker_management.neo4j_container_management import mapping_index_files_exist
 
 
 
@@ -40,6 +41,7 @@ def list_gfa_files():
 # Layout de la page
 def layout():
     genomes = get_genomes()
+    indexes_exist = mapping_index_files_exist()
     if genomes is None :
         genomes = []
     return html.Div([
@@ -85,7 +87,7 @@ def layout():
     
         html.H3(id='container-name-label', children=""),
 
-
+        dcc.Store(id="db-management-create-mapping-indexes-trigger"),
         html.Hr(),
         #############################" ---- Database creation Section ---- #####################################"
 
@@ -475,6 +477,63 @@ def layout():
             id="loading-index-stats-msg",
             # type="circle",
             children=html.Div(id="index_stats-message")
+        ),
+        html.Br(),
+        html.Label("Create index for mapping functionalities.",
+                   style={'display': 'block', 'marginBottom': '8px'}),
+
+        html.Div(
+            [
+                html.Button(
+                    "Create mapping indexes",
+                    id="btn-create-mapping-indexes",
+                    disabled=False,
+                    style={"display": "none"} if indexes_exist else {}
+                ),
+
+                html.Button(
+                    "Cancel",
+                    id="btn-cancel-mapping-indexes",
+                    n_clicks=0,
+                    disabled=True,
+                    style={"display": "none", "marginLeft": "10px"}
+                ),
+
+                html.Button(
+                    "Confirm deletion",
+                    id="btn-confirm-delete-mapping-indexes",
+                    n_clicks=0,
+                    style={"display": "none", "marginLeft": "10px"}
+                ),
+
+                html.Button(
+                    "Cancel",
+                    id="btn-cancel-delete-mapping-indexes",
+                    n_clicks=0,
+                    style={"display": "none", "marginLeft": "10px"}
+                ),
+
+                html.Button(
+                    "Delete mapping indexes",
+                    id="btn-delete-mapping-indexes",
+                    n_clicks=0,
+                    style={} if indexes_exist else {"display": "none"}
+                ),
+
+                dcc.Store(
+                    id="db-management-create-mapping-indexes-trigger"
+                ),
+
+                dcc.Loading(
+                    id="db-create-mapping-indexes-spinner",
+                    children=html.Div(),
+                    style={"display": "none"}
+                ),
+
+                html.Div(
+                    id="mapping-indexes-message"
+                )
+            ]
         ),
         html.Br(),
         html.Label("Dump database : this will generate a neo4j.dump in the /data/import directory. This file can be used to create a new DB.",

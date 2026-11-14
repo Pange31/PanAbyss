@@ -22,6 +22,8 @@ from app import *
 from database.services.neo4j_requests import *
 from database.construction.neo4j_DB_construction import *
 from docker_management.neo4j_container_management import *
+from database.construction.neo4j_kmer_indexation import build_chunked_direct_index
+from sqlite_management_requests import *
 from config import *
 import base64
 import shutil
@@ -619,8 +621,10 @@ def confirm_delete_sqlite(n_clicks, data):
     try:
         drop_gwas_jobs_table()
         drop_phylo_jobs_table()
+        drop_management_table()
         init_gwas_db()
         init_phylo_db()
+        init_management_db()
         return html.Div("✅ All gwas and phylo jobs deleted successfully.", style=success_style), "", data
     except Exception as e:
         return html.Div(f"❌ Error while deleting gwas and phylo jobs: {str(e)}", style=error_style), "", data
@@ -824,6 +828,17 @@ def create_db_launch(trigger_data, data, children):
 
         #Wait for all indexes are created
         (ret, msg_indexes) = wait_for_indexes()
+        #Create mapping indexes
+        logger.info("creating mapping indexes")
+        job_id = create_index_job()
+        try:
+            build_chunked_direct_index(job_id=job_id)
+            update_index_job_status(job_id, "completed")
+        except Exception as e:
+            logger.exception("Mapping indexes creation failed.")
+            update_index_job_status(job_id, "error")
+
+
         genomes = get_genomes() or []
         options_list = [
             [{"label": genome, "value": genome} for genome in genomes]
@@ -1041,3 +1056,216 @@ def update_page(pathname, data, container_input, checkbox_values, annotation_che
                         button_cancel_annotation_disabled, create_load_annotation_spinner_style,
                         button_load_annotation_disabled)
 
+
+
+#Mapping indexes creation callbacks
+@app.callback(
+    Output("db-management-create-mapping-indexes-trigger", "data"),
+    Output("btn-cancel-mapping-indexes", "disabled"),
+    Output("btn-create-mapping-indexes", "disabled"),
+    Output("db-create-mapping-indexes-spinner", "style"),
+    Output("mapping-indexes-message", "children"),
+    Output("btn-delete-mapping-indexes", "style"),
+    Output("btn-cancel-mapping-indexes", "style"),
+
+    Input("btn-create-mapping-indexes", "n_clicks"),
+
+    prevent_initial_call=True
+)
+@require_authorization
+def start_mapping_indexes_creation(n_clicks):
+
+    if not n_clicks:
+        raise exceptions.PreventUpdate
+
+    if mapping_index_files_exist() or has_active_index_job():
+        raise exceptions.PreventUpdate
+
+    job_id = create_index_job()
+
+    trigger_data = {
+        "job_id": job_id
+    }
+
+    return (
+        trigger_data,
+        False,
+        True,
+        {
+            "display": "block",
+            "marginTop": "20px",
+            "marginBottom": "20px"
+        },
+        "⏳ Mapping indexes creation in progress...",
+        {"display": "none"},
+        {"marginLeft": "10px"}
+    )
+
+@app.callback(
+    Output("mapping-indexes-message", "children", allow_duplicate=True),
+    Output("btn-cancel-mapping-indexes", "disabled", allow_duplicate=True),
+    Output("btn-create-mapping-indexes", "disabled", allow_duplicate=True),
+    Output("db-create-mapping-indexes-spinner", "style", allow_duplicate=True),
+    Output("btn-create-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-cancel-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-delete-mapping-indexes", "style", allow_duplicate=True),
+
+    Input("db-management-create-mapping-indexes-trigger", "data"),
+
+    background=True,
+    prevent_initial_call=True,
+    suppress_callback_exceptions=True
+)
+@require_authorization
+def create_mapping_indexes(trigger_data):
+
+    if not trigger_data:
+        raise exceptions.PreventUpdate
+
+    job_id = trigger_data.get("job_id")
+
+    if not job_id:
+        raise exceptions.PreventUpdate
+
+    try:
+        build_chunked_direct_index(job_id=job_id)
+        update_index_job_status(job_id, "completed")
+        message = "✅ Mapping indexes successfully created."
+
+    except InterruptedError:
+        update_index_job_status(job_id, "cancelled")
+        message = "⚠️ Mapping indexes creation cancelled."
+
+    except Exception as e:
+        logger.exception("Mapping indexes creation failed.")
+        update_index_job_status(job_id, "error")
+        message = f"❌ Mapping indexes creation failed: {str(e)}"
+
+    indexes_exist = mapping_index_files_exist()
+
+    return (
+        message,
+        True,
+        indexes_exist,
+        {"display": "none"},
+        {"display": "none"} if indexes_exist else {},
+        {"display": "none"},
+        {} if indexes_exist else {"display": "none"}
+    )
+
+@app.callback(
+    Output("mapping-indexes-message", "children",allow_duplicate=True),
+    Input("btn-cancel-mapping-indexes", "n_clicks"),
+    State("db-management-create-mapping-indexes-trigger", "data"),
+    prevent_initial_call=True
+)
+@require_authorization
+def cancel_mapping_indexes_creation(n_clicks, trigger_data):
+
+    if not n_clicks or not trigger_data:
+        raise exceptions.PreventUpdate
+    print("CANCEL MAPPING INDEXES")
+    job_id = trigger_data.get("job_id")
+
+    if not job_id:
+        raise exceptions.PreventUpdate
+
+    request_index_cancellation(job_id)
+
+    return "⏳ Cancellation requested. Waiting for current operation to finish..."
+
+@app.callback(
+    Output("mapping-indexes-message", "children", allow_duplicate=True),
+    Output("btn-delete-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-confirm-delete-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-cancel-delete-mapping-indexes", "style", allow_duplicate=True),
+    Input("btn-delete-mapping-indexes", "n_clicks"),
+    prevent_initial_call=True
+)
+@require_authorization
+def ask_delete_mapping_indexes(n_clicks):
+
+    if not n_clicks:
+        raise exceptions.PreventUpdate
+
+    return (
+        "⚠️ Are you sure you want to delete all mapping index files?",
+        {"display": "none"},
+        {},
+        {}
+    )
+
+@app.callback(
+    Output("mapping-indexes-message", "children", allow_duplicate=True),
+    Output("btn-delete-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-confirm-delete-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-cancel-delete-mapping-indexes", "style", allow_duplicate=True),
+    Input("btn-cancel-delete-mapping-indexes", "n_clicks"),
+    prevent_initial_call=True
+)
+@require_authorization
+def cancel_delete_mapping_indexes(n_clicks):
+
+    if not n_clicks:
+        raise exceptions.PreventUpdate
+
+    return (
+        "",
+        {},
+        {"display": "none"},
+        {"display": "none"}
+    )
+
+@app.callback(
+    Output("mapping-indexes-message", "children", allow_duplicate=True),
+    Output("btn-create-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-cancel-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-delete-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-create-mapping-indexes", "disabled", allow_duplicate=True),
+    Output("btn-cancel-mapping-indexes", "disabled", allow_duplicate=True),
+    Output("btn-confirm-delete-mapping-indexes", "style", allow_duplicate=True),
+    Output("btn-cancel-delete-mapping-indexes", "style", allow_duplicate=True),
+
+    Input("btn-confirm-delete-mapping-indexes", "n_clicks"),
+
+    prevent_initial_call=True
+)
+@require_authorization
+def delete_mapping_indexes(n_clicks):
+
+    if not n_clicks:
+        raise exceptions.PreventUpdate
+
+    try:
+        deleted_count = delete_mapping_index_files()
+
+        logger.info(
+            f"Mapping indexes deletion completed: {deleted_count} files."
+        )
+
+        return (
+            f"✅ {deleted_count} mapping index file(s) successfully deleted.",
+            {},
+            {"display": "none"},
+            {"display": "none"},
+            False,
+            True,
+            {"display": "none"},
+            {"display": "none"}
+        )
+
+    except Exception as e:
+        logger.exception("Mapping indexes deletion failed.")
+
+        indexes_exist = mapping_index_files_exist()
+
+        return (
+            f"❌ Unable to delete mapping indexes: {str(e)}",
+            {"display": "none"} if indexes_exist else {},
+            {"display": "none"},
+            {} if indexes_exist else {"display": "none"},
+            indexes_exist,
+            True,
+            {"display": "none"},
+            {"display": "none"}
+        )

@@ -26,6 +26,7 @@ DOCKER_IMAGE = "neo4j:2025.05-community-bullseye"
 APP_DIR = Path(__file__).resolve().parents[1]
 DATA_BASE_DIR = APP_DIR / "data"
 NEO4J_BASE_DIR = APP_DIR / "data" / "database"
+INDEXES_BASE_DIR  = APP_DIR / "data" / "indexes"
 NEO4J_CONF_SOURCE_FILE = APP_DIR / "install" / "conf" / "neo4j.conf"
 NEO4J_CONF_FILE = APP_DIR / "data" / "conf" / "neo4j.conf"
 CONF_FILE = APP_DIR / "conf.json"
@@ -56,12 +57,62 @@ def reset_neo4j_data(delete_import_dir=False):
 
     if os.path.exists(NEO4J_BASE_DIR):
         shutil.rmtree(NEO4J_BASE_DIR)
+    if os.path.exists(INDEXES_BASE_DIR):
+        shutil.rmtree(INDEXES_BASE_DIR)
     if delete_import_dir:
         if os.path.exists(IMPORT_DIR):
             shutil.rmtree(IMPORT_DIR)
     if os.path.exists(DOCKER_COMPOSE_FILE):
         os.remove(DOCKER_COMPOSE_FILE)
 
+"""
+Returns all files present in INDEXES_BASE_DIR, including files
+located in subdirectories.
+"""
+def get_mapping_index_files():
+    if not INDEXES_BASE_DIR.exists():
+        return []
+
+    return [
+        path
+        for path in INDEXES_BASE_DIR.rglob("*")
+        if path.is_file() or path.is_symlink()
+    ]
+
+"""
+Returns True if at least one index file exists.
+"""
+def mapping_index_files_exist():
+
+    return len(get_mapping_index_files()) > 0
+
+"""
+Deletes all files present in INDEXES_BASE_DIR.
+Keeps the root indexes directory.
+"""
+def delete_mapping_index_files():
+    files = get_mapping_index_files()
+
+    for file_path in files:
+        file_path.unlink()
+
+    # Remove empty subdirectories, if any.
+    if INDEXES_BASE_DIR.exists():
+        directories = sorted(
+            [path for path in INDEXES_BASE_DIR.rglob("*") if path.is_dir()],
+            key=lambda path: len(path.parts),
+            reverse=True
+        )
+
+        for directory in directories:
+            try:
+                directory.rmdir()
+            except OSError:
+                pass
+
+    logger.info(f"{len(files)} mapping index files deleted.")
+
+    return len(files)
 
 
 """
@@ -72,7 +123,7 @@ def create_neo4j_base_dir():
         path = os.path.join(DATA_BASE_DIR, d)
         os.makedirs(path, exist_ok=True)
         os.chmod(path, 0o777)
-    for d in ["data", "logs", "plugins","run"]:
+    for d in ["data", "logs", "plugins","run","indexes"]:
         path = os.path.join(NEO4J_BASE_DIR, d)
         os.makedirs(path, exist_ok=True)
         os.chmod(path, 0o777)
