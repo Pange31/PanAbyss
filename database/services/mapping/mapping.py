@@ -70,9 +70,11 @@ selected_indices : np.ndarray
 def select_seed_indices(
     node_coverage,
     query_coverage,
+    valid_counts,
     min_node_coverage,
     min_query_coverage,
     max_selected_seeds,
+    min_kmer_matches=2,
 ):
 
     if max_selected_seeds <= 0 or len(node_coverage) == 0:
@@ -84,13 +86,15 @@ def select_seed_indices(
     # --------------------------------------------------------
     # Filter candidates.
     # --------------------------------------------------------
+    # Minimum number of matching k-mers.
+    count_mask = valid_counts >= min_kmer_matches
 
-    coverage_mask = (
-        (node_coverage >= min_node_coverage)
+    #Coverage filters.
+    coverage_mask = ((node_coverage >= min_node_coverage)
         | (query_coverage >= min_query_coverage)
     )
-
-    candidate_indices = np.flatnonzero(coverage_mask)
+    candidate_mask = count_mask & coverage_mask
+    candidate_indices = np.flatnonzero(candidate_mask)
 
     if len(candidate_indices) == 0:
         return (
@@ -322,20 +326,15 @@ def get_seeds(
         logger.info("No nodes passed the minimum size filter.")
         return {}, empty_seeds, query
 
-
     # --------------------------------------------------------
     # Calculate coverage.
     # --------------------------------------------------------
 
     max_kmer_counts = valid_sizes - k + 1
 
-    node_coverage = (
-        100.0 * valid_counts / max_kmer_counts
-    )
+    node_coverage = 100.0 * valid_counts / max_kmer_counts
 
-    query_coverage = (
-        100.0 * valid_counts / len(unique_query_kmer_codes)
-    )
+    query_coverage = 100.0 * valid_counts / len(unique_query_kmer_codes)
 
     # --------------------------------------------------------
     # Filter and select candidates.
@@ -346,6 +345,7 @@ def get_seeds(
     candidate_indices, selected_indices = select_seed_indices(
         node_coverage=node_coverage,
         query_coverage=query_coverage,
+        valid_counts=valid_counts,
         min_node_coverage=min_node_coverage,
         min_query_coverage=min_query_coverage,
         max_selected_seeds=max_selected_seeds,
