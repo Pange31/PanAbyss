@@ -833,7 +833,7 @@ def create_db_launch(trigger_data, data, children):
         logger.info("creating mapping indexes")
         job_id = create_index_job()
         try:
-            build_chunked_direct_index(job_id=job_id)
+            build_chunked_direct_index(job_id=job_id, k=15)
             update_index_job_status(job_id, "completed")
         except Exception as e:
             logger.exception("Mapping indexes creation failed.")
@@ -1086,6 +1086,19 @@ def get_mapping_index(kmer_size, canonical, config=None):
 
 
 def load_mapping_index_config():
+
+    if not os.path.isfile(MAPPING_INDEX_CONFIG):
+
+        logger.info(
+            "Mapping index configuration file does not exist yet. "
+            "No mapping indexes have been created."
+        )
+
+        return {
+            "application": "PanAbyss",
+            "indexes": []
+        }
+
     with open(MAPPING_INDEX_CONFIG, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -1403,7 +1416,7 @@ def start_mapping_indexes_creation(n_clicks, kmer_size):
         raise exceptions.PreventUpdate
 
     # Pass the selected k-mer size to the job
-    job_id = create_index_job(kmer_size=kmer_size)
+    job_id = create_index_job()
 
     trigger_data = {
         "job_id": job_id,
@@ -1447,23 +1460,27 @@ def start_mapping_indexes_creation(n_clicks, kmer_size):
 )
 @require_authorization
 def create_mapping_indexes(trigger_data, refresh):
-
     if not trigger_data:
         raise exceptions.PreventUpdate
 
     job_id = trigger_data.get("job_id")
-    kmer_size = trigger_data.get("kmer_size")
+    selected_value = trigger_data.get("kmer_size")
 
-    if not job_id or kmer_size is None:
+    if not job_id or selected_value is None:
         raise exceptions.PreventUpdate
 
     try:
+        # Extract k-mer size and canonical mode
+        kmer_size, canonical = selected_value.split(":", 1)
 
-        # Build the index for the selected k-mer size
+        kmer_size = int(kmer_size)
+        canonical = canonical.lower() == "true"
+
+        # Build the index
         build_chunked_direct_index(
             job_id=job_id,
-            kmer_size=kmer_size,
-            canonical=False
+            k=kmer_size,
+            canonical=canonical
         )
 
         update_index_job_status(job_id, "completed")
