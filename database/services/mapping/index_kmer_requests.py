@@ -12,6 +12,7 @@ import numpy as np
 from utils.kmer import encode_kmers
 import matplotlib.pyplot as plt
 import logging
+from numba import njit
 
 logger = logging.getLogger("panabyss_logger")
 
@@ -646,6 +647,238 @@ def get_encoded_kmer_nodes_batch(
 
     return results
 
+
+"""
+Count the number of occurrences of each node ID using
+a dense counting array.
+
+Parameters
+----------
+all_nodes : np.ndarray
+    Array of node IDs extracted from the postings index.
+    Each entry represents one occurrence of a node.
+
+counts : np.ndarray
+    Preallocated counting array indexed by node ID.
+    Each element is incremented for every occurrence of
+    the corresponding node in all_nodes.
+
+Returns
+-------
+None
+    The function modifies counts in place.
+
+Notes
+-----
+This function uses Numba JIT compilation to accelerate
+the counting loop.
+
+The counting array must be initialized to zero and must
+have a size greater than the maximum node ID in all_nodes.
+
+The counting array uses uint32, so the number of occurrences
+of any individual node must not exceed the uint32 limit.
+"""
+@njit(cache=True)
+def count_nodes_numba(all_nodes, counts):
+    for i in range(all_nodes.size):
+        counts[all_nodes[i]] += 1
+
+
+"""
+Scatter k-mer codes into a sorted array according to their
+associated node IDs, using precomputed cursor positions.
+
+Parameters
+----------
+all_nodes : np.ndarray
+    Array of node IDs associated with each posting.
+
+all_kmers : np.ndarray
+    Array of encoded k-mer codes associated with each posting.
+    The k-mer at position i corresponds to the node at position i
+    in all_nodes.
+
+cursors : np.ndarray
+    Array indexed by node ID containing the next available
+    position in sorted_kmers for each node.
+    Each cursor is updated during the scattering process.
+
+sorted_kmers : np.ndarray
+    Preallocated output array where k-mer codes are stored,
+    grouped by node ID.
+
+Returns
+-------
+None
+    The function modifies sorted_kmers and cursors in place.
+
+Notes
+-----
+This function uses Numba JIT compilation to accelerate the
+distribution of k-mer codes by node ID.
+
+For each posting, the corresponding k-mer is written at the
+position indicated by the node's cursor, which is then
+incremented.
+
+The output array must be preallocated with sufficient space
+for all postings.
+
+The initial cursor positions must correspond to the starting
+positions of each node in sorted_kmers.
+"""
+@njit(cache=True)
+def scatter_kmers_numba(all_nodes, all_kmers, cursors, sorted_kmers):
+
+    for i in range(all_nodes.size):
+        node = all_nodes[i]
+        pos = cursors[node]
+        sorted_kmers[pos] = all_kmers[i]
+        cursors[node] = pos + 1
+
+
+"""
+Group node postings and count the number of occurrences
+of each distinct node using a dense counting-sort approach.
+
+Parameters
+----------
+all_nodes : np.ndarray
+    Array of node IDs extracted from the postings index.
+    Each entry represents a node supporting a queried k-mer.
+
+all_kmers : np.ndarray
+    Array of encoded k-mer codes associated with each node posting.
+    Required when return_node_kmer_index is True.
+
+return_node_kmer_index : bool
+    If True, returns the k-mers associated with each node,
+    grouped by node ID.
+    If False, returns only the unique node IDs and their counts.
+
+Returns
+-------
+If return_node_kmer_index = True:
+    Tuple
+        unique_nodes -> Array of unique node IDs.
+        node_counts -> Number of postings associated with each node.
+        node_kmer_index -> (unique_nodes, starts, ends, sorted_kmers)
+
+        Tuple containing:
+            unique_nodes : Array of unique node IDs.
+            starts : Array of starting positions for each node.
+            ends : Array of ending positions for each node.
+            sorted_kmers : Array of k-mer codes grouped by node.
+
+        To retrieve the k-mers associated with a given node:
+            1. Find its index in unique_nodes.
+            2. Retrieve sorted_kmers[starts[index]:ends[index]].
+Else:
+    Tuple
+        (unique_nodes, node_counts)
+
+        unique_nodes : Array of unique node IDs.
+        node_counts : Number of postings associated with each node.
+
+Notes
+-----
+This function uses a dense counting array indexed by node ID
+to avoid sorting all postings with np.argsort.
+
+Its memory complexity is O(max_node_id), while its counting
+complexity is O(number of postings).
+
+The counting array uses uint32, so node IDs and posting counts
+must fit within the uint32 range.
+"""
+def group_nodes_counting_sort(all_nodes, all_kmers):
+    total = len(all_nodes)
+
+    # --------------------------------------------------
+    # 1. Allocate counting array
+    # --------------------------------------------------
+
+    max_node = int(all_nodes.max())
+
+    if max_node >= 2**32:
+        raise ValueError("Node IDs too large for uint32 counting.")
+
+    counts = np.zeros(max_node + 1, dtype=np.uint32)
+
+    # --------------------------------------------------
+    # 2. Count occurrences
+    # --------------------------------------------------
+
+    count_nodes_numba(all_nodes, counts)
+
+    # --------------------------------------------------
+    # 3. Extract unique nodes
+    # --------------------------------------------------
+
+    unique_nodes = np.flatnonzero(counts).astype(
+        np.uint64,
+        copy=False,
+    )
+
+    node_counts = counts[unique_nodes].astype(
+        np.uint64,
+        copy=True,
+    )
+
+    n_unique = len(unique_nodes)
+
+    # --------------------------------------------------
+    # 4. Compute group boundaries
+    # --------------------------------------------------
+
+    starts = np.empty(n_unique + 1, dtype=np.int64)
+
+    starts[0] = 0
+
+    np.cumsum(node_counts,out=starts[1:],)
+
+    ends = starts[1:].copy()
+
+    starts = starts[:-1]
+
+    # --------------------------------------------------
+    # 5. Reuse counting array as cursor array
+    # --------------------------------------------------
+
+    counts[unique_nodes] = starts.astype(np.uint32)
+
+    # --------------------------------------------------
+    # 6. Allocate output
+    # --------------------------------------------------
+
+    sorted_kmers = np.empty(
+        total,
+        dtype=np.uint32,
+    )
+
+    # --------------------------------------------------
+    # 7. Scatter k-mers
+    # --------------------------------------------------
+
+    scatter_kmers_numba(
+        all_nodes,
+        all_kmers,
+        counts,
+        sorted_kmers,
+    )
+
+    return (
+        unique_nodes,
+        node_counts,
+        (
+            unique_nodes,
+            starts,
+            ends,
+            sorted_kmers,
+        ),
+    )
+
 """
 Look up multiple encoded k-mers and directly count
 the number of distinct queried k-mers supporting
@@ -803,42 +1036,18 @@ def get_encoded_kmer_node_counts_batch(
     t_postings = time.perf_counter() - t0
 
     # ------------------------------------------------------------
-    # Sort nodes and associated k-mers
+    # Counting sort + grouping
     # ------------------------------------------------------------
 
     t0 = time.perf_counter()
 
-    order = np.argsort(all_nodes)
+    unique_nodes, node_counts, node_kmer_index = group_nodes_counting_sort(all_nodes,all_kmers)
 
-    sorted_nodes = all_nodes[order]
-
-    if return_node_kmer_index:
-        sorted_kmers = all_kmers[order]
+    starts = node_kmer_index[1]
+    ends = node_kmer_index[2]
+    sorted_kmers = node_kmer_index[3]
 
     t_sort = time.perf_counter() - t0
-
-    # ------------------------------------------------------------
-    # Group postings by node
-    # ------------------------------------------------------------
-
-    t0 = time.perf_counter()
-
-    starts = np.concatenate((
-        np.array([0], dtype=np.int64),
-        np.flatnonzero(
-            sorted_nodes[1:] != sorted_nodes[:-1]
-        ) + 1,
-    ))
-
-    ends = np.concatenate((
-        starts[1:],
-        np.array([len(sorted_nodes)], dtype=np.int64),
-    ))
-
-    unique_nodes = sorted_nodes[starts]
-    node_counts = ends - starts
-
-    t_grouping = time.perf_counter() - t0
 
     # ------------------------------------------------------------
     # Build compact node-to-k-mer index
@@ -877,7 +1086,6 @@ def get_encoded_kmer_node_counts_batch(
         logger.debug(f"Array allocation:      {t_allocation:.3f} s")
         logger.debug(f"Postings extraction:   {t_postings:.3f} s")
         logger.debug(f"Sorting:               {t_sort:.3f} s")
-        logger.debug(f"Grouping:              {t_grouping:.3f} s")
         logger.debug("-----------------------------------------")
         logger.debug(
             f"Total function time:   "
