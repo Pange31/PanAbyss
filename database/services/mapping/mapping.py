@@ -35,15 +35,26 @@ logger = logging.getLogger("panabyss_logger")
 
 
 """
-Select seed indices based on query and node coverage.
+Select seed indices based on query coverage, node coverage, and node size.
 
-Nodes passing at least one coverage threshold are retained.
-Nodes meeting the query coverage threshold have priority and
-are ranked by decreasing query coverage, with node coverage
-as a secondary criterion.
+Nodes passing the minimum k-mer count and at least one coverage
+threshold are retained as candidates.
 
-Remaining slots are filled with other retained nodes ranked
-by decreasing node coverage.
+Selection is performed in three priority levels:
+
+1. Nodes meeting the query coverage threshold have the highest
+   priority. They are ranked by decreasing query coverage, with
+   node coverage as a secondary criterion.
+
+2. Remaining medium and large nodes, together with small nodes
+   having sufficient k-mer support, are ranked by decreasing
+   node coverage.
+
+3. If slots are still available, the remaining small nodes are
+   selected, also ranked by decreasing node coverage.
+
+The selection stops when max_selected_seeds is reached or when
+no more candidates are available.
 
 Parameters
 ----------
@@ -51,18 +62,37 @@ node_coverage : np.ndarray
     Node coverage percentages.
 query_coverage : np.ndarray
     Query coverage percentages.
+valid_counts : np.ndarray
+    Number of query k-mers found in each node.
+node_sizes : np.ndarray
+    Sizes of the corresponding nodes.
+k : int
+    K-mer length, used to calculate the minimum k-mer support
+    required for small nodes.
 min_node_coverage : float
-    Minimum node coverage required to retain a node.
+    Minimum node coverage percentage required to retain a node
+    and used to calculate the minimum k-mer support for small nodes.
 min_query_coverage : float
-    Minimum query coverage required to retain a node and
-    qualify it for priority selection.
+    Minimum query coverage percentage required to retain a node
+    and qualify it for priority selection.
 max_selected_seeds : int
     Maximum number of selected nodes.
+min_kmer_matches : int, optional
+    Minimum number of query k-mers required for a node to be
+    retained as a candidate. Default is 2.
+reference_node_size : int, optional
+    Reference node size used to calculate the minimum k-mer
+    support required for small nodes. Default is 150.
+small_node_limit : int, optional
+    Node size threshold below which a node is considered small.
+    Default is 155.
+timings : bool, optional
+    If True, print selection statistics. Default is False.
 
 Returns
 -------
 candidate_indices : np.ndarray
-    Indices of nodes passing at least one coverage threshold.
+    Indices of nodes passing the initial candidate filters.
 selected_indices : np.ndarray
     Indices of selected nodes relative to candidate_indices,
     ordered by selection priority.
@@ -71,49 +101,53 @@ def select_seed_indices(
     node_coverage,
     query_coverage,
     valid_counts,
+    node_sizes,
+    k,
     min_node_coverage,
     min_query_coverage,
     max_selected_seeds,
     min_kmer_matches=2,
+    reference_node_size=150,
+    small_node_limit=155,
+    timings=False,
 ):
 
+    empty = np.empty(0, dtype=np.int64)
+
     if max_selected_seeds <= 0 or len(node_coverage) == 0:
-        return (
-            np.empty(0, dtype=np.int64),
-            np.empty(0, dtype=np.int64),
-        )
+        return empty, empty
 
     # --------------------------------------------------------
-    # Filter candidates.
+    # Initial candidate filtering
     # --------------------------------------------------------
-    # Minimum number of matching k-mers.
+
     count_mask = valid_counts >= min_kmer_matches
 
-    #Coverage filters.
-    coverage_mask = ((node_coverage >= min_node_coverage)
+    coverage_mask = (
+        (node_coverage >= min_node_coverage)
         | (query_coverage >= min_query_coverage)
     )
+
     candidate_mask = count_mask & coverage_mask
     candidate_indices = np.flatnonzero(candidate_mask)
 
+
     if len(candidate_indices) == 0:
-        return (
-            candidate_indices,
-            np.empty(0, dtype=np.int64),
-        )
+        return candidate_indices, empty
 
     candidate_node_coverage = node_coverage[candidate_indices]
     candidate_query_coverage = query_coverage[candidate_indices]
+    candidate_valid_counts = valid_counts[candidate_indices]
+    candidate_node_sizes = node_sizes[candidate_indices]
 
     # --------------------------------------------------------
-    # Priority 1: query coverage.
+    # Priority 1: Query coverage
     # --------------------------------------------------------
 
     priority_mask = candidate_query_coverage >= min_query_coverage
 
     priority_indices = np.flatnonzero(priority_mask)
 
-    #Sort by query coverage (only nodes with query coverage >= min_query_coverage) and then by node_coverage
     priority_order = np.lexsort((
         -candidate_node_coverage[priority_indices],
         -candidate_query_coverage[priority_indices],
@@ -122,27 +156,96 @@ def select_seed_indices(
     priority_indices = priority_indices[priority_order]
     priority_indices = priority_indices[:max_selected_seeds]
 
-    # --------------------------------------------------------
-    # Priority 2: node coverage.
-    # --------------------------------------------------------
-
     remaining_slots = max_selected_seeds - len(priority_indices)
+
 
     if remaining_slots <= 0:
         return candidate_indices, priority_indices
 
-    remaining_indices = np.flatnonzero(~priority_mask)
+    # --------------------------------------------------------
+    # Calculate minimum k-mer support for small nodes
+    # --------------------------------------------------------
 
-    #sort by node coverage and order by decreasing order
-    remaining_order = np.argsort(candidate_node_coverage[remaining_indices])[::-1]
+    max_reference_kmers = reference_node_size - k + 1
 
-    remaining_indices = remaining_indices[remaining_order]
-    remaining_indices = remaining_indices[:remaining_slots]
+    min_kmer_count = int(np.ceil(max_reference_kmers * min_node_coverage / 100.0))
+
+    # --------------------------------------------------------
+    # Priority 2: Medium/large nodes + reliable small nodes
+    # --------------------------------------------------------
+
+    remaining_mask = ~priority_mask
+
+    large_nodes_mask = candidate_node_sizes >= small_node_limit
+
+    reliable_small_nodes_mask = (
+        (candidate_node_sizes < small_node_limit)
+        & (candidate_valid_counts >= min_kmer_count)
+    )
+
+    second_priority_mask = (
+        remaining_mask
+        & (large_nodes_mask | reliable_small_nodes_mask)
+    )
+
+    second_priority_indices = np.flatnonzero(second_priority_mask)
+
+    # Sort all eligible nodes by node coverage
+    second_priority_order = np.argsort(
+        candidate_node_coverage[second_priority_indices]
+    )[::-1]
+
+    second_priority_indices = second_priority_indices[
+        second_priority_order
+    ]
+
+    selected_second = second_priority_indices[:remaining_slots]
+
+    remaining_slots -= len(selected_second)
+
+
+    # --------------------------------------------------------
+    # Priority 3: Remaining small nodes
+    # --------------------------------------------------------
+
+    selected_third = empty
+
+    if remaining_slots > 0:
+
+        remaining_small_mask = (
+            remaining_mask
+            & ~second_priority_mask
+        )
+
+        remaining_small_indices = np.flatnonzero(remaining_small_mask)
+
+        remaining_small_order = np.argsort(
+            candidate_node_coverage[remaining_small_indices]
+        )[::-1]
+
+        remaining_small_indices = remaining_small_indices[remaining_small_order]
+
+        selected_third = remaining_small_indices[:remaining_slots]
+
+
+    # --------------------------------------------------------
+    # Final selection
+    # --------------------------------------------------------
 
     selected_indices = np.concatenate((
         priority_indices,
-        remaining_indices,
+        selected_second,
+        selected_third,
     ))
+
+    if timings:
+        print("\n------------------------------------")
+        print(f"STEP 1 selected:           {len(priority_indices):,}")
+        print(f"STEP 2 selected:           {len(selected_second):,}")
+        print(f"STEP 3 selected:           {len(selected_third):,}")
+        print("------------------------------------")
+        print(f"FINAL SELECTION:           {len(selected_indices):,}/{max_selected_seeds:,}")
+        print("====================================\n")
 
     return candidate_indices, selected_indices
 
@@ -216,7 +319,7 @@ def get_seeds(
     k: int,
     canonical: bool = True,
     min_node_coverage: float = 20,
-    min_query_coverage: float = 20,
+    min_query_coverage: float = 10,
     min_node_size: int = None,
     max_selected_seeds: int = 10000,
     max_kmer_distance: int = 20,
@@ -346,9 +449,12 @@ def get_seeds(
         node_coverage=node_coverage,
         query_coverage=query_coverage,
         valid_counts=valid_counts,
+        node_sizes=valid_sizes,
+        k=k,
         min_node_coverage=min_node_coverage,
         min_query_coverage=min_query_coverage,
         max_selected_seeds=max_selected_seeds,
+        timings=timings,
     )
 
     t_filtering = time.perf_counter() - t0
@@ -665,7 +771,6 @@ Returns
     list[set]: Merged clusters, with each cluster containing the
         union of occurrence IDs from all merged clusters.
 """
-
 def merge_clusters_by_overlap(genome_clusters, min_overlap=0.10):
 
     n_clusters = len(genome_clusters)
@@ -1443,6 +1548,7 @@ def cluster_selected_seeds(
             ]
 
             total_size = max(genome_sizes) if genome_sizes else 0
+            min_size = min(genome_sizes) if genome_sizes else 0
 
             # ------------------------------------------------
             # Calculate region k-mer metrics.
@@ -1530,6 +1636,7 @@ def cluster_selected_seeds(
                 "n_nodes": len(cluster_ids),
 
                 "total_size": int(total_size),
+                "min_size": int(min_size),
                 "score": float(region_score),
                 "sum_score": float(region_sum_score),
                 "genome_positions": genome_positions,
@@ -1726,7 +1833,8 @@ def find_regions(
     seq: str,
     k: int = 13,
     canonical: bool = True,
-    min_coverage: float = 20,
+    min_node_coverage: float = 20,
+    min_query_coverage: float = 20,
     min_node_size: int = None,
     max_selected_seeds: int = 10000,
     max_distance: int = None,
@@ -1748,8 +1856,8 @@ def find_regions(
         seq=seq,
         k=k,
         canonical=canonical,
-        min_node_coverage=min_coverage,
-        min_query_coverage=min_coverage,
+        min_node_coverage=min_node_coverage,
+        min_query_coverage=min_query_coverage,
         min_node_size=min_node_size,
         max_selected_seeds=max_selected_seeds,
         max_kmer_distance=max_kmer_distance,
