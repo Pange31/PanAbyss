@@ -47,7 +47,7 @@ from sqlite_management_requests import *
 
 MAX_KMER_SIZE = 15
 MAX_POSTINGS = 1000
-DEFAULT_KMER_SIZE = 13
+DEFAULT_KMER_SIZE = 15
 
 DEFAULT_INDEX_PATH = "data/indexes"
 INDEX_CATALOG_FILENAME = "kmer.indexes.json"
@@ -81,6 +81,7 @@ def register_kmer_index(
         output_dir,
         k: int,
         canonical: bool,
+        index_type: "kmer",
         filenames
 ):
     output_dir = Path(output_dir)
@@ -97,6 +98,8 @@ def register_kmer_index(
             get_current_version(),
         "kmer_size":
             k,
+        "type":
+            index_type,
         "canonical":
             bool(canonical),
         **filenames,
