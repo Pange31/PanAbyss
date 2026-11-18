@@ -102,6 +102,8 @@ def register_kmer_index(
             index_type,
         "canonical":
             bool(canonical),
+        "default":
+            True,
         **filenames,
     }
 

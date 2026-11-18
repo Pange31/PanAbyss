@@ -479,60 +479,151 @@ def layout():
             children=html.Div(id="index_stats-message")
         ),
         html.Br(),
-        html.Label("Create index for mapping functionalities.",
+        html.Label("Index for mapping functionalities.",
                    style={'display': 'block', 'marginBottom': '8px'}),
 
         html.Div(
             [
-                html.Button(
-                    "Create mapping indexes",
-                    id="btn-create-mapping-indexes",
-                    disabled=False,
-                    style={"display": "none"} if indexes_exist else {}
-                ),
-
-                html.Button(
-                    "Cancel",
-                    id="btn-cancel-mapping-indexes",
-                    n_clicks=0,
-                    disabled=True,
-                    style={"display": "none", "marginLeft": "10px"}
-                ),
-
-                html.Button(
-                    "Confirm deletion",
-                    id="btn-confirm-delete-mapping-indexes",
-                    n_clicks=0,
-                    style={"display": "none", "marginLeft": "10px"}
-                ),
-
-                html.Button(
-                    "Cancel",
-                    id="btn-cancel-delete-mapping-indexes",
-                    n_clicks=0,
-                    style={"display": "none", "marginLeft": "10px"}
-                ),
-
-                html.Button(
-                    "Delete mapping indexes",
-                    id="btn-delete-mapping-indexes",
-                    n_clicks=0,
-                    style={} if indexes_exist else {"display": "none"}
-                ),
-
-                dcc.Store(
-                    id="db-management-create-mapping-indexes-trigger"
-                ),
-
-                dcc.Loading(
-                    id="db-create-mapping-indexes-spinner",
-                    children=html.Div(),
-                    style={"display": "none"}
-                ),
-
                 html.Div(
-                    id="mapping-indexes-message"
-                )
+                    [
+                        # --------------------------------------------------
+                        # Mapping index
+                        # --------------------------------------------------
+                        html.Div(
+                            [
+                                html.Label(
+                                    "Mapping index",
+                                    style={
+                                        "marginBottom": "8px",
+                                        "display": "block"
+                                    }
+                                ),
+
+                                dcc.Dropdown(
+                                    id="kmer-size-index-to-use",
+                                    options=[],
+                                    value=None,
+                                    clearable=False,
+                                    searchable=False,
+                                    style={"width": "200px"}
+                                ),
+                            ],
+                            style={"marginBottom": "25px"}
+                        ),
+
+                        # --------------------------------------------------
+                        # Manage mapping index
+                        # --------------------------------------------------
+                        html.Div(
+                            [
+                                html.Label(
+                                    "Manage mapping index",
+                                    style={
+                                        "marginBottom": "8px",
+                                        "display": "block"
+                                    }
+                                ),
+
+                                html.Div(
+                                    [
+                                        dcc.Dropdown(
+                                            id="kmer-size-index-to-manage",
+                                            options=[
+                                                {
+                                                    "label": f"{k} - {'canonical' if canonical else 'non-canonical'}",
+                                                    "value": f"{k}:{str(canonical).lower()}"
+                                                }
+                                                for k in range(15, 9, -1)
+                                                for canonical in [True, False]
+                                            ],
+                                            value="15:true",
+                                            clearable=False,
+                                            searchable=False,
+                                            style={
+                                                "width": "200px",
+                                                "marginRight": "10px"
+                                            }
+                                        ),
+
+                                        html.Button(
+                                            "Create",
+                                            id="btn-create-mapping-indexes",
+                                            n_clicks=0
+                                        ),
+
+                                        html.Button(
+                                            "Delete",
+                                            id="btn-delete-mapping-indexes",
+                                            n_clicks=0,
+                                            style={
+                                                "display": "none",
+                                                "marginLeft": "10px"
+                                            }
+                                        ),
+
+                                        html.Button(
+                                            "Confirm deletion",
+                                            id="btn-confirm-delete-mapping-indexes",
+                                            n_clicks=0,
+                                            style={
+                                                "display": "none",
+                                                "marginLeft": "10px"
+                                            }
+                                        ),
+
+                                        html.Button(
+                                            "Cancel",
+                                            id="btn-cancel-delete-mapping-indexes",
+                                            n_clicks=0,
+                                            style={
+                                                "display": "none",
+                                                "marginLeft": "10px"
+                                            }
+                                        ),
+
+                                        html.Button(
+                                            "Cancel",
+                                            id="btn-cancel-mapping-indexes",
+                                            n_clicks=0,
+                                            disabled=True,
+                                            style={
+                                                "display": "none",
+                                                "marginLeft": "10px"
+                                            }
+                                        ),
+                                    ],
+                                    style={
+                                        "display": "flex",
+                                        "alignItems": "center"
+                                    }
+                                )
+                            ],
+                            style={"marginBottom": "20px"}
+                        ),
+
+                        # Store for triggering index creation
+                        dcc.Store(
+                            id="db-management-create-mapping-indexes-trigger"
+                        ),
+                        dcc.Store(
+                            id="mapping-indexes-refresh",
+                            data=0
+                        ),
+
+                        # Loading spinner
+                        dcc.Loading(
+                            id="db-create-mapping-indexes-spinner",
+                            children=html.Div(),
+                            style={"display": "none"}
+                        ),
+
+                        # Status message
+                        html.Div(
+                            id="mapping-indexes-message",
+                            style={"marginTop": "15px"}
+                        )
+                    ]
+                ),
             ]
         ),
         html.Br(),

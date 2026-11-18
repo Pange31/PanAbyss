@@ -46,7 +46,8 @@ ANNOTATIONS_FOLDER = os.path.join(PROJECT_ROOT, "data", "annotations")
 INSTALL_CONF_FILE = os.path.join(PROJECT_ROOT, "install", "data")
 DUMP_FILE = os.path.join(PROJECT_ROOT, "data", "import", "neo4j.dump")
 DOCKER_COMPOSE_CONF_PATH = os.path.join(PROJECT_ROOT,"docker_management", "docker-compose.yml")
-
+MAPPING_INDEX_CONFIG = os.path.join(PROJECT_ROOT,"data", "indexes", "kmer.indexes.json")
+MAPPING_INDEX_DIRECTORY = os.path.join(PROJECT_ROOT,"data", "indexes")
 
 def get_container_name_no_prefix(container_name):
     return re.sub(r'^DB_.[^_]+_', '',container_name)
@@ -1059,32 +1060,355 @@ def update_page(pathname, data, container_input, checkbox_values, annotation_che
 
 
 #Mapping indexes creation callbacks
+def get_all_mapping_indexes(config=None):
+
+    if config is None:
+        config = load_mapping_index_config()
+
+    return config.get("indexes", [])
+
+
+def get_mapping_index(kmer_size, canonical, config=None):
+
+    if config is None:
+        config = load_mapping_index_config()
+
+    for index in config.get("indexes", []):
+
+        if (
+            int(index.get("kmer_size")) == int(kmer_size)
+            and index.get("canonical") is canonical
+        ):
+            return index
+
+    return None
+
+
+
+def load_mapping_index_config():
+    with open(MAPPING_INDEX_CONFIG, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_mapping_index_config(config):
+    with open(MAPPING_INDEX_CONFIG, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=4, ensure_ascii=False)
+
+
+def get_noncanonical_index(kmer_size, config=None):
+    """Return the non-canonical index for a given k-mer size."""
+
+    if config is None:
+        config = load_mapping_index_config()
+
+    for index in config.get("indexes", []):
+
+        if (
+            int(index.get("kmer_size")) == int(kmer_size)
+            and index.get("canonical") is False
+        ):
+            return index
+
+    return None
+
+
+def set_default_mapping_index(kmer_size, canonical):
+
+    config = load_mapping_index_config()
+
+    selected_index = get_mapping_index(
+        kmer_size,
+        canonical,
+        config
+    )
+
+    if selected_index is None:
+        raise ValueError(
+            f"Mapping index not found: "
+            f"kmer_size={kmer_size}, canonical={canonical}"
+        )
+
+    # Check whether the selected index is already the default
+    if selected_index.get("default") is True:
+        return False
+
+    # Remove default from all indexes
+    for index in config.get("indexes", []):
+        index.pop("default", None)
+
+    # Set the selected index as default
+    selected_index["default"] = True
+
+    save_mapping_index_config(config)
+
+    return True
+
+
+def delete_mapping_index_files(kmer_size, canonical):
+
+    """
+    Delete all files referenced by the selected mapping index.
+    """
+
+    config = load_mapping_index_config()
+
+    index_to_delete = get_mapping_index(
+        kmer_size,
+        canonical,
+        config
+    )
+
+    if index_to_delete is None:
+        raise ValueError(
+            f"No mapping index found for "
+            f"k-mer size {kmer_size}, canonical={canonical}."
+        )
+
+    # Do not delete the default index
+    if index_to_delete.get("default") is True:
+        raise ValueError(
+            "Cannot delete the default mapping index. "
+            "Please select another mapping index first."
+        )
+
+    deleted_count = 0
+
+    # Delete all files referenced in the JSON entry
+    for key, filename in index_to_delete.items():
+
+        if not key.endswith("_filename") or not filename:
+            continue
+
+        file_path = (MAPPING_INDEX_DIRECTORY / filename).resolve()
+
+        # Prevent deletion outside the index directory
+        if file_path.parent != MAPPING_INDEX_DIRECTORY.resolve():
+            raise ValueError(f"Invalid index file path: {filename}")
+
+        if file_path.is_file():
+            file_path.unlink()
+            deleted_count += 1
+
+    # Remove the corresponding JSON entry
+    config["indexes"].remove(index_to_delete)
+
+    save_mapping_index_config(config)
+
+    return deleted_count
+
+
+
+# --------------------------------------------------
+# Mapping index selection
+# --------------------------------------------------
+
+# --------------------------------------------------
+# Mapping index selection
+# --------------------------------------------------
+
+@app.callback(
+    Output("kmer-size-index-to-use", "options"),
+    Output("kmer-size-index-to-use", "value"),
+
+    Input("mapping-indexes-refresh", "data"),
+
+    State("kmer-size-index-to-use", "value"),
+
+    prevent_initial_call=False
+)
+@require_authorization
+def update_mapping_index_selection(refresh, current_value):
+
+    indexes = get_all_mapping_indexes()
+
+    options = [
+        {
+            "label": (
+                f"{index['kmer_size']} - "
+                f"canonical {index['canonical']}"
+            ),
+            "value": (
+                f"{index['kmer_size']}:"
+                f"{str(index['canonical']).lower()}"
+            )
+        }
+        for index in sorted(
+            indexes,
+            key=lambda x: (
+                x["kmer_size"],
+                x["canonical"]
+            ),
+            reverse=True
+        )
+    ]
+
+    available_values = [
+        option["value"] for option in options
+    ]
+
+    if current_value in available_values:
+        selected_value = current_value
+
+    else:
+
+        default_index = next(
+            (
+                index
+                for index in indexes
+                if index.get("default") is True
+            ),
+            None
+        )
+
+        if default_index is not None:
+            selected_value = (
+                f"{default_index['kmer_size']}:"
+                f"{str(default_index['canonical']).lower()}"
+            )
+        else:
+            selected_value = None
+
+    return options, selected_value
+
+# --------------------------------------------------
+# Update default mapping index
+# --------------------------------------------------
+
+# --------------------------------------------------
+# Update default mapping index
+# --------------------------------------------------
+
+@app.callback(
+    Output("mapping-indexes-message", "children", allow_duplicate=True),
+
+    Input("kmer-size-index-to-use", "value"),
+
+    prevent_initial_call=True
+)
+@require_authorization
+def change_default_mapping_index(selected_value):
+
+    # Only react to an actual dropdown change
+    if ctx.triggered_id != "kmer-size-index-to-use":
+        raise exceptions.PreventUpdate
+
+    if selected_value is None:
+        raise exceptions.PreventUpdate
+
+    try:
+
+        kmer_size, canonical = selected_value.split(":")
+
+        kmer_size = int(kmer_size)
+        canonical = canonical == "true"
+
+        changed = set_default_mapping_index(
+            kmer_size,
+            canonical
+        )
+
+        if not changed:
+            raise exceptions.PreventUpdate
+
+        logger.info(
+            f"Default mapping index changed: "
+            f"kmer_size={kmer_size}, canonical={canonical}"
+        )
+
+        return (
+            f"✅ Mapping index {kmer_size} "
+            f"(canonical={canonical}) is now the default."
+        )
+
+    except exceptions.PreventUpdate:
+        raise
+
+    except Exception as e:
+
+        logger.exception(
+            "Unable to change default mapping index."
+        )
+
+        return f"❌ Unable to change default mapping index: {str(e)}"
+
+
+# --------------------------------------------------
+# Create / Delete button visibility
+# --------------------------------------------------
+
+@app.callback(
+    Output("btn-create-mapping-indexes", "style"),
+    Output("btn-delete-mapping-indexes", "style"),
+
+    Input("kmer-size-index-to-manage", "value"),
+    Input("mapping-indexes-refresh", "data"),
+
+    prevent_initial_call=False
+)
+@require_authorization
+def update_mapping_index_management_buttons(selected_value, refresh):
+
+    if selected_value is None:
+        return {"display": "none"}, {"display": "none"}
+
+    kmer_size, canonical = selected_value.split(":")
+
+    kmer_size = int(kmer_size)
+    canonical = canonical == "true"
+
+    index_exists = (
+        get_mapping_index(kmer_size, canonical) is not None
+    )
+
+    if index_exists:
+        return (
+            {"display": "none"},
+            {}
+        )
+
+    return (
+        {},
+        {"display": "none"}
+    )
+
+
+# --------------------------------------------------
+# Mapping indexes creation - start
+# --------------------------------------------------
+
 @app.callback(
     Output("db-management-create-mapping-indexes-trigger", "data"),
     Output("btn-cancel-mapping-indexes", "disabled"),
     Output("btn-create-mapping-indexes", "disabled"),
     Output("db-create-mapping-indexes-spinner", "style"),
-    Output("mapping-indexes-message", "children"),
-    Output("btn-delete-mapping-indexes", "style"),
+    Output("mapping-indexes-message", "children", allow_duplicate=True),
     Output("btn-cancel-mapping-indexes", "style"),
 
     Input("btn-create-mapping-indexes", "n_clicks"),
 
+    State("kmer-size-index-to-manage", "value"),
+
     prevent_initial_call=True
 )
 @require_authorization
-def start_mapping_indexes_creation(n_clicks):
+def start_mapping_indexes_creation(n_clicks, kmer_size):
 
-    if not n_clicks:
+    if not n_clicks or kmer_size is None:
         raise exceptions.PreventUpdate
 
-    if mapping_index_files_exist() or has_active_index_job():
+    if (
+        get_noncanonical_index(kmer_size) is not None
+        or has_active_index_job()
+    ):
         raise exceptions.PreventUpdate
 
-    job_id = create_index_job()
+    # Pass the selected k-mer size to the job
+    job_id = create_index_job(kmer_size=kmer_size)
 
     trigger_data = {
-        "job_id": job_id
+        "job_id": job_id,
+        "kmer_size": kmer_size,
+        "canonical": False
     }
 
     return (
@@ -1096,67 +1420,98 @@ def start_mapping_indexes_creation(n_clicks):
             "marginTop": "20px",
             "marginBottom": "20px"
         },
-        "⏳ Mapping indexes creation in progress...",
-        {"display": "none"},
+        f"⏳ Mapping index creation in progress "
+        f"(k-mer size: {kmer_size})...",
         {"marginLeft": "10px"}
     )
+
+# --------------------------------------------------
+# Mapping indexes creation - execution
+# --------------------------------------------------
 
 @app.callback(
     Output("mapping-indexes-message", "children", allow_duplicate=True),
     Output("btn-cancel-mapping-indexes", "disabled", allow_duplicate=True),
     Output("btn-create-mapping-indexes", "disabled", allow_duplicate=True),
     Output("db-create-mapping-indexes-spinner", "style", allow_duplicate=True),
-    Output("btn-create-mapping-indexes", "style", allow_duplicate=True),
     Output("btn-cancel-mapping-indexes", "style", allow_duplicate=True),
-    Output("btn-delete-mapping-indexes", "style", allow_duplicate=True),
+    Output("mapping-indexes-refresh", "data"),
 
     Input("db-management-create-mapping-indexes-trigger", "data"),
+
+    State("mapping-indexes-refresh", "data"),
 
     background=True,
     prevent_initial_call=True,
     suppress_callback_exceptions=True
 )
 @require_authorization
-def create_mapping_indexes(trigger_data):
+def create_mapping_indexes(trigger_data, refresh):
 
     if not trigger_data:
         raise exceptions.PreventUpdate
 
     job_id = trigger_data.get("job_id")
+    kmer_size = trigger_data.get("kmer_size")
 
-    if not job_id:
+    if not job_id or kmer_size is None:
         raise exceptions.PreventUpdate
 
     try:
-        build_chunked_direct_index(job_id=job_id)
+
+        # Build the index for the selected k-mer size
+        build_chunked_direct_index(
+            job_id=job_id,
+            kmer_size=kmer_size,
+            canonical=False
+        )
+
         update_index_job_status(job_id, "completed")
-        message = "✅ Mapping indexes successfully created."
+
+        message = (
+            f"✅ Mapping index (k-mer size {kmer_size}) "
+            "successfully created."
+        )
+
+        # Refresh dropdowns and button visibility
+        refresh = (refresh or 0) + 1
 
     except InterruptedError:
+
         update_index_job_status(job_id, "cancelled")
-        message = "⚠️ Mapping indexes creation cancelled."
+
+        message = "⚠️ Mapping index creation cancelled."
 
     except Exception as e:
-        logger.exception("Mapping indexes creation failed.")
-        update_index_job_status(job_id, "error")
-        message = f"❌ Mapping indexes creation failed: {str(e)}"
 
-    indexes_exist = mapping_index_files_exist()
+        logger.exception("Mapping index creation failed.")
+
+        update_index_job_status(job_id, "error")
+
+        message = (
+            f"❌ Mapping index creation failed: {str(e)}"
+        )
 
     return (
         message,
         True,
-        indexes_exist,
+        False,
         {"display": "none"},
-        {"display": "none"} if indexes_exist else {},
         {"display": "none"},
-        {} if indexes_exist else {"display": "none"}
+        refresh or 0
     )
 
+# --------------------------------------------------
+# Mapping indexes creation - cancellation
+# --------------------------------------------------
+
 @app.callback(
-    Output("mapping-indexes-message", "children",allow_duplicate=True),
+    Output("mapping-indexes-message", "children", allow_duplicate=True),
+
     Input("btn-cancel-mapping-indexes", "n_clicks"),
+
     State("db-management-create-mapping-indexes-trigger", "data"),
+
     prevent_initial_call=True
 )
 @require_authorization
@@ -1164,7 +1519,7 @@ def cancel_mapping_indexes_creation(n_clicks, trigger_data):
 
     if not n_clicks or not trigger_data:
         raise exceptions.PreventUpdate
-    print("CANCEL MAPPING INDEXES")
+
     job_id = trigger_data.get("job_id")
 
     if not job_id:
@@ -1172,35 +1527,54 @@ def cancel_mapping_indexes_creation(n_clicks, trigger_data):
 
     request_index_cancellation(job_id)
 
-    return "⏳ Cancellation requested. Waiting for current operation to finish..."
+    return (
+        "⏳ Cancellation requested. "
+        "Waiting for current operation to finish..."
+    )
+
+# --------------------------------------------------
+# Mapping indexes deletion - ask confirmation
+# --------------------------------------------------
 
 @app.callback(
     Output("mapping-indexes-message", "children", allow_duplicate=True),
     Output("btn-delete-mapping-indexes", "style", allow_duplicate=True),
     Output("btn-confirm-delete-mapping-indexes", "style", allow_duplicate=True),
     Output("btn-cancel-delete-mapping-indexes", "style", allow_duplicate=True),
+
     Input("btn-delete-mapping-indexes", "n_clicks"),
+
+    State("kmer-size-index-to-manage", "value"),
+
     prevent_initial_call=True
 )
 @require_authorization
-def ask_delete_mapping_indexes(n_clicks):
+def ask_delete_mapping_indexes(n_clicks, selected_value):
 
-    if not n_clicks:
+    if not n_clicks or selected_value is None:
         raise exceptions.PreventUpdate
-
+    kmer_size, canonical = selected_value.split(":")
+    canonical = canonical == "true"
     return (
-        "⚠️ Are you sure you want to delete all mapping index files?",
+        f"⚠️ Are you sure you want to delete the mapping index "
+        f"for k-mer size {kmer_size} (canonical={canonical})?",
         {"display": "none"},
-        {},
-        {}
+        {"marginLeft": "10px"},
+        {"marginLeft": "10px"}
     )
+
+# --------------------------------------------------
+# Mapping indexes deletion - cancel
+# --------------------------------------------------
 
 @app.callback(
     Output("mapping-indexes-message", "children", allow_duplicate=True),
     Output("btn-delete-mapping-indexes", "style", allow_duplicate=True),
     Output("btn-confirm-delete-mapping-indexes", "style", allow_duplicate=True),
     Output("btn-cancel-delete-mapping-indexes", "style", allow_duplicate=True),
+
     Input("btn-cancel-delete-mapping-indexes", "n_clicks"),
+
     prevent_initial_call=True
 )
 @require_authorization
@@ -1216,56 +1590,65 @@ def cancel_delete_mapping_indexes(n_clicks):
         {"display": "none"}
     )
 
+
+# --------------------------------------------------
+# Mapping indexes deletion - confirmation
+# --------------------------------------------------
+
 @app.callback(
     Output("mapping-indexes-message", "children", allow_duplicate=True),
-    Output("btn-create-mapping-indexes", "style", allow_duplicate=True),
-    Output("btn-cancel-mapping-indexes", "style", allow_duplicate=True),
-    Output("btn-delete-mapping-indexes", "style", allow_duplicate=True),
-    Output("btn-create-mapping-indexes", "disabled", allow_duplicate=True),
-    Output("btn-cancel-mapping-indexes", "disabled", allow_duplicate=True),
     Output("btn-confirm-delete-mapping-indexes", "style", allow_duplicate=True),
     Output("btn-cancel-delete-mapping-indexes", "style", allow_duplicate=True),
+    Output("mapping-indexes-refresh", "data", allow_duplicate=True),
 
     Input("btn-confirm-delete-mapping-indexes", "n_clicks"),
+
+    State("kmer-size-index-to-manage", "value"),
+    State("mapping-indexes-refresh", "data"),
 
     prevent_initial_call=True
 )
 @require_authorization
-def delete_mapping_indexes(n_clicks):
+def delete_mapping_indexes(n_clicks, selected_value, refresh):
 
-    if not n_clicks:
+    if not n_clicks or selected_value is None:
         raise exceptions.PreventUpdate
 
+    kmer_size, canonical = selected_value.split(":")
+
+    kmer_size = int(kmer_size)
+    canonical = canonical == "true"
+
     try:
-        deleted_count = delete_mapping_index_files()
+
+        deleted_count = delete_mapping_index_files(
+            kmer_size,
+            canonical
+        )
 
         logger.info(
-            f"Mapping indexes deletion completed: {deleted_count} files."
+            f"Mapping index deletion completed: "
+            f"kmer_size={kmer_size}, "
+            f"canonical={canonical}, "
+            f"{deleted_count} files deleted."
         )
 
         return (
-            f"✅ {deleted_count} mapping index file(s) successfully deleted.",
-            {},
+            f"✅ Mapping index (k-mer size {kmer_size}, "
+            f"canonical={canonical}) successfully deleted. "
+            f"{deleted_count} file(s) removed.",
             {"display": "none"},
             {"display": "none"},
-            False,
-            True,
-            {"display": "none"},
-            {"display": "none"}
+            (refresh or 0) + 1
         )
 
     except Exception as e:
-        logger.exception("Mapping indexes deletion failed.")
 
-        indexes_exist = mapping_index_files_exist()
+        logger.exception("Mapping index deletion failed.")
 
         return (
-            f"❌ Unable to delete mapping indexes: {str(e)}",
-            {"display": "none"} if indexes_exist else {},
+            f"❌ Unable to delete mapping index: {str(e)}",
             {"display": "none"},
-            {} if indexes_exist else {"display": "none"},
-            indexes_exist,
-            True,
             {"display": "none"},
-            {"display": "none"}
+            refresh or 0
         )
