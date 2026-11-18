@@ -19,6 +19,9 @@ from database.services.mapping.mapping import find_regions
 
 logger = logging.getLogger("panabyss_logger")
 
+available_genes = None
+
+
 
 """
 Test the synteny calculation between two DNA sequences
@@ -160,6 +163,7 @@ This function generate classical cases to test synteny:
         query = k1 + k2 + k3 + k4 + k5 + k6 + k7 + k8 + k9 + k10 + k11 + k12 + k13 + k14 + k15
         node =  k14 + k15 + ka + k2 + k3 + k4 + kb + k1 
         with ka-b sequences of size > 20 bp
+    - test = "genes" => takes the gene names into query and node and finf it into available_genes global variable
 """
 def test_synteny(test="manual", query=None, node=None):
 
@@ -296,18 +300,25 @@ def test_synteny(test="manual", query=None, node=None):
                 )
 
             node_anchor_sequences = anchors
+        case "genes":
+            query, query_metadata = get_gene_data(query)
+            node, node_metadata = get_gene_data(node)
 
+            print(f"Query metadata: {query_metadata}")
+            print(f"Node metadata: {node_metadata}")
+
+            # Use the query sequence as the source of anchor sequences.
+            node_anchor_sequences = [query[i:i + 13]for i in range(0, len(query) - 13 + 1, 13)]
+
+            # Use the same anchors to search in the query.
+            anchors = node_anchor_sequences.copy()
         case _:
             raise ValueError(f"Unknown test case: {test}")
 
     # Calculate anchor positions in both sequences.
-    query_positions = [
-        query.find(anchor) for anchor in anchors
-    ]
+    query_positions = [query.find(anchor) for anchor in anchors]
 
-    node_positions = [
-        node.find(anchor) for anchor in node_anchor_sequences
-    ]
+    node_positions = [node.find(anchor) for anchor in node_anchor_sequences]
 
     # Display distances between consecutive anchors.
     print("\nDistances between anchors:")
@@ -356,8 +367,9 @@ def test_synteny(test="manual", query=None, node=None):
 
     print("\n========== SYNTENY TEST ==========")
     print("Test:", test)
-    print("Query:", query)
-    print("Node: ", node)
+    if test != "genes":
+        print("Query:", query)
+        print("Node: ", node)
     print("Query length:", len(query))
     print("Node length:", len(node))
     print("Synteny:", seed.synteny)
@@ -490,28 +502,16 @@ def mutate_dna(sequence, mutation_rate, seed=None):
     return sequence
 
 
-
 """
 This function will charge a selected csv file containing entries like : gene_name;chromosome;start;stop;sequence
-Then it will search for gene into the gene names of this csv file
-Then if mutation_rate is not None it will mutate the sequence with the desired mutation rate
-Then it will search this sequence into the pangenome graph
+It stores data into the available_genes global variable 
 """
-def search_gene(gene, mutation_rate=None):
+def init_gene():
+
+    global available_genes
 
     # --------------------------------------------------
-    # 1. Validate mutation rate
-    # --------------------------------------------------
-
-    if mutation_rate is not None:
-        if not isinstance(mutation_rate, (int, float)):
-            raise TypeError("mutation_rate must be a number or None.")
-
-        if not 0 <= mutation_rate <= 100:
-            raise ValueError("mutation_rate must be between 0 and 100.")
-
-    # --------------------------------------------------
-    # 2. Select CSV file
+    # 1. Select CSV file
     # --------------------------------------------------
 
     root = tk.Tk()
@@ -532,12 +532,10 @@ def search_gene(gene, mutation_rate=None):
         raise FileNotFoundError("No CSV file was selected.")
 
     # --------------------------------------------------
-    # 3. Load available genes and search for the requested gene
+    # 2. Load available genes
     # --------------------------------------------------
 
     available_genes = []
-    query = None
-    gene_metadata = None
 
     csv.field_size_limit(10 ** 8)
 
@@ -595,31 +593,98 @@ def search_gene(gene, mutation_rate=None):
                 if stop_column else None
             )
 
+            sequence = (row.get(sequence_column) or "").strip()
+
             available_genes.append({
                 "gene": row_gene,
                 "chromosome": chromosome or None,
                 "start": start or None,
                 "stop": stop or None,
+                "sequence": sequence,
             })
 
-            if row_gene.lower() == gene.strip().lower():
-                query = (row.get(sequence_column) or "").strip()
+    logger.info(
+        "Loaded %d genes from %s",
+        len(available_genes),
+        filepath
+    )
 
-                gene_metadata = {
-                    "chromosome": chromosome or None,
-                    "start": start or None,
-                    "stop": stop or None,
-                }
+    print(f"\n{len(available_genes)} genes loaded successfully.")
+
+    return available_genes
+
+"""
+This function will get a gene into the available_genes global variable
+"""
+def get_gene_data(gene):
+
+    global available_genes
 
     # --------------------------------------------------
-    # 4. Check requested gene
+    # 1. Check initialization
     # --------------------------------------------------
 
-    if query is None:
-        raise ValueError(f"Gene '{gene}' was not found in the CSV file.")
+    if available_genes is None:
+        init_gene()
 
     # --------------------------------------------------
-    # 5. Apply mutations if requested
+    # 2. Search for requested gene
+    # --------------------------------------------------
+
+    gene_metadata = None
+    gene_sequence = None
+
+    for metadata in available_genes:
+
+        if metadata["gene"].lower() == gene.strip().lower():
+
+            gene_sequence = metadata["sequence"]
+
+            gene_metadata = {
+                "chromosome": metadata["chromosome"],
+                "start": metadata["start"],
+                "stop": metadata["stop"],
+            }
+
+    # --------------------------------------------------
+    # 3. Check requested gene
+    # --------------------------------------------------
+
+    if gene_metadata is None:
+        raise ValueError(
+            f"Gene '{gene}' was not found in the available genes."
+        )
+
+    return gene_sequence, gene_metadata
+
+"""
+Then it will search for gene into the gene names of this csv file
+Then if mutation_rate is not None it will mutate the sequence with the desired mutation rate
+Then it will search this sequence into the pangenome graph
+"""
+def search_gene(gene, mutation_rate=None):
+
+    global available_genes
+
+    # --------------------------------------------------
+    # 1. Validate mutation rate
+    # --------------------------------------------------
+
+    if mutation_rate is not None:
+        if not isinstance(mutation_rate, (int, float)):
+            raise TypeError("mutation_rate must be a number or None.")
+
+        if not 0 <= mutation_rate <= 100:
+            raise ValueError("mutation_rate must be between 0 and 100.")
+
+    # --------------------------------------------------
+    # 2. Get gene sequence and metadata
+    # --------------------------------------------------
+
+    query, gene_metadata = get_gene_data(gene)
+
+    # --------------------------------------------------
+    # 3. Apply mutations if requested
     # --------------------------------------------------
 
     if mutation_rate is not None:
@@ -633,13 +698,13 @@ def search_gene(gene, mutation_rate=None):
         mutate_sequence = query
 
     # --------------------------------------------------
-    # 6. Find regions
+    # 4. Find regions
     # --------------------------------------------------
 
     regions, selected_seeds, all_seeds = find_regions(mutate_sequence)
 
     # --------------------------------------------------
-    # 7. Display available genes
+    # 5. Display available genes
     # --------------------------------------------------
 
     print("\n========== AVAILABLE GENES ==========")
@@ -671,7 +736,7 @@ def search_gene(gene, mutation_rate=None):
     print("=====================================\n")
 
     # --------------------------------------------------
-    # 8. Display metadata for the requested gene
+    # 6. Display metadata for the requested gene
     # --------------------------------------------------
 
     print(f"Selected gene: {gene}")
@@ -686,3 +751,10 @@ def search_gene(gene, mutation_rate=None):
         print(f"Stop: {gene_metadata['stop']}")
 
     return regions, selected_seeds, all_seeds
+
+
+# --------------------------------------------------
+# Initialize gene database
+# --------------------------------------------------
+
+init_gene()
