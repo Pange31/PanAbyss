@@ -81,8 +81,8 @@ def register_kmer_index(
         output_dir,
         k: int,
         canonical: bool,
-        index_type: "kmer",
-        filenames
+        filenames,
+        index_type= "kmer"
 ):
     output_dir = Path(output_dir)
 
